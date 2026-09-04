@@ -9,6 +9,13 @@ Debe leerse antes de proponer, planificar o implementar cambios.
 No contiene el estado actual del proyecto ni tareas temporales. Para conocer el progreso real se debe consultar la documentación de estado, el caso de uso activo, OpenSpec, el código y los tests.
 
 ---
+## Estructura principal del repositorio
+
+La aplicación CASE principal utilizará dos carpetas explícitas en la raíz:
+
+```text
+frontend/
+backend/
 
 ## 2. Fuentes de verdad
 
