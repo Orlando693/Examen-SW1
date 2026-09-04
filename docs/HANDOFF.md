@@ -43,4 +43,4 @@ Ninguno.
 
 ## Siguiente acción exacta
 
-Preparar y aprobar el plan de CU-00. No crear manualmente `apps/web` ni `apps/api` antes del plan/OpenSpec.
+Preparar y aprobar el plan de CU-00. No crear manualmente frontend/ ni backend/ antes del plan/OpenSpec.
