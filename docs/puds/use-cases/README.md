@@ -69,8 +69,8 @@ Construir una base ejecutable y estabilizar la arquitectura esencial del editor 
 
 Incluye:
 - Git/GitHub, npm workspaces y estructura monorepo;
-- `apps/web` con Next.js App Router + TypeScript + Material UI;
-- `apps/api` con NestJS 11 + Fastify + TypeScript;
+- `frontend/` en la raíz con Next.js App Router + TypeScript + Material UI;
+- `backend/` en la raíz con NestJS 11 + Fastify + TypeScript;
 - scripts raíz;
 - Vitest, React Testing Library y pruebas base;
 - `.env.example`;
