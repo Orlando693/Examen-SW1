@@ -7,14 +7,13 @@ Este documento organiza la implementación del proyecto mediante el Proceso Unif
 La planificación contiene:
 
 - exactamente **4 ciclos**;
-- exactamente **20 casos de uso**;
-- numeración de `CU-00` a `CU-19`;
+- exactamente **12 casos de uso**;
+- numeración de `CU-00` a `CU-11`;
+- exactamente **3 casos de uso por ciclo**;
 - orden lineal de implementación;
 - incrementos utilizables al finalizar cada ciclo.
 
-Los casos de uso se implementan uno por uno.
-
-Cada CU puede dividirse internamente en un máximo de 3 incrementos si su tamaño lo requiere.
+Los casos de uso se implementan uno por uno. Cada CU puede dividirse internamente en un máximo de 3 incrementos cuando su tamaño lo requiera. Los incrementos son unidades técnicas internas y no crean casos de uso adicionales.
 
 ---
 
@@ -47,7 +46,7 @@ aceptación
     ↓
 archive
     ↓
-STATUS
+STATUS / HANDOFF cuando corresponda
     ↓
 commit
     ↓
@@ -62,248 +61,121 @@ Durante una iteración se mantiene el mismo número de CU y el mismo OpenSpec mi
 
 ## Objetivo del ciclo
 
-Construir una base ejecutable y estabilizar los conceptos fundamentales sobre los que dependerá todo el producto.
-
-Al terminar el ciclo debe existir:
-
-- repositorio reproducible;
-- frontend y backend conectados;
-- modelo UML canónico;
-- validación;
-- Command Bus;
-- Undo/Redo;
-- editor UML manual funcional.
-
-Este ciclo evita iniciar persistencia, colaboración, generación o IA antes de estabilizar el núcleo.
+Construir una base ejecutable y estabilizar la arquitectura esencial del editor UML antes de introducir persistencia, colaboración, generación o IA.
 
 ## CU-00 — Base del proyecto
 
-**Objetivo:** crear la estructura inicial del repositorio y demostrar una comunicación mínima frontend → backend.
+**Objetivo:** crear el monorepo y demostrar comunicación frontend → backend.
 
 Incluye:
-- repositorio monorepo;
-- Git/GitHub;
-- workspaces;
-- documentación inicial;
-- OpenSpec;
-- `AGENTS.md`;
-- Next.js App Router + TypeScript;
-- Material UI;
-- NestJS 11;
-- Fastify;
+- Git/GitHub, npm workspaces y estructura monorepo;
+- `apps/web` con Next.js App Router + TypeScript + Material UI;
+- `apps/api` con NestJS 11 + Fastify + TypeScript;
 - scripts raíz;
-- lint/typecheck/build/tests iniciales;
-- variables de entorno;
+- Vitest, React Testing Library y pruebas base;
+- `.env.example`;
 - CORS;
-- endpoint health;
-- consulta health desde frontend.
+- endpoint `/health`;
+- frontend consultando el health del backend;
+- build/lint/typecheck/test verdes.
 
-**Resultado usable:** el proyecto puede clonarse, instalarse, iniciarse y mostrar desde el navegador que la API está disponible.
+**Resultado usable:** el proyecto puede clonarse, instalarse y levantarse mostrando desde el navegador que la API está disponible.
 
-## CU-01 — Modelo UML canónico y ProjectDocument
+## CU-01 — Núcleo UML canónico
 
-**Objetivo:** crear la fuente de verdad semántica del editor.
+**Objetivo:** construir la fuente de verdad, su validación y la única ruta de mutación.
+
+Puede dividirse en máximo 3 incrementos:
+1. `CanonicalUmlModel`, `ProjectDocument` y `DiagramLayout`.
+2. motor único de validación y diagnósticos estructurados.
+3. `UmlCommand`, Command Bus/Executor, Undo/Redo e historial configurable.
+
+Incluye el subconjunto UML definido en `product.md`: clases, atributos, operaciones cuando correspondan, enums, visibilidad, tipos, asociaciones, agregación, composición, generalización, multiplicidades, paquetes necesarios y metadatos de generación.
+
+**Resultado usable:** el dominio UML puede crearse, validarse, mutarse y revertirse sin depender del canvas.
+
+## CU-02 — Workspace y editor UML manual
+
+**Objetivo:** construir el primer editor visual funcional sobre el núcleo canónico.
 
 Incluye:
-- `CanonicalUmlModel`;
-- `ProjectDocument`;
+- layout general Material;
+- app bar, sidebar, breadcrumbs, inspector, toolbox y status bar;
+- React Flow como proyección, nunca como fuente de verdad;
+- nodos UML custom;
+- creación/edición/eliminación de clases, atributos y enums;
+- creación/edición de relaciones y multiplicidades;
+- zoom, pan, selección, movimiento y fit;
 - `DiagramLayout`;
-- UUID;
-- revisión;
-- timestamps;
-- clases;
-- atributos;
-- operaciones cuando correspondan;
-- enums;
-- tipos;
-- visibilidad;
-- asociaciones;
-- agregación;
-- composición;
-- generalización;
-- multiplicidades;
-- paquetes cuando sean necesarios;
-- metadatos de generación.
-
-**Resultado usable:** es posible crear y serializar un modelo UML completo sin depender de React Flow.
-
-## CU-02 — Validación UML
-
-**Objetivo:** crear un único motor de validación reutilizable.
-
-Incluye:
-- severity;
-- code;
-- mensaje;
-- path lógico;
-- referencia al elemento;
-- errores;
-- warnings;
-- reglas iniciales UML;
-- API reutilizable por otros módulos.
-
-**Resultado usable:** un `CanonicalUmlModel` puede validarse de forma determinista y producir diagnósticos estructurados.
-
-## CU-03 — Command Bus y Undo/Redo
-
-**Objetivo:** crear una única ruta de mutación del modelo UML.
-
-Incluye:
-- `UmlCommand`;
-- `UmlCommandBus`;
-- `UmlCommandExecutor`;
-- familias iniciales de comandos;
-- integración con validación;
-- historial configurable;
-- Undo;
-- Redo;
-- límite inicial de 100 operaciones.
-
-**Resultado usable:** el modelo puede modificarse mediante comandos tipados y revertir cambios.
-
-## CU-04 — Workspace y editor UML manual
-
-**Objetivo:** construir el primer editor UML usable.
-
-Incluye:
-- app bar;
-- sidebar;
-- breadcrumbs;
-- canvas;
-- inspector;
-- toolbox;
-- status bar;
-- React Flow;
-- nodos custom;
-- clases;
-- atributos;
-- enums;
-- relaciones UML;
-- multiplicidades;
-- selección;
-- zoom;
-- pan;
-- fit;
-- movimiento;
-- `DiagramLayout`;
-- ELK;
-- diagnósticos visibles;
-- navegación desde error;
+- ELK.js;
+- Undo/Redo en UI;
+- diagnósticos visibles y navegación a elementos;
 - responsive básico.
 
-**Resultado usable del Ciclo 1:** el usuario puede crear y editar manualmente un diagrama UML de clases en memoria, validarlo y utilizar Undo/Redo.
+**Resultado usable del Ciclo 1:** editor UML manual funcional en memoria, validado y command-driven.
 
 ---
 
-# CICLO 2 — ELABORACIÓN Y COLABORACIÓN
+# CICLO 2 — ELABORACIÓN, USUARIOS Y COLABORACIÓN
 
 ## Objetivo del ciclo
 
-Convertir el editor local en una aplicación real con usuarios, proyectos persistidos y colaboración multiusuario.
+Convertir el editor local en una aplicación multiusuario con proyectos persistidos y colaboración controlada.
 
-Al terminar el ciclo debe existir:
+## CU-03 — Persistencia y gestión de proyectos
 
-- PostgreSQL;
-- Prisma;
-- persistencia;
-- autenticación;
-- ownership;
-- administración de proyectos;
-- realtime;
-- presencia;
-- membresías;
-- invitaciones.
-
-## CU-05 — Persistencia de proyectos
-
-**Objetivo:** persistir `ProjectDocument` y recuperar el estado completo del editor.
+**Objetivo:** persistir el estado completo y ofrecer el flujo de gestión de proyectos.
 
 Incluye:
 - PostgreSQL;
 - Prisma;
 - migraciones;
-- persistencia de UML;
-- persistencia de layout;
-- metadata;
-- revisión optimista;
-- rechazo de escrituras stale;
-- round-trip de guardado/apertura.
+- persistencia de `ProjectDocument` y `DiagramLayout`;
+- revisión optimista y rechazo stale;
+- landing y listado de proyectos;
+- crear, abrir, guardar, renombrar y eliminar cuando corresponda;
+- estados loading/error/empty;
+- round-trip de guardado y reapertura.
 
-**Resultado usable:** un proyecto puede guardarse, cerrar la aplicación y abrirse nuevamente sin pérdida de información.
+**Resultado usable:** un proyecto puede crearse, persistirse, cerrarse y abrirse sin pérdida de información.
 
-## CU-06 — Autenticación y ownership
+## CU-04 — Autenticación, ownership e invitaciones
 
-**Objetivo:** agregar identidad y autorización sobre los proyectos.
+**Objetivo:** agregar identidad, autorización y acceso compartido controlado.
 
 Incluye:
-- registro;
-- login;
+- registro e inicio de sesión;
 - JWT Bearer;
 - credenciales seguras;
-- ownerId;
-- autorización;
-- consultas filtradas por usuario;
-- rutas protegidas.
-
-**Resultado usable:** cada usuario puede acceder únicamente a sus recursos autorizados.
-
-## CU-07 — Landing y gestión de proyectos
-
-**Objetivo:** completar el flujo principal desde entrada al producto hasta workspace.
-
-Incluye:
-- landing;
-- login/register UI;
-- listado de proyectos;
-- crear;
-- abrir;
-- renombrar cuando corresponda;
-- eliminar cuando corresponda;
-- estados loading/error/empty;
-- navegación al workspace;
-- responsive.
-
-**Resultado usable:** un usuario puede entrar al producto, autenticarse, gestionar proyectos y abrir el editor.
-
-## CU-08 — Colaboración realtime y presencia
-
-**Objetivo:** permitir edición simultánea reutilizando la misma semántica de comandos.
-
-Incluye:
-- Socket.IO;
-- `baseRevision`;
-- servidor autoritativo;
-- validación;
-- persistencia inmediata;
-- broadcast;
-- rechazo stale;
-- recuperación del documento autoritativo;
-- conexión/desconexión;
-- selección remota;
-- cursor;
-- elemento editado;
-- última actividad;
-- avatares;
-- estados online/offline.
-
-**Resultado usable:** dos clientes autorizados pueden editar el mismo proyecto y ver cambios/presencia.
-
-## CU-09 — Membresías e invitaciones
-
-**Objetivo:** controlar el acceso colaborativo a un proyecto.
-
-Incluye:
+- `ownerId`;
+- autorización por proyecto;
+- rutas protegidas;
 - `ProjectMembership`;
 - roles mínimos;
 - `ProjectInvitation`;
-- expiración;
-- token de invitación;
-- aceptación;
-- rechazo;
-- autorización de conexión realtime;
-- controles básicos desde UI.
+- expiración y token controlado;
+- aceptación/rechazo;
+- UI mínima de invitaciones.
 
-**Resultado usable del Ciclo 2:** un propietario puede invitar a otra persona y ambos pueden trabajar sobre un proyecto persistido de forma colaborativa.
+**Resultado usable:** usuarios autenticados acceden únicamente a proyectos autorizados y un propietario puede invitar a colaboradores.
+
+## CU-05 — Colaboración realtime y presencia
+
+**Objetivo:** permitir edición simultánea consistente entre miembros autorizados.
+
+Incluye:
+- Socket.IO;
+- servidor autoritativo;
+- operaciones basadas en `UmlCommand`;
+- `baseRevision` y nueva revisión tras aceptación;
+- persistencia inmediata;
+- broadcast;
+- rechazo de operaciones obsoletas;
+- recuperación del documento autoritativo;
+- sesión, selección, cursor, elemento editado y última actividad;
+- avatares y estado online/offline.
+
+**Resultado usable del Ciclo 2:** dos o más usuarios autorizados pueden trabajar sobre el mismo proyecto con sincronización y presencia.
 
 ---
 
@@ -311,330 +183,119 @@ Incluye:
 
 ## Objetivo del ciclo
 
-Transformar el modelo UML en aplicaciones ejecutables y agregar asistentes locales de texto.
+Transformar el modelo UML en una aplicación web funcional y añadir operaciones en lenguaje natural de forma segura.
 
-Al terminar el ciclo debe existir:
+## CU-06 — UML → modelo relacional y backend Spring generado
 
-- UML → RelationalModel;
-- backend Spring Boot generado;
-- pruebas automáticas del generador;
-- OpenAPI;
-- Postman;
-- Domain Manifest;
-- frontend generado;
-- asistente de texto seguro.
+**Objetivo:** transformar UML de forma determinista y generar un backend ejecutable.
 
-## CU-10 — UML → RelationalModel
-
-**Objetivo:** implementar una transformación determinista UML → modelo relacional.
+Puede dividirse en máximo 3 incrementos:
+1. `RelationalModel` y reglas UML → relacional.
+2. generador Handlebars para Java 21 + Spring Boot 4.x + Gradle + JPA/Hibernate.
+3. CRUD avanzado y harness de compilación/pruebas.
 
 Incluye:
-- clase → tabla;
-- atributo → columna;
-- identificador → PK;
-- FK;
-- unique;
-- indexes;
-- nullability;
-- enums;
-- 1:1;
-- 1:N;
-- N:M;
-- composición;
-- herencia;
-- diagnósticos para casos no soportados.
-
-**Resultado usable:** un modelo UML válido produce siempre el mismo modelo relacional.
-
-## CU-11 — Generador de backend Spring Boot
-
-**Objetivo:** generar un backend Java compilable mediante Handlebars.
-
-Incluye:
-- Java 21;
-- Spring Boot 4.x;
-- Gradle;
-- Spring Web MVC;
-- Spring Data JPA;
-- Hibernate;
-- PostgreSQL;
-- Jakarta Validation;
-- Jackson;
-- configuración;
-- entidades;
-- repositories;
-- services;
-- controllers.
-
-**Resultado usable:** un modelo representativo genera un backend Spring Boot que compila.
-
-## CU-12 — CRUD avanzado y verificación del generador
-
-**Objetivo:** completar capacidades de backend y crear una prueba reproducible contra regresiones.
-
-Incluye:
-- create;
-- read;
-- update;
-- delete;
-- list;
-- count;
-- pagination;
-- sorting;
-- filtering;
-- search;
+- tablas, columnas, PK, FK, unique, indexes;
+- 1:1, 1:N, N:M, composición, herencia, enums y nulabilidad;
+- create/read/update/delete/list/count;
+- pagination, sorting, filtering y search;
 - navegación de relaciones;
-- fixtures;
-- compilación Gradle;
-- pruebas API;
-- pruebas de relaciones;
-- matriz de metadatos.
+- compilación Gradle y pruebas del backend generado.
 
-**Resultado usable:** el backend generado compila y supera una suite automática de funcionamiento.
+**Resultado usable:** un UML válido genera un backend Spring Boot compilable y probado.
 
-## CU-13 — OpenAPI, Postman y Domain Manifest
+## CU-07 — Contratos, Domain Manifest y frontend web generado
 
-**Objetivo:** generar contratos y metadatos derivados de la aplicación.
+**Objetivo:** generar los contratos machine-readable y una aplicación web funcional.
 
-Incluye:
-- `springdoc-openapi` para backend generado;
-- OpenAPI;
-- Postman Collection;
-- Domain Manifest;
-- entidades;
-- atributos;
-- tipos;
-- relaciones;
-- aliases;
-- searchable;
-- sortable;
-- operaciones;
-- validaciones;
-- capacidades CRUD.
-
-Decisión de arquitectura:
-
-```text
-API principal NestJS
-    ↓
-@nestjs/swagger
-
-Backend generado Spring
-    ↓
-springdoc-openapi
-    ↓
-OpenAPI
-    ↓
-Postman + Domain Manifest
-```
-
-**Resultado usable:** la aplicación generada dispone de contratos machine-readable consistentes.
-
-## CU-14 — Frontend Next.js generado
-
-**Objetivo:** generar una interfaz web funcional para el backend generado.
+Puede dividirse en máximo 3 incrementos:
+1. OpenAPI del backend Spring mediante `springdoc-openapi` y Postman Collection derivada.
+2. Domain Manifest.
+3. frontend Next.js App Router + Material UI generado.
 
 Incluye:
-- Next.js App Router;
-- Material UI;
-- listados;
-- detalle;
-- create;
-- edit;
-- delete;
-- inferencia de controles;
-- búsqueda;
-- filtros;
-- paginación;
-- sorting;
+- CRUD visual;
+- inferencia de controles por tipo;
+- listados, detalle, formularios;
+- búsqueda, filtros, paginación y ordenamiento;
 - relaciones;
-- loading;
-- errors;
-- empty states;
+- estados loading/error/empty;
 - responsive.
 
-**Resultado usable:** la aplicación generada puede utilizar visualmente las capacidades CRUD del backend.
+**Resultado usable:** la aplicación generada dispone de backend, contratos y frontend web CRUD interoperables.
 
-## CU-15 — Asistentes de texto y benchmark LLM
+## CU-08 — Asistentes de texto y benchmark LLM
 
-**Objetivo:** agregar lenguaje natural seguro tanto a la aplicación generada como al editor UML.
+**Objetivo:** permitir operaciones mediante lenguaje natural sin permitir que la IA ejecute acciones arbitrarias.
 
-Máximo 3 incrementos:
-
-1. Lenguaje intermedio + validator + executor (`LIST`, `GET`, `SEARCH`, `CREATE`, `UPDATE`, `DELETE`, `COUNT`).
-2. Qwen + Domain Manifest para la aplicación generada.
+Puede dividirse en máximo 3 incrementos:
+1. `AssistantCommand`, validator, executor y lenguaje cerrado `LIST/GET/SEARCH/CREATE/UPDATE/DELETE/COUNT`.
+2. Qwen3 1.7B + Domain Manifest para la aplicación generada.
 3. Qwen + intención UML → `UmlCommand` para el editor CASE.
 
-Seguridad:
-- sin SQL generado;
-- sin código arbitrario;
-- sin URLs arbitrarias;
-- allow-list;
-- tipos validados;
-- campos validados;
-- relaciones validadas.
+Incluye:
+- node-llama-cpp + Transformers.js;
+- salida estructurada;
+- allow-lists;
+- validación de entidades, campos, tipos y relaciones;
+- preview/review/apply/cancel;
+- confirmación cuando corresponda;
+- benchmark documentado de precisión, seguridad, latencia, RAM/VRAM y configuraciones/prompts.
 
-Benchmark obligatorio:
-- porcentaje de comandos correctos;
-- validez estructurada;
-- falsos positivos;
-- acciones rechazadas correctamente;
-- latencia;
-- RAM;
-- VRAM;
-- tiempo de carga;
-- comparación de prompts/configuración cuando corresponda.
-
-**Resultado usable del Ciclo 3:** desde un modelo UML se puede generar una aplicación web completa, usar CRUD y ejecutar acciones mediante lenguaje natural validado.
+**Resultado usable del Ciclo 3:** una aplicación generada completa puede operarse visualmente y por lenguaje natural validado.
 
 ---
 
-# CICLO 4 — TRANSICIÓN, MULTIMODALIDAD Y CIERRE
+# CICLO 4 — TRANSICIÓN, MOBILE, INTEROPERABILIDAD Y DESPLIEGUE
 
 ## Objetivo del ciclo
 
-Completar las entradas/salidas restantes, demostrar operación offline y preparar el producto para su presentación final.
+Completar voz, mobile, interoperabilidad, visión, despliegue y condiciones reales de demostración.
 
-Al terminar el ciclo debe existir:
+## CU-09 — Voz y aplicación móvil Flutter generada
 
-- voz;
-- Android;
-- XMI;
-- imagen → UML;
-- operación offline/LAN;
-- flujo E2E final;
-- benchmarks;
-- documentación fiel a la implementación.
+**Objetivo:** reutilizar el pipeline de comandos mediante voz y generar un cliente móvil real en Flutter.
 
-## CU-16 — Voz mediante Vosk y benchmark STT
+Puede dividirse en máximo 3 incrementos:
+1. Vosk STT local + captura/revisión de transcript.
+2. benchmark STT: WER, command success rate, latencia, recursos y edge cases manuales.
+3. generador Flutter + Dart, consumo de la API REST Spring y build Android.
 
-**Objetivo:** convertir comandos breves de voz en las mismas acciones estructuradas ya soportadas por texto.
+La aplicación Flutter es independiente del frontend web Next.js. **No utilizar Capacitor**.
 
-Incluye:
-- Vosk;
-- modelo español local;
-- bindings Node.js;
-- captura de audio;
-- transcript;
-- revisión;
-- reutilización del pipeline de texto;
-- comandos de editor;
-- comandos de aplicación generada.
+**Resultado usable:** una app generada puede operarse por voz y dispone de un cliente Flutter compilable para Android.
 
-Benchmark obligatorio:
-- WER;
-- command success rate;
-- latencia;
-- RAM;
-- tiempo de carga;
-- ruido;
-- velocidad;
-- pronunciación;
-- micrófonos diferentes.
+## CU-10 — XMI e imagen → UML
 
-**Resultado usable:** texto y voz pueden ejecutar el mismo conjunto cerrado de capacidades sin Internet.
+**Objetivo:** completar las entradas externas hacia el modelo canónico.
 
-## CU-17 — Android mediante Capacitor
+Puede dividirse en máximo 3 incrementos:
+1. XMI 2.1 con `fast-xml-parser`, import/export y pruebas con Enterprise Architect.
+2. Sharp + Florence-2 + Transformers.js para imagen → representación UML estructurada.
+3. UX de revisión/corrección/aplicación y benchmark VLM.
 
-**Objetivo:** empaquetar el frontend generado como aplicación Android.
+La salida multimodal nunca se aplica directamente sin validación y ruta de comandos.
+
+**Resultado usable:** el sistema intercambia XMI y convierte imágenes en propuestas UML revisables.
+
+## CU-11 — AWS, offline/LAN, E2E y cierre
+
+**Objetivo:** demostrar el producto completo y cerrar la documentación académica.
 
 Incluye:
-- Capacitor;
-- proyecto Android;
-- configuración del backend;
-- LAN;
-- permisos;
-- micrófono;
-- build;
-- prueba en emulador o dispositivo.
-
-**Resultado usable:** una aplicación generada puede instalarse y utilizarse desde Android.
-
-## CU-18 — XMI e imagen → UML
-
-**Objetivo:** completar las entradas externas al modelo canónico.
-
-Máximo 3 incrementos:
-
-1. XMI 2.1 + `fast-xml-parser` + import/export + pruebas con Enterprise Architect.
-2. Sharp + Florence-2 + imagen → representación UML estructurada.
-3. UX de revisión + benchmark VLM + aplicación validada mediante Command Bus.
-
-Benchmark VLM:
-- precisión;
-- clases/atributos/relaciones detectadas;
-- falsos positivos;
-- latencia;
-- RAM/VRAM;
-- fotos inclinadas;
-- baja resolución;
-- screenshots;
-- diagramas manuales.
-
-**Resultado usable:** el sistema puede intercambiar XMI y obtener propuestas UML desde imágenes sin alterar directamente el modelo canónico.
-
-## CU-19 — Offline/LAN, E2E y cierre
-
-**Objetivo:** demostrar la visión completa del producto y cerrar documentación.
-
-Incluye:
-- provisión local de modelos;
-- funcionamiento sin Internet;
-- host;
-- clientes LAN/hotspot;
+- decisión documentada de arquitectura de despliegue AWS;
+- despliegue online en AWS;
+- funcionamiento local/offline y LAN/hotspot;
+- provisión local de modelos IA/STT;
 - pruebas multi-cliente;
-- prueba E2E completa;
-- integración final;
-- corrección de defectos;
-- builds finales;
+- pruebas E2E del flujo completo;
+- builds finales web/backend/Flutter;
 - benchmarks consolidados;
-- limitaciones;
-- documentación final;
-- preparación para documento Word universitario.
+- limitaciones conocidas y deuda técnica;
+- reconciliación completa entre código y documentación;
+- material fuente para el documento Word final.
 
-Flujo final esperado:
-
-```text
-crear UML manual
-    ↓
-validar
-    ↓
-guardar
-    ↓
-abrir desde otro cliente
-    ↓
-colaborar
-    ↓
-presencia
-    ↓
-UML → RelationalModel
-    ↓
-Spring Boot
-    ↓
-OpenAPI
-    ↓
-Postman
-    ↓
-Domain Manifest
-    ↓
-frontend
-    ↓
-Android
-    ↓
-CRUD
-    ↓
-texto
-    ↓
-voz
-    ↓
-XMI
-    ↓
-imagen
-    ↓
-repetir sin Internet
-```
-
-**Resultado usable del Ciclo 4:** producto final listo para demostración académica, con documentación sincronizada con la implementación real.
+**Resultado usable del Ciclo 4:** producto desplegado en AWS, demostrable también en modo local/LAN y documentado según la implementación real.
 
 ---
 
@@ -642,17 +303,18 @@ repetir sin Internet
 
 | Ciclo | Casos de uso | Resultado principal |
 |---|---|---|
-| **Ciclo 1 — Inicio y base arquitectónica** | CU-00 a CU-04 | Editor UML manual funcional en memoria |
-| **Ciclo 2 — Elaboración y colaboración** | CU-05 a CU-09 | Proyectos persistidos, usuarios y colaboración |
-| **Ciclo 3 — Construcción y generación** | CU-10 a CU-15 | Aplicación completa generada + asistente de texto |
-| **Ciclo 4 — Transición y cierre** | CU-16 a CU-19 | Voz, Android, interoperabilidad, visión, offline y demo final |
+| **Ciclo 1 — Inicio y base arquitectónica** | CU-00 a CU-02 | Editor UML manual funcional |
+| **Ciclo 2 — Elaboración, usuarios y colaboración** | CU-03 a CU-05 | Proyectos persistidos y colaboración autorizada |
+| **Ciclo 3 — Construcción y generación** | CU-06 a CU-08 | Aplicación web generada + asistente de texto |
+| **Ciclo 4 — Transición y cierre** | CU-09 a CU-11 | Voz, Flutter, XMI/visión, AWS, offline y demo final |
 
 Total:
 
 ```text
 4 ciclos
-20 casos de uso
-CU-00 → CU-19
+12 casos de uso
+3 CUs por ciclo
+CU-00 → CU-11
 ```
 
 ---
@@ -661,16 +323,16 @@ CU-00 → CU-19
 
 ```text
 CICLO 1
-CU-00 → CU-01 → CU-02 → CU-03 → CU-04
+CU-00 → CU-01 → CU-02
 
 CICLO 2
-CU-05 → CU-06 → CU-07 → CU-08 → CU-09
+CU-03 → CU-04 → CU-05
 
 CICLO 3
-CU-10 → CU-11 → CU-12 → CU-13 → CU-14 → CU-15
+CU-06 → CU-07 → CU-08
 
 CICLO 4
-CU-16 → CU-17 → CU-18 → CU-19
+CU-09 → CU-10 → CU-11
 ```
 
 ---
@@ -682,9 +344,9 @@ Un CU se considera terminado únicamente cuando:
 - criterios de aceptación cumplidos;
 - tests relevantes verdes;
 - pruebas manuales realizadas cuando correspondan;
-- documentación actualizada;
-- `CU-XX-*.md` refleja la implementación real;
+- documentación del CU actualizada;
 - `STATUS.md` actualizado;
+- `HANDOFF.md` actualizado cuando aporte contexto útil;
 - OpenSpec verificado;
 - usuario acepta el resultado;
 - OpenSpec archivado;
@@ -695,19 +357,6 @@ Un CU se considera terminado únicamente cuando:
 
 # 6. Correcciones posteriores
 
-Si el CU todavía está activo:
+Si el CU sigue activo, la corrección pertenece al mismo CU y al mismo OpenSpec.
 
-- continuar usando el mismo CU;
-- continuar usando el mismo OpenSpec;
-- actualizar su documentación.
-
-Si el CU ya fue cerrado y se encuentra un defecto más adelante:
-
-1. crear un cambio OpenSpec correctivo;
-2. corregir;
-3. probar;
-4. actualizar el documento del CU original;
-5. crear un nuevo commit;
-6. hacer push.
-
-No reescribir el historial para ocultar correcciones posteriores.
+Si el CU ya fue cerrado, crear un cambio OpenSpec correctivo, probarlo, documentarlo en el CU original y generar un nuevo commit sin reescribir la historia.

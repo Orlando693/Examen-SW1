@@ -2,7 +2,15 @@
 
 ## Estado general
 
-Proyecto inicializado documentalmente.
+Proyecto inicializado documentalmente. El roadmap fue compactado antes de iniciar implementación.
+
+## Planificación vigente
+
+- 4 ciclos PUDS.
+- 12 casos de uso (`CU-00` a `CU-11`).
+- 3 casos de uso por ciclo.
+- Flutter reemplaza a Capacitor para la aplicación móvil generada.
+- AWS es la plataforma obligatoria de despliegue online.
 
 ## Ciclo actual
 
@@ -28,4 +36,4 @@ Ninguno.
 
 ## Próxima acción
 
-Preparar y aprobar el plan de CU-00.
+Aprobar el plan de CU-00 e iniciar su OpenSpec antes de crear frontend/backend.

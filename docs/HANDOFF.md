@@ -1,5 +1,22 @@
 # Project Handoff
 
+## Estado actual
+
+El proyecto todavía no tiene implementación funcional. La base documental y OpenSpec están preparados.
+
+## Planificación vigente
+
+- PUDS: 4 ciclos.
+- 12 casos de uso: CU-00 a CU-11.
+- 3 CUs por ciclo.
+
+## Requisitos recientes incorporados
+
+- La aplicación móvil generada será Flutter + Dart; no Capacitor.
+- Android es el objetivo mínimo mobile para la demostración.
+- El despliegue online será en AWS.
+- El modo offline-first y LAN/hotspot se mantiene.
+
 ## Ciclo actual
 
 Ciclo 1 — Inicio y base arquitectónica.
@@ -8,15 +25,11 @@ Ciclo 1 — Inicio y base arquitectónica.
 
 CU-00 — Base del proyecto.
 
-## Estado
-
-El proyecto todavía no tiene implementación funcional.
-
 ## Trabajo completado
 
-- Repositorio GitHub creado.
+- Repositorio GitHub creado y publicado.
 - Documento de producto definido.
-- Roadmap PUDS definido.
+- Roadmap PUDS compactado a 12 CUs.
 - AGENTS.md definido.
 - OpenSpec configurado para OpenCode.
 
@@ -28,6 +41,6 @@ Ninguno.
 
 Ninguno.
 
-## Siguiente acción
+## Siguiente acción exacta
 
-Preparar el plan de CU-00 antes de crear frontend o backend.
+Preparar y aprobar el plan de CU-00. No crear manualmente `apps/web` ni `apps/api` antes del plan/OpenSpec.

@@ -22,7 +22,7 @@ Usar las fuentes en este orden según el tipo de información:
 2. `docs/puds/use-cases/README.md`
    - Roadmap PUDS.
    - 4 ciclos.
-   - 20 casos de uso: `CU-00` a `CU-19`.
+   - 12 casos de uso: `CU-00` a `CU-11`.
    - Orden obligatorio de implementación.
 
 3. `docs/STATUS.md`
@@ -110,10 +110,10 @@ No iniciar el siguiente CU mientras el actual siga abierto, salvo que exista una
 
 ## 4. Casos de uso
 
-Existen exactamente 20 casos de uso:
+Existen exactamente 12 casos de uso:
 
 ```text
-CU-00 ... CU-19
+CU-00 ... CU-11
 ```
 
 Están agrupados en exactamente 4 ciclos PUDS.
@@ -354,9 +354,20 @@ Frontend generado:
 - Next.js App Router;
 - Material UI.
 
-Android:
+Aplicación móvil generada:
 
-- Capacitor sobre el frontend generado.
+- Flutter;
+- Dart;
+- consumo de la API REST del backend Spring Boot generado;
+- Android como objetivo mínimo de build y demostración.
+
+No utilizar Capacitor como estrategia mobile.
+
+### Despliegue
+
+- AWS es la plataforma obligatoria de despliegue online.
+- No fijar servicios AWS concretos antes del CU de transición/despliegue salvo necesidad técnica documentada.
+- Mantener el requisito offline-first y el modo LAN/local además del despliegue online.
 
 No sustituir Spring Boot por NestJS en el backend generado.
 
