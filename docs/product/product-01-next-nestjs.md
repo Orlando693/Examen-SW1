@@ -39,7 +39,7 @@ La solución deberá producir:
 - especificación OpenAPI;
 - colección Postman derivada de OpenAPI;
 - frontend;
-- salida Android;
+- aplicación móvil generada con Flutter;
 - Domain Manifest;
 - asistente de texto;
 - asistente de voz.
@@ -70,7 +70,8 @@ CanonicalUmlModel
        ├──► Backend generado
        ├──► OpenAPI
        ├──► Postman
-       ├──► Frontend generado
+       ├──► Frontend web generado
+       ├──► Aplicación móvil Flutter generada
        └──► Domain Manifest
 ```
 
@@ -105,7 +106,8 @@ El canvas nunca será la fuente de verdad.
 - Enterprise Architect como herramienta objetivo de interoperabilidad
 - fast-xml-parser
 - Handlebars
-- @nestjs/swagger + OpenAPI 3.1
+- @nestjs/swagger + OpenAPI 3.1 para la API principal NestJS
+- springdoc-openapi para el backend Spring Boot generado
 
 ### IA, visión y voz
 
@@ -115,9 +117,24 @@ El canvas nunca será la fuente de verdad.
 - STT: Vosk con bindings de Node.js y modelo de español local
 - preprocesamiento de imagen: Sharp
 
+### Aplicación móvil generada
+
+- Flutter + Dart
+- cliente HTTP tipado o capa equivalente derivada de OpenAPI cuando corresponda
+- consumo de la misma API REST del backend Spring Boot generado
+- soporte Android como objetivo mínimo de demostración
+
+Flutter es un cliente generado independiente del frontend web Next.js. No se utilizará Capacitor como estrategia mobile.
+
+### Despliegue
+
+- AWS será la plataforma obligatoria de despliegue online para la demostración final.
+- La selección concreta de servicios AWS se decidirá y documentará durante el CU de transición/despliegue, evitando fijar servicios sin necesidad antes de conocer la implementación real.
+- El despliegue AWS no elimina el requisito offline-first ni el escenario LAN/local.
+
 ### Criterio de la variante
 
-Esta variante utiliza TypeScript de extremo a extremo, separa Next.js del backend NestJS y emplea Socket.IO para colaboración. Prisma se usa como acceso tipado a PostgreSQL y Vosk mantiene el STT completamente local.
+Esta variante utiliza TypeScript de extremo a extremo en la aplicación CASE principal, separa Next.js del backend NestJS y emplea Socket.IO para colaboración. Prisma se usa como acceso tipado a PostgreSQL y Vosk mantiene el STT completamente local. Las aplicaciones generadas utilizan Spring Boot para backend, Next.js para web y Flutter para mobile.
 
 ---
 
@@ -664,6 +681,20 @@ otros clientes
 
 No se requerirá Internet para usar el editor, colaborar en LAN, ejecutar IA/STT o operar la aplicación generada una vez instalados modelos y dependencias.
 
+### 19.1. Despliegue online en AWS
+
+AWS será el destino obligatorio para el despliegue online del proyecto. El producto deberá conservar dos modos compatibles:
+
+```text
+Modo online
+Aplicación desplegada en AWS
+
+Modo local/offline
+Equipo anfitrión + PostgreSQL + IA/STT local + clientes LAN
+```
+
+Los servicios AWS concretos no se fijan en este documento. Se elegirán durante la fase de transición a partir de la arquitectura realmente implementada, documentando la decisión y priorizando una solución demostrable, mantenible y razonable para el contexto académico.
+
 ---
 
 ## 20. Persistencia, autenticación y ownership
@@ -821,9 +852,11 @@ La implementación de auditoría se adaptará a **Prisma ORM**.
 
 ## 25. OpenAPI y colección Postman obligatoria
 
-La especificación se generará mediante:
+La especificación de la API principal NestJS se expondrá mediante **@nestjs/swagger + OpenAPI 3.1**.
 
-**@nestjs/swagger + OpenAPI 3.1**
+El backend Spring Boot generado expondrá su especificación mediante **springdoc-openapi**.
+
+La Postman Collection y los artefactos del proyecto generado deberán derivarse del OpenAPI del backend Spring generado.
 
 Flujo:
 
@@ -853,9 +886,11 @@ Tecnología fija:
 
 Estrategia mobile:
 
-**Next.js como frontend web generado y Capacitor para empaquetado Android**
+**Flutter como aplicación móvil generada independiente del frontend web Next.js**
 
-El frontend generado incluirá:
+El generador mobile deberá producir una aplicación Flutter que consuma la misma API REST del backend Spring Boot generado. Android será el objetivo mínimo obligatorio de compilación y demostración.
+
+El frontend web generado incluirá:
 
 - listados;
 - detalle;
@@ -1075,13 +1110,14 @@ Se verificará:
 9. generar OpenAPI y Postman;
 10. generar Domain Manifest;
 11. generar frontend;
-12. generar salida Android;
+12. generar aplicación móvil Flutter y compilar su salida Android;
 13. compilar todo;
 14. ejecutar CRUD;
 15. ejecutar una operación textual;
 16. ejecutar una operación equivalente por voz;
 17. importar/exportar XMI;
-18. repetir sin Internet.
+18. desplegar la solución online en AWS;
+19. repetir las capacidades esenciales sin Internet/LAN.
 
 No se utiliza un dominio de ejemplo fijo para no contaminar el diseño de los proyectos de los estudiantes.
 
@@ -1109,12 +1145,13 @@ El MVP deberá demostrar:
 16. Postman;
 17. Domain Manifest;
 18. frontend Next.js App Router + Material UI;
-19. Android;
+19. aplicación móvil Flutter con build Android;
 20. texto → AssistantCommand;
 21. voz → STT → AssistantCommand;
 22. ejecución validada;
 23. XMI;
-24. funcionamiento offline.
+24. funcionamiento offline;
+25. despliegue online en AWS.
 
 Imagen → UML podrá incorporarse una vez estable el pipeline determinista.
 
@@ -1146,9 +1183,10 @@ Imagen → UML podrá incorporarse una vez estable el pipeline determinista.
 21. Ejecutor
 22. STT con Vosk con bindings de Node.js y modelo de español local
 23. Voz → comando
-24. Android mediante Next.js como frontend web generado y Capacitor para empaquetado Android
+24. Generador de aplicación móvil Flutter + build Android
 25. XMI 2.1
 26. Imagen → UML con Florence-2 ejecutado localmente con Transformers.js para imagen → UML
+27. Despliegue online en AWS y validación del modo offline/LAN
 ```
 
 La IA, la visión y la generación no deben preceder a la estabilización del modelo canónico, la validación y la ruta única de mutación.
@@ -1197,7 +1235,8 @@ Interoperabilidad
 
 Generación
 - Handlebars
-- @nestjs/swagger + OpenAPI 3.1
+- @nestjs/swagger + OpenAPI 3.1 para la API principal NestJS
+- springdoc-openapi para el backend Spring Boot generado
 - OpenAPI
 - Postman
 - Domain Manifest
@@ -1211,7 +1250,8 @@ IA / STT
 Aplicación generada
 - Backend: Java 21 + Spring Boot 4.x + Spring Data JPA + Hibernate + PostgreSQL
 - Frontend: Next.js App Router + Material UI
-- Mobile: Next.js como frontend web generado y Capacitor para empaquetado Android
+- Mobile: Flutter + Dart como aplicación móvil generada, con Android como objetivo mínimo
+- Deployment: AWS como plataforma obligatoria de despliegue online
 ```
 
 ---
@@ -1220,6 +1260,6 @@ Aplicación generada
 
 La aplicación será una herramienta CASE colaborativa y offline-first que permite diseñar modelos UML de clases mediante edición manual, voz, imagen o XMI, mantener una fuente de verdad canónica y generar aplicaciones completas.
 
-Esta variante utiliza **Next.js con App Router + TypeScript** en la aplicación principal y genera obligatoriamente **Spring Boot** como backend, con **node-llama-cpp + Transformers.js** y **Vosk con bindings de Node.js y modelo de español local** para las capacidades locales de lenguaje natural y voz.
+Esta variante utiliza **Next.js con App Router + TypeScript** en la aplicación principal, genera obligatoriamente **Spring Boot** como backend, **Next.js** como frontend web y **Flutter** como aplicación móvil, con **node-llama-cpp + Transformers.js** y **Vosk con bindings de Node.js y modelo de español local** para las capacidades locales de lenguaje natural y voz. El despliegue online objetivo será **AWS**, sin eliminar la operación offline/LAN.
 
 La generación se limita a comportamiento derivable del modelo y de metadatos declarativos. La lógica empresarial no expresada en el modelo no se inventará.
