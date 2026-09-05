@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 completado y OpenSpec archivado. El siguiente trabajo funcional será preparar CU-01.
+CU-01 implementado, verificado, aceptado y archivado. Pendiente commit y push de cierre. No hay CU activo ni OpenSpec activo.
 
 ## Planificación vigente
 
@@ -20,11 +20,12 @@ Ciclo 1 — Inicio y base arquitectónica.
 
 Ninguno.
 
-Estado: CU-00 COMPLETADO.
+Estado: CU-01 cerrado funcionalmente. Proxima accion: commit/push de cierre y luego preparar CU-02.
 
 ## Casos de uso completados
 
 - CU-00 — Base del proyecto. OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
+- CU-01 — Nucleo UML canonico. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`.
 
 ## OpenSpec activo
 
@@ -40,11 +41,13 @@ Ninguno.
 - `npm run typecheck`: verde.
 - `npm run lint`: verde.
 - `npm run build`: verde.
-- `openspec validate "cu-00-project-foundation" --strict`: verde.
-- `openspec doctor`: root ok.
-- `openspec verify`: no disponible en el CLI instalado.
-- OpenSpec archivado: `2026-09-04-cu-00-project-foundation`.
+- `npm run test --workspace @examen-sw1/uml-core`: verde, 25 tests.
+- `npm run typecheck --workspace @examen-sw1/uml-core`: verde.
+- `npm run lint --workspace @examen-sw1/uml-core`: verde.
+- `npm run build --workspace @examen-sw1/uml-core`: verde.
+- `openspec validate "cu-01-canonical-uml-core" --strict`: verde.
+- `openspec validate --specs --strict`: verde.
 
 ## Próxima acción
 
-Preparar CU-01 — Núcleo UML canónico. No implementar CU-01 hasta crear/revisar su plan y OpenSpec correspondiente.
+Comittear y pushear el cierre de CU-01. Despues preparar la propuesta OpenSpec de CU-02 sin implementar antes de aprobacion.
