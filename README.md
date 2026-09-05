@@ -6,8 +6,103 @@ Herramienta CASE colaborativa y offline-first para modelado UML de clases y gene
 
 - Ciclo: **Ciclo 1 — Inicio y base arquitectónica**
 - Caso de uso actual: **CU-00 — Base del proyecto**
-- Estado: **NOT STARTED / preparación final**
+- Estado: **IMPLEMENTED / pendiente de aceptación, verify final, archive, commit y push**
 - Roadmap: **4 ciclos / 12 casos de uso / 3 CUs por ciclo**
+
+## Estructura actual
+
+```text
+Examen-SW1/
+├── frontend/
+├── backend/
+├── docs/
+├── openspec/
+├── .opencode/
+├── AGENTS.md
+├── README.md
+├── .gitignore
+├── package.json
+└── .env.example
+```
+
+## Requisitos locales
+
+- Node.js 24 LTS
+- npm 11 o superior
+
+## Configuración
+
+Usa `.env.example` como referencia para variables locales:
+
+```text
+BACKEND_PORT=3001
+FRONTEND_ORIGIN=http://localhost:3000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+```
+
+No se deben commitear archivos `.env` ni secretos.
+
+## Instalación
+
+Desde la raíz del repositorio:
+
+```powershell
+npm install
+```
+
+## Desarrollo
+
+Levantar frontend y backend desde la raíz:
+
+```powershell
+npm run dev
+```
+
+También pueden ejecutarse por separado:
+
+```powershell
+npm run dev:backend
+npm run dev:frontend
+```
+
+Después de `npm run build`, también pueden levantarse los servidores de producción por separado:
+
+```powershell
+npm run start:backend
+npm run start:frontend
+```
+
+URLs locales por defecto:
+
+- Frontend: `http://localhost:3000`
+- Backend health: `http://localhost:3001/health`
+
+## Comandos de calidad
+
+Desde la raíz del repositorio:
+
+```powershell
+npm run test
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Por workspace:
+
+```powershell
+npm run test --workspace backend
+npm run typecheck --workspace backend
+npm run lint --workspace backend
+npm run build --workspace backend
+
+
+npm run test --workspace frontend
+npm run typecheck --workspace frontend
+npm run lint --workspace frontend
+npm run build --workspace frontend
+npm run start --workspace frontend
+```
 
 ## Stack principal
 
@@ -22,6 +117,8 @@ Herramienta CASE colaborativa y offline-first para modelado UML de clases y gene
 - Prisma
 - PostgreSQL
 - Socket.IO
+
+En CU-00 solo están implementadas las bases Next.js/MUI y NestJS/Fastify con `GET /health`. Prisma, PostgreSQL, Socket.IO y demás capacidades se implementarán en CUs posteriores.
 
 ### Aplicaciones generadas
 

@@ -2,7 +2,7 @@
 
 ## Estado actual
 
-El proyecto todavía no tiene implementación funcional. La base documental y OpenSpec están preparados.
+CU-00 está cerrado: implementación terminada, verificación verde y OpenSpec archivado.
 
 ## Planificación vigente
 
@@ -23,7 +23,7 @@ Ciclo 1 — Inicio y base arquitectónica.
 
 ## CU activo
 
-CU-00 — Base del proyecto.
+Ninguno. El siguiente CU a preparar es CU-01 — Núcleo UML canónico.
 
 ## Trabajo completado
 
@@ -32,6 +32,12 @@ CU-00 — Base del proyecto.
 - Roadmap PUDS compactado a 12 CUs.
 - AGENTS.md definido.
 - OpenSpec configurado para OpenCode.
+- OpenSpec activo `cu-00-project-foundation` creado.
+- Monorepo npm con `frontend/` y `backend/` implementado.
+- Backend NestJS 11/Fastify con `GET /health` implementado.
+- Frontend Next.js/MUI consulta health y muestra `API disponible` o `API no disponible`.
+- Tests, typecheck, lint y build configurados para ambos workspaces.
+- OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
 
 ## OpenSpec activo
 
@@ -39,8 +45,18 @@ Ninguno.
 
 ## Problemas abiertos
 
-Ninguno.
+- `npm audit` reporta 2 vulnerabilidades moderadas transitivas; no se aplicó fix forzado.
+
+## Tests actuales
+
+- `npm run test`: verde.
+- `npm run typecheck`: verde.
+- `npm run lint`: verde.
+- `npm run build`: verde.
+- `openspec validate "cu-00-project-foundation" --strict`: verde.
+- `openspec doctor`: ok.
+- `openspec verify`: no disponible en este CLI.
 
 ## Siguiente acción exacta
 
-Preparar y aprobar el plan de CU-00. No crear manualmente frontend/ ni backend/ antes del plan/OpenSpec.
+Preparar el plan y OpenSpec de CU-01 — Núcleo UML canónico. No implementar CU-01 todavía.
