@@ -2,20 +2,13 @@
 
 ## Estado actual
 
-CU-01 esta implementado, verificado, aceptado y archivado. Pendiente commit y push de cierre. No hay CU activo ni OpenSpec activo.
+CU-02 cerrado y archivado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable. Pendiente commit/push de CU-02 y luego preparar CU-03.
 
 ## Planificación vigente
 
 - PUDS: 4 ciclos.
 - 12 casos de uso: CU-00 a CU-11.
 - 3 CUs por ciclo.
-
-## Requisitos recientes incorporados
-
-- La aplicación móvil generada será Flutter + Dart; no Capacitor.
-- Android es el objetivo mínimo mobile para la demostración.
-- El despliegue online será en AWS.
-- El modo offline-first y LAN/hotspot se mantiene.
 
 ## Ciclo actual
 
@@ -25,49 +18,79 @@ Ciclo 1 — Inicio y base arquitectónica.
 
 Ninguno.
 
-## Trabajo completado
-
-- Repositorio GitHub creado y publicado.
-- Documento de producto definido.
-- Roadmap PUDS compactado a 12 CUs.
-- AGENTS.md definido.
-- OpenSpec configurado para OpenCode.
-- OpenSpec activo `cu-00-project-foundation` creado.
-- Monorepo npm con `frontend/` y `backend/` implementado.
-- Backend NestJS 11/Fastify con `GET /health` implementado.
-- Frontend Next.js/MUI consulta health y muestra `API disponible` o `API no disponible`.
-- Tests, typecheck, lint y build configurados para ambos workspaces.
-- OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
-- OpenSpec activo `cu-01-canonical-uml-core` creado.
-- Workspace `packages/uml-core` creado e integrado al root `packages/*`.
-- Modelo `ProjectDocument` implementado con `model` semantico y `layout` visual separados.
-- Tipos UML canonicos, serializacion, validacion, Command Bus y Undo/Redo implementados.
-- Tests de `uml-core` agregados: modelo, relaciones, validacion, contrato de diagnosticos, comandos e historial.
-- Iteracion de verificacion aplicada: UUID universal con `globalThis.crypto.randomUUID()`, cobertura positiva de `aggregation`/`generalization`, test de `ValidationDiagnostic` completo y test defensivo de comando no soportado.
-- Specs principales sincronizadas: `canonical-uml-core` creada y `project-foundation` actualizada para `packages/*`.
-- OpenSpec `cu-01-canonical-uml-core` archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`.
-
 ## OpenSpec activo
 
 Ninguno.
 
+## Trabajo terminado en CU-02
+
+- Ruta `frontend/app/editor/page.tsx` agregada sin migrar a `frontend/src/app`.
+- Boundary cliente `UmlEditorClient` agregado.
+- Workspace Material UI con AppBar, sidebar, toolbox, canvas, inspector, diagnostics y status bar.
+- React Flow proyecta `ProjectDocument.model` + `ProjectDocument.layout` mediante adapter.
+- Custom nodes de clase y enum, y edge custom de relaciones.
+- Zustand expone `currentDocument` como snapshot sincronizado con `UmlHistory`.
+- Extensiones `uml-core`: enums, literals, generalization, delete relationship y `ApplyLayout`.
+- ELK integrado como calculo temporal para Auto Layout via un solo `ApplyLayout`.
+- Correccion del loop `Maximum update depth exceeded`: guardas contra updates redundantes de Zustand y callbacks React Flow memoizados.
+- Responsive compacto endurecido: sidebar e inspector se abren como Drawers temporales desde AppBar.
+- Correccion duplicate key en enum literals: React key basada en `literal.id`, no en texto visible.
+- Correccion React Flow sizing: raiz `100dvh`, fila central `minmax(0, 1fr)`, canvas/region con width-height 100% y MiniMap oculto en compacto.
+- Inspector permite cambiar tipos de atributos con `UpdateAttribute.attributeType` y `UmlTypeRef` existente.
+- Correccion flujo relaciones: association/aggregation/composition/generalization con feedback source-target, cancelacion y rechazo controlado de self-relations.
+- React Flow monta solo tras medir contenedor y ejecuta `fitView()` visual en resize/breakpoint/layout sin mutar `DiagramLayout`.
+- React Flow usa instancia estable via `onInit`, readiness one-way, mediciones redondeadas y clave de refit para evitar loops `StoreUpdater/setNodes`.
+- React Flow ahora monta dentro de `react-flow-host`, wrapper directo absoluto `inset: 0` medido por `ResizeObserver`, para resolver el warning #004 persistente.
+- Skill `uml-editor-design` actualizada de `Technical Canvas / Modeling IDE` a `Blueprint Workbench`.
+- Composicion visual: Model Rail izquierdo, canvas dominante, Tool Dock bottom-center, Property Sheet/diagnostics derecho e IDE StatusBar.
+- Toolbox vertical desktop eliminado como composicion principal; relaciones ahora salen de menu `Relation` en Tool Dock.
+- AppBar y StatusBar ajustados para truncamiento/overflow responsive; StatusBar usa nombres visibles de seleccion cuando puede.
+- Inspector de atributos pulido con tarjetas verticales para nombre, tipo y eliminar.
+- Skill local `uml-editor-design` creada en `.opencode/skills/uml-editor-design/` para futuras decisiones visuales del editor; puede requerir reiniciar OpenCode para aparecer como skill disponible.
+- Skill `uml-editor-design` aplicada: Model Rail, Tool Dock, Property Sheet, diagnostics integrados, nodos/edges Blueprint, AppBar/StatusBar densos y sin cambios de dominio.
+- Documentacion CU-02 creada.
+- Iteracion correctiva final: compacto ahora usa AppBar esencial, canvas central unico, Tool Dock reducido con `More`, StatusBar abreviado, Model Rail Drawer desde `Menu` e Inspector/Property Sheet Drawer desde `Props`.
+- React Flow #004: readiness ahora exige `offsetWidth`/`offsetHeight` reales del `react-flow-host` cuando existen, el host queda como padre directo absoluto `inset: 0` y `html`/`body` quedan dimensionados/overflow hidden por `GlobalStyles`.
+- Segunda correccion estricta de React Flow #004: el parent DOM real es `react-flow-host`; ahora `requestAnimationFrame` mide `clientWidth/clientHeight` del host directo y no monta React Flow si `ResizeObserver.contentRect` es no-cero pero el host sigue reportando `0x0`.
+- Diagnostico hydration/breakpoint: `useMediaQuery` existia en `UmlEditorClient` y `EditorStatusBar` sin `{ noSsr: true }`. Se cambio a `noSsr` y `UmlCanvas` espera hydration cliente antes de medir/montar React Flow.
+- Correccion SSR/hydration: `noSsr: true` fue causa del mismatch para markup estructural. Ahora `UmlEditorClient` usa `mediaCompact` normal pero fuerza `compact=false` hasta despues de hydration; `EditorStatusBar` recibe ese valor y `UmlCanvas` usa `canMount={isHydrated}`.
+- FitView: unico llamado automatico en `UmlCanvas`; en compacto ahora usa padding menor y `minZoom` legible para evitar diagrama demasiado alejado.
+- Relaciones: `onNodeClick` prioriza source/target en relation mode, ignora ruido de `onSelectionChange` mientras hay herramienta de relacion activa y conserva kind/source/target reales en `ProjectDocument`.
+- Verificacion manual final aceptada: responsive/mobile carga, Drawers Model Rail/Inspector funcionan, crear/seleccionar/renombrar clase desde responsive funciona, canvas sigue usable, sin hydration mismatch, sin React Flow #004 y sin `Maximum update depth exceeded`.
+- OpenSpec archivado en `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`.
+- Tasks finales: 129/129 completas.
+
 ## Problemas abiertos
 
-- `npm audit` reporta 2 vulnerabilidades moderadas transitivas; no se aplicó fix forzado.
+- `npm audit` reporta 2 vulnerabilidades moderadas transitivas al instalar desde la raiz; no se aplicó fix forzado.
+- Deuda menor: `favicon.ico` devuelve 404.
+- Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` al usar Drawer MUI; no bloqueo el funcionamiento observado.
+- Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace.
+- CU-02 todavia no esta commiteado o pusheado.
 
 ## Tests actuales
 
-- `npm run test --workspace @examen-sw1/uml-core`: verde, 25 tests.
+- `npm run test --workspace @examen-sw1/uml-core`: verde, 30 tests.
 - `npm run typecheck --workspace @examen-sw1/uml-core`: verde.
 - `npm run lint --workspace @examen-sw1/uml-core`: verde.
 - `npm run build --workspace @examen-sw1/uml-core`: verde.
-- `npm run test`: verde.
+- `npm run test --workspace frontend`: verde, 43 tests.
+- `npm run typecheck --workspace frontend`: verde.
+- `npm run lint --workspace frontend`: verde.
+- `npm run build --workspace frontend`: verde.
+- `npm run test`: verde, 74 tests totales.
 - `npm run typecheck`: verde.
 - `npm run lint`: verde.
 - `npm run build`: verde.
-- `openspec validate "cu-01-canonical-uml-core" --strict`: verde.
-- `openspec validate --specs --strict`: verde.
+- `openspec validate "cu-02-manual-uml-workspace" --strict`: verde.
+- `openspec instructions apply --change "cu-02-manual-uml-workspace" --json`: 129/129 tasks completas tras aceptacion manual.
+- `openspec status --change "cu-02-manual-uml-workspace"`: 4/4 artifacts completos.
+- `openspec validate --specs --strict`: verde, 3 specs.
+- `openspec list --json`: sin cambios activos tras archive.
+- `openspec doctor`: verde.
+- `git diff --check`: sin errores; solo warnings LF/CRLF de Windows.
+- Runtime local `/editor`: `GET /editor` devolvio `200` con HTML de Next.js en puerto temporal `3002`; no verifica consola del navegador.
 
 ## Siguiente acción exacta
 
-Comittear y pushear el cierre de CU-01. Despues preparar CU-02 mediante OpenSpec, sin implementar antes de aprobacion.
+Commit/push del cierre de CU-02 y luego preparar CU-03 — Persistencia y gestion. No implementar CU-03 hasta cerrar commit/push de CU-02.

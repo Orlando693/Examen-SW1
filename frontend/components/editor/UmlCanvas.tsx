@@ -1,0 +1,198 @@
+'use client';
+
+import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, type Node, type OnSelectionChangeParams, type ReactFlowInstance } from '@xyflow/react';
+import { Box, Button, Paper, Typography } from '@mui/material';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEditorStore } from '../../stores/editor-store';
+import type { ProjectDocumentFlow, UmlFlowEdge, UmlFlowNode } from '../../lib/editor/projection/project-document-to-flow';
+import { UmlClassNode } from './nodes/UmlClassNode';
+import { UmlEnumNode } from './nodes/UmlEnumNode';
+import { UmlRelationshipEdge } from './edges/UmlRelationshipEdge';
+
+const nodeTypes = { umlClass: UmlClassNode, umlEnum: UmlEnumNode };
+const edgeTypes = { umlRelationship: UmlRelationshipEdge };
+
+export function UmlCanvas({ flow, compact = false, canMount = true }: { flow: ProjectDocumentFlow; compact?: boolean; canMount?: boolean }) {
+  return (
+    <ReactFlowProvider>
+      <CanvasInner flow={flow} compact={compact} canMount={canMount} />
+    </ReactFlowProvider>
+  );
+}
+
+function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; compact: boolean; canMount: boolean }) {
+  const setSelection = useEditorStore((state) => state.setSelection);
+  const activeTool = useEditorStore((state) => state.activeTool);
+  const startRelationship = useEditorStore((state) => state.startRelationship);
+  const cancelRelationship = useEditorStore((state) => state.cancelRelationship);
+  const completeRelationship = useEditorStore((state) => state.completeRelationship);
+  const relationshipDraft = useEditorStore((state) => state.relationshipDraft);
+  const moveNode = useEditorStore((state) => state.moveNode);
+  const document = useEditorStore((state) => state.currentDocument);
+  const canvasHostRef = useRef<HTMLDivElement | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance<UmlFlowNode, UmlFlowEdge> | null>(null);
+  const lastFitKeyRef = useRef('');
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const sourceClass = relationshipDraft?.sourceClassId ? document.model.classes.find((umlClass) => umlClass.id === relationshipDraft.sourceClassId) : undefined;
+  const relationshipMode = activeTool !== 'select' && activeTool !== 'class' && activeTool !== 'enum';
+  const viewportKey = useMemo(() => flow.nodes.map((node) => `${node.id}:${node.position.x}:${node.position.y}`).join('|'), [flow.nodes]);
+
+  const onNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, node: Node) => {
+    moveNode(node.id, node.position);
+  }, [moveNode]);
+
+  const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
+    if (relationshipMode) {
+      return;
+    }
+    const node = params.nodes[0];
+    const edge = params.edges[0];
+    if (node) {
+      setSelection({ type: node.type === 'umlEnum' ? 'enumeration' : 'class', id: node.id });
+      return;
+    }
+    if (edge) {
+      setSelection({ type: 'relationship', id: edge.id });
+      return;
+    }
+    setSelection(null);
+  }, [relationshipMode, setSelection]);
+
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: { id: string; type?: string }) => {
+    if (relationshipMode) {
+      if (node.type === 'umlEnum') {
+        return;
+      }
+      if (relationshipDraft?.sourceClassId) {
+        completeRelationship(node.id);
+      } else {
+        startRelationship(activeTool, node.id);
+      }
+      return;
+    }
+    if (node.type === 'umlEnum') {
+      setSelection({ type: 'enumeration', id: node.id });
+      return;
+    }
+    setSelection({ type: 'class', id: node.id });
+  }, [activeTool, completeRelationship, relationshipDraft?.sourceClassId, relationshipMode, setSelection, startRelationship]);
+
+  const onEdgeClick = useCallback((_event: React.MouseEvent | MouseEvent, edge: { id: string }) => {
+    setSelection({ type: 'relationship', id: edge.id });
+  }, [setSelection]);
+
+  const onInit = useCallback((instance: ReactFlowInstance<UmlFlowNode, UmlFlowEdge>) => {
+    reactFlowRef.current = instance;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!canMount) {
+      return;
+    }
+    const element = canvasHostRef.current;
+    if (!element) {
+      return;
+    }
+    const host = element;
+    let cancelled = false;
+    let frame = 0;
+    function readSize() {
+      const rect = host.getBoundingClientRect();
+      const width = Math.round(host.clientWidth || host.offsetWidth || rect.width || 0);
+      const height = Math.round(host.clientHeight || host.offsetHeight || rect.height || 0);
+      return { width, height };
+    }
+    function updateSize(width: number, height: number) {
+      setContainerSize((current) => (current.width === width && current.height === height ? current : { width, height }));
+      if (width > 0 && height > 0) {
+        setIsCanvasReady(true);
+      }
+    }
+    function measureUntilReady() {
+      if (cancelled) {
+        return;
+      }
+      const { width, height } = readSize();
+      updateSize(width, height);
+      if (width <= 0 || height <= 0) {
+        frame = window.requestAnimationFrame(measureUntilReady);
+      }
+    }
+    frame = window.requestAnimationFrame(measureUntilReady);
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        cancelled = true;
+        window.cancelAnimationFrame(frame);
+      };
+    }
+    const observer = new ResizeObserver(() => {
+      const { width, height } = readSize();
+      updateSize(width, height);
+    });
+    observer.observe(host);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [canMount]);
+
+  useEffect(() => {
+    if (!canMount || !isCanvasReady || containerSize.width <= 0 || containerSize.height <= 0 || flow.nodes.length === 0) {
+      return;
+    }
+    const fitKey = `${compact}:${containerSize.width}:${containerSize.height}:${viewportKey}`;
+    if (lastFitKeyRef.current === fitKey) {
+      return;
+    }
+    lastFitKeyRef.current = fitKey;
+    const frame = window.requestAnimationFrame(() => {
+      reactFlowRef.current?.fitView({ padding: compact ? 0.08 : 0.18, duration: 120, minZoom: compact ? 0.72 : 0.1 });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [canMount, compact, containerSize.height, containerSize.width, flow.nodes.length, isCanvasReady, viewportKey]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && relationshipMode) {
+        cancelRelationship();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [cancelRelationship, relationshipMode]);
+
+  return (
+    <Box data-testid="uml-canvas" sx={{ position: 'absolute', inset: 0, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+      {relationshipMode && (
+        <Paper data-testid="relationship-feedback" elevation={0} sx={{ position: 'absolute', zIndex: 6, right: 12, top: 12, px: 1.25, py: 1, maxWidth: { xs: 'calc(100% - 24px)', sm: 380 }, border: '1px solid #22A7B8', borderLeft: '4px solid #22A7B8', bgcolor: '#F8FAFB', borderRadius: 1 }}>
+          <Typography variant="body2" fontWeight={800} sx={{ color: '#0B1F33' }}>{sourceClass ? `Choose target: source ${sourceClass.name}` : 'Choose source'}</Typography>
+          <Typography variant="caption" sx={{ color: '#647580', fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>RELATION / {activeTool}</Typography>
+          <Button size="small" onClick={cancelRelationship} sx={{ ml: 1, textTransform: 'none' }}>Cancelar</Button>
+        </Paper>
+      )}
+      <Box ref={canvasHostRef} data-testid="react-flow-host" sx={{ position: 'absolute', inset: 0, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+        {canMount && isCanvasReady && (
+          <ReactFlow<UmlFlowNode, UmlFlowEdge>
+            nodes={flow.nodes}
+            edges={flow.edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onInit={onInit}
+            onNodeDragStop={onNodeDragStop}
+            onSelectionChange={onSelectionChange}
+            onNodeClick={onNodeClick}
+            onEdgeClick={onEdgeClick}
+            minZoom={compact ? 0.72 : 0.1}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <Background color="#D8E2E8" gap={28} />
+            {!compact && <MiniMap pannable zoomable />}
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        )}
+      </Box>
+    </Box>
+  );
+}

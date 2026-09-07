@@ -7,12 +7,21 @@ export type UmlCommand =
   | CreateClassCommand
   | DeleteClassCommand
   | RenameClassCommand
+  | CreateEnumerationCommand
+  | RenameEnumerationCommand
+  | DeleteEnumerationCommand
+  | AddEnumerationLiteralCommand
+  | UpdateEnumerationLiteralCommand
+  | RemoveEnumerationLiteralCommand
   | AddAttributeCommand
   | RemoveAttributeCommand
   | UpdateAttributeCommand
   | CreateAssociationCommand
+  | CreateGeneralizationCommand
+  | DeleteRelationshipCommand
   | UpdateMultiplicityCommand
-  | MoveNodeCommand;
+  | MoveNodeCommand
+  | ApplyLayoutCommand;
 
 export interface CreateClassCommand {
   type: 'CreateClass';
@@ -31,6 +40,47 @@ export interface RenameClassCommand {
   type: 'RenameClass';
   classId: Uuid;
   name: string;
+}
+
+export interface CreateEnumerationCommand {
+  type: 'CreateEnumeration';
+  enumerationId?: Uuid;
+  name: string;
+  packageId?: Uuid;
+  generation?: GenerationMetadata;
+}
+
+export interface RenameEnumerationCommand {
+  type: 'RenameEnumeration';
+  enumerationId: Uuid;
+  name: string;
+}
+
+export interface DeleteEnumerationCommand {
+  type: 'DeleteEnumeration';
+  enumerationId: Uuid;
+}
+
+export interface AddEnumerationLiteralCommand {
+  type: 'AddEnumerationLiteral';
+  enumerationId: Uuid;
+  literalId?: Uuid;
+  name: string;
+  generation?: GenerationMetadata;
+}
+
+export interface UpdateEnumerationLiteralCommand {
+  type: 'UpdateEnumerationLiteral';
+  enumerationId: Uuid;
+  literalId: Uuid;
+  name?: string;
+  generation?: GenerationMetadata;
+}
+
+export interface RemoveEnumerationLiteralCommand {
+  type: 'RemoveEnumerationLiteral';
+  enumerationId: Uuid;
+  literalId: Uuid;
 }
 
 export interface AddAttributeCommand {
@@ -70,6 +120,19 @@ export interface CreateAssociationCommand {
   targetMultiplicity?: Multiplicity;
 }
 
+export interface CreateGeneralizationCommand {
+  type: 'CreateGeneralization';
+  relationshipId?: Uuid;
+  sourceClassId: Uuid;
+  targetClassId: Uuid;
+  name?: string;
+}
+
+export interface DeleteRelationshipCommand {
+  type: 'DeleteRelationship';
+  relationshipId: Uuid;
+}
+
 export interface UpdateMultiplicityCommand {
   type: 'UpdateMultiplicity';
   relationshipId: Uuid;
@@ -79,6 +142,18 @@ export interface UpdateMultiplicityCommand {
 
 export interface MoveNodeCommand {
   type: 'MoveNode';
+  elementId: Uuid;
+  position: DiagramPosition;
+  size?: DiagramSize;
+  nodeId?: Uuid;
+}
+
+export interface ApplyLayoutCommand {
+  type: 'ApplyLayout';
+  updates: ApplyLayoutUpdate[];
+}
+
+export interface ApplyLayoutUpdate {
   elementId: Uuid;
   position: DiagramPosition;
   size?: DiagramSize;

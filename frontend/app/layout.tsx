@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
-import { CssBaseline, ThemeProvider } from '@mui/material';
+import { CssBaseline, GlobalStyles, ThemeProvider } from '@mui/material';
 import { theme } from './theme';
 
 export const metadata: Metadata = {
@@ -15,6 +15,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
             <CssBaseline />
+            <GlobalStyles styles={{ html: { width: '100%', height: '100%', overflow: 'hidden' }, body: { width: '100%', height: '100%', overflow: 'hidden' } }} />
             {children}
           </ThemeProvider>
         </AppRouterCacheProvider>

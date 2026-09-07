@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-01 implementado, verificado, aceptado y archivado. Pendiente commit y push de cierre. No hay CU activo ni OpenSpec activo.
+CU-02 completado y archivado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable. Pendiente commit y push de cierre.
 
 ## Planificación vigente
 
@@ -20,12 +20,13 @@ Ciclo 1 — Inicio y base arquitectónica.
 
 Ninguno.
 
-Estado: CU-01 cerrado funcionalmente. Proxima accion: commit/push de cierre y luego preparar CU-02.
+Estado: CU-02 COMPLETADO. Pendiente commit/push de cierre y luego preparar CU-03.
 
 ## Casos de uso completados
 
 - CU-00 — Base del proyecto. OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
-- CU-01 — Nucleo UML canonico. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`.
+- CU-01 — Nucleo UML canonico. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`. Commit `69d1a3b` pusheado.
+- CU-02 — Workspace/editor UML manual. OpenSpec archivado como `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`. Pendiente commit/push.
 
 ## OpenSpec activo
 
@@ -33,21 +34,35 @@ Ninguno.
 
 ## Problemas abiertos
 
-- `npm audit` reporta 2 vulnerabilidades moderadas en dependencias transitivas. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
+- `npm audit` reporta 2 vulnerabilidades moderadas en dependencias transitivas al instalar desde la raiz. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
+- Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.
+- Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
+- CU-02 aun no esta commiteado ni pusheado.
+- Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 
 ## Verificación actual
 
-- `npm run test`: verde.
-- `npm run typecheck`: verde.
-- `npm run lint`: verde.
-- `npm run build`: verde.
-- `npm run test --workspace @examen-sw1/uml-core`: verde, 25 tests.
+- `npm run test --workspace @examen-sw1/uml-core`: verde, 30 tests.
 - `npm run typecheck --workspace @examen-sw1/uml-core`: verde.
 - `npm run lint --workspace @examen-sw1/uml-core`: verde.
 - `npm run build --workspace @examen-sw1/uml-core`: verde.
-- `openspec validate "cu-01-canonical-uml-core" --strict`: verde.
-- `openspec validate --specs --strict`: verde.
+- `npm run test --workspace frontend`: verde, 43 tests.
+- `npm run typecheck --workspace frontend`: verde.
+- `npm run lint --workspace frontend`: verde.
+- `npm run build --workspace frontend`: verde.
+- `npm run test`: verde, 74 tests totales.
+- `npm run typecheck`: verde.
+- `npm run lint`: verde.
+- `npm run build`: verde.
+- `openspec validate "cu-02-manual-uml-workspace" --strict`: verde.
+- `openspec instructions apply --change "cu-02-manual-uml-workspace" --json`: 129/129 tasks completas tras aceptacion manual.
+- `openspec status --change "cu-02-manual-uml-workspace"`: 4/4 artifacts completos.
+- `openspec validate --specs --strict`: verde, 3 specs.
+- `openspec list --json`: sin cambios activos tras archive.
+- `openspec doctor`: verde.
+- `git diff --check`: sin errores; solo warnings LF/CRLF de Windows.
+- Runtime local `/editor`: `GET /editor` devolvio `200` con HTML de Next.js en puerto temporal `3002`; no verifica consola del navegador.
 
 ## Próxima acción
 
-Comittear y pushear el cierre de CU-01. Despues preparar la propuesta OpenSpec de CU-02 sin implementar antes de aprobacion.
+Preparar CU-03 — Persistencia y gestion, despues de commit/push del cierre de CU-02.

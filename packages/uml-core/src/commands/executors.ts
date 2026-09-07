@@ -1,8 +1,8 @@
 import { createUuid } from '../ids.js';
 import { cloneProjectDocument, type ProjectDocument, touchProjectDocument } from '../model/document.js';
 import type { DiagramNodeLayout } from '../model/layout.js';
-import type { UmlAssociationRelationship } from '../model/relationships.js';
-import type { UmlAttribute, UmlClass } from '../model/types.js';
+import type { UmlAssociationRelationship, UmlGeneralizationRelationship } from '../model/relationships.js';
+import type { UmlAttribute, UmlClass, UmlEnumeration, UmlEnumerationLiteral } from '../model/types.js';
 import { validateProjectDocument } from '../validation/validate.js';
 import type { UmlCommand } from './commands.js';
 import type { CommandResult } from './results.js';
@@ -20,6 +20,18 @@ export function executeCommand(document: ProjectDocument, command: UmlCommand, o
       return deleteClass(document, command, options);
     case 'RenameClass':
       return renameClass(document, command, options);
+    case 'CreateEnumeration':
+      return withValidation(document, command, createEnumeration(document, command, options), options);
+    case 'RenameEnumeration':
+      return renameEnumeration(document, command, options);
+    case 'DeleteEnumeration':
+      return deleteEnumeration(document, command, options);
+    case 'AddEnumerationLiteral':
+      return addEnumerationLiteral(document, command, options);
+    case 'UpdateEnumerationLiteral':
+      return updateEnumerationLiteral(document, command, options);
+    case 'RemoveEnumerationLiteral':
+      return removeEnumerationLiteral(document, command, options);
     case 'AddAttribute':
       return addAttribute(document, command, options);
     case 'RemoveAttribute':
@@ -28,10 +40,16 @@ export function executeCommand(document: ProjectDocument, command: UmlCommand, o
       return updateAttribute(document, command, options);
     case 'CreateAssociation':
       return withValidation(document, command, createAssociation(document, command, options), options);
+    case 'CreateGeneralization':
+      return withValidation(document, command, createGeneralization(document, command, options), options);
+    case 'DeleteRelationship':
+      return deleteRelationship(document, command, options);
     case 'UpdateMultiplicity':
       return updateMultiplicity(document, command, options);
     case 'MoveNode':
       return withValidation(document, command, moveNode(document, command, options), options);
+    case 'ApplyLayout':
+      return withValidation(document, command, applyLayout(document, command, options), options);
     default:
       return reject(document, command, 'UNSUPPORTED_COMMAND', 'Unsupported command.');
   }
@@ -104,6 +122,83 @@ function renameClass(document: ProjectDocument, command: Extract<UmlCommand, { t
   return withValidation(document, command, accept(command, next), options);
 }
 
+function createEnumeration(document: ProjectDocument, command: Extract<UmlCommand, { type: 'CreateEnumeration' }>, options: ExecuteCommandOptions): CommandResult {
+  const next = nextDocument(document, options);
+  const enumeration: UmlEnumeration = {
+    id: createUuid(command.enumerationId),
+    name: command.name,
+    ...(command.packageId === undefined ? {} : { packageId: command.packageId }),
+    literals: [],
+    ...(command.generation === undefined ? {} : { generation: command.generation }),
+  };
+  next.model.enumerations.push(enumeration);
+  return accept(command, next);
+}
+
+function renameEnumeration(document: ProjectDocument, command: Extract<UmlCommand, { type: 'RenameEnumeration' }>, options: ExecuteCommandOptions): CommandResult {
+  const enumerationIndex = document.model.enumerations.findIndex((enumeration) => enumeration.id === command.enumerationId);
+  if (enumerationIndex < 0) {
+    return reject(document, command, 'NOT_FOUND', `Enumeration '${command.enumerationId}' was not found.`);
+  }
+  const next = nextDocument(document, options);
+  next.model.enumerations[enumerationIndex] = { ...next.model.enumerations[enumerationIndex], name: command.name };
+  return withValidation(document, command, accept(command, next), options);
+}
+
+function deleteEnumeration(document: ProjectDocument, command: Extract<UmlCommand, { type: 'DeleteEnumeration' }>, options: ExecuteCommandOptions): CommandResult {
+  if (!document.model.enumerations.some((enumeration) => enumeration.id === command.enumerationId)) {
+    return reject(document, command, 'NOT_FOUND', `Enumeration '${command.enumerationId}' was not found.`);
+  }
+  const next = nextDocument(document, options);
+  next.model.enumerations = next.model.enumerations.filter((enumeration) => enumeration.id !== command.enumerationId);
+  next.layout.nodes = next.layout.nodes.filter((node) => node.elementId !== command.enumerationId);
+  return withValidation(document, command, accept(command, next), options);
+}
+
+function addEnumerationLiteral(document: ProjectDocument, command: Extract<UmlCommand, { type: 'AddEnumerationLiteral' }>, options: ExecuteCommandOptions): CommandResult {
+  const enumerationIndex = document.model.enumerations.findIndex((enumeration) => enumeration.id === command.enumerationId);
+  if (enumerationIndex < 0) {
+    return reject(document, command, 'NOT_FOUND', `Enumeration '${command.enumerationId}' was not found.`);
+  }
+  const next = nextDocument(document, options);
+  const literal: UmlEnumerationLiteral = {
+    id: createUuid(command.literalId),
+    name: command.name,
+    ...(command.generation === undefined ? {} : { generation: command.generation }),
+  };
+  next.model.enumerations[enumerationIndex].literals.push(literal);
+  return withValidation(document, command, accept(command, next), options);
+}
+
+function updateEnumerationLiteral(document: ProjectDocument, command: Extract<UmlCommand, { type: 'UpdateEnumerationLiteral' }>, options: ExecuteCommandOptions): CommandResult {
+  const enumerationIndex = document.model.enumerations.findIndex((enumeration) => enumeration.id === command.enumerationId);
+  const literalIndex = enumerationIndex < 0 ? -1 : document.model.enumerations[enumerationIndex].literals.findIndex((literal) => literal.id === command.literalId);
+  if (enumerationIndex < 0 || literalIndex < 0) {
+    return reject(document, command, 'NOT_FOUND', `Enumeration literal '${command.literalId}' was not found.`);
+  }
+  const next = nextDocument(document, options);
+  const current = next.model.enumerations[enumerationIndex].literals[literalIndex];
+  next.model.enumerations[enumerationIndex].literals[literalIndex] = {
+    ...current,
+    ...(command.name === undefined ? {} : { name: command.name }),
+    ...(command.generation === undefined ? {} : { generation: command.generation }),
+  };
+  return withValidation(document, command, accept(command, next), options);
+}
+
+function removeEnumerationLiteral(document: ProjectDocument, command: Extract<UmlCommand, { type: 'RemoveEnumerationLiteral' }>, options: ExecuteCommandOptions): CommandResult {
+  const enumerationIndex = document.model.enumerations.findIndex((enumeration) => enumeration.id === command.enumerationId);
+  if (enumerationIndex < 0) {
+    return reject(document, command, 'NOT_FOUND', `Enumeration '${command.enumerationId}' was not found.`);
+  }
+  if (!document.model.enumerations[enumerationIndex].literals.some((literal) => literal.id === command.literalId)) {
+    return reject(document, command, 'NOT_FOUND', `Enumeration literal '${command.literalId}' was not found.`);
+  }
+  const next = nextDocument(document, options);
+  next.model.enumerations[enumerationIndex].literals = next.model.enumerations[enumerationIndex].literals.filter((literal) => literal.id !== command.literalId);
+  return withValidation(document, command, accept(command, next), options);
+}
+
 function addAttribute(document: ProjectDocument, command: Extract<UmlCommand, { type: 'AddAttribute' }>, options: ExecuteCommandOptions): CommandResult {
   const classIndex = document.model.classes.findIndex((umlClass) => umlClass.id === command.classId);
   if (classIndex < 0) {
@@ -171,6 +266,28 @@ function createAssociation(document: ProjectDocument, command: Extract<UmlComman
   return accept(command, next);
 }
 
+function createGeneralization(document: ProjectDocument, command: Extract<UmlCommand, { type: 'CreateGeneralization' }>, options: ExecuteCommandOptions): CommandResult {
+  const next = nextDocument(document, options);
+  const relationship: UmlGeneralizationRelationship = {
+    id: createUuid(command.relationshipId),
+    kind: 'generalization',
+    ...(command.name === undefined ? {} : { name: command.name }),
+    source: { classId: command.sourceClassId },
+    target: { classId: command.targetClassId },
+  };
+  next.model.relationships.push(relationship);
+  return accept(command, next);
+}
+
+function deleteRelationship(document: ProjectDocument, command: Extract<UmlCommand, { type: 'DeleteRelationship' }>, options: ExecuteCommandOptions): CommandResult {
+  if (!document.model.relationships.some((relationship) => relationship.id === command.relationshipId)) {
+    return reject(document, command, 'NOT_FOUND', `Relationship '${command.relationshipId}' was not found.`);
+  }
+  const next = nextDocument(document, options);
+  next.model.relationships = next.model.relationships.filter((relationship) => relationship.id !== command.relationshipId);
+  return withValidation(document, command, accept(command, next), options);
+}
+
 function updateMultiplicity(document: ProjectDocument, command: Extract<UmlCommand, { type: 'UpdateMultiplicity' }>, options: ExecuteCommandOptions): CommandResult {
   const relationshipIndex = document.model.relationships.findIndex((relationship) => relationship.id === command.relationshipId);
   if (relationshipIndex < 0) {
@@ -203,6 +320,30 @@ function moveNode(document: ProjectDocument, command: Extract<UmlCommand, { type
     next.layout.nodes[nodeIndex] = { ...next.layout.nodes[nodeIndex], position: command.position, ...(command.size === undefined ? {} : { size: command.size }) };
   } else {
     next.layout.nodes.push(node);
+  }
+
+  return accept(command, next);
+}
+
+function applyLayout(document: ProjectDocument, command: Extract<UmlCommand, { type: 'ApplyLayout' }>, options: ExecuteCommandOptions): CommandResult {
+  const next = nextDocument(document, options);
+
+  for (const update of command.updates) {
+    const nodeIndex = next.layout.nodes.findIndex((node) => node.elementId === update.elementId);
+    if (nodeIndex >= 0) {
+      next.layout.nodes[nodeIndex] = {
+        ...next.layout.nodes[nodeIndex],
+        position: update.position,
+        ...(update.size === undefined ? {} : { size: update.size }),
+      };
+    } else {
+      next.layout.nodes.push({
+        id: createUuid(update.nodeId),
+        elementId: update.elementId,
+        position: update.position,
+        ...(update.size === undefined ? {} : { size: update.size }),
+      });
+    }
   }
 
   return accept(command, next);
