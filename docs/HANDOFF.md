@@ -2,7 +2,7 @@
 
 ## Estado actual
 
-CU-02 cerrado y archivado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable. Pendiente commit/push de CU-02 y luego preparar CU-03.
+CU-00, CU-01 y CU-02 cerrados. CU-02 fue verificado, aceptado, archivado en `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`, commiteado como `67e5dee feat: complete CU-02 manual UML workspace` y pusheado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable.
 
 ## Planificación vigente
 
@@ -12,7 +12,7 @@ CU-02 cerrado y archivado. La verificacion manual real final en Chrome responsiv
 
 ## Ciclo actual
 
-Ciclo 1 — Inicio y base arquitectónica.
+Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## CU activo
 
@@ -66,7 +66,6 @@ Ninguno.
 - Deuda menor: `favicon.ico` devuelve 404.
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` al usar Drawer MUI; no bloqueo el funcionamiento observado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace.
-- CU-02 todavia no esta commiteado o pusheado.
 
 ## Tests actuales
 
@@ -93,4 +92,4 @@ Ninguno.
 
 ## Siguiente acción exacta
 
-Commit/push del cierre de CU-02 y luego preparar CU-03 — Persistencia y gestion. No implementar CU-03 hasta cerrar commit/push de CU-02.
+Analisis y preparacion de CU-03 — Persistencia y gestion de proyectos. No crear OpenSpec ni implementar CU-03 hasta aprobar el plan.

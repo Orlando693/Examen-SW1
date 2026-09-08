@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-02 completado y archivado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable. Pendiente commit y push de cierre.
+CU-02 completado, verificado, aceptado, archivado, commiteado y pusheado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable.
 
 ## Planificación vigente
 
@@ -14,19 +14,19 @@ CU-02 completado y archivado. La verificacion manual real final en Chrome respon
 
 ## Ciclo actual
 
-Ciclo 1 — Inicio y base arquitectónica.
+Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## Caso de uso activo
 
 Ninguno.
 
-Estado: CU-02 COMPLETADO. Pendiente commit/push de cierre y luego preparar CU-03.
+Estado: CU-00, CU-01 y CU-02 COMPLETADOS. Ningun CU activo.
 
 ## Casos de uso completados
 
-- CU-00 — Base del proyecto. OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
-- CU-01 — Nucleo UML canonico. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`. Commit `69d1a3b` pusheado.
-- CU-02 — Workspace/editor UML manual. OpenSpec archivado como `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`. Pendiente commit/push.
+- CU-00 — Base del proyecto. COMPLETADO. OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
+- CU-01 — Nucleo UML canonico. COMPLETADO. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`. Commit `69d1a3b` pusheado.
+- CU-02 — Workspace/editor UML manual. COMPLETADO, verificado, aceptado, archivado, commiteado y pusheado. OpenSpec archivado como `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`. Commit `67e5dee` pusheado.
 
 ## OpenSpec activo
 
@@ -37,7 +37,6 @@ Ninguno.
 - `npm audit` reporta 2 vulnerabilidades moderadas en dependencias transitivas al instalar desde la raiz. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
 - Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
-- CU-02 aun no esta commiteado ni pusheado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 
 ## Verificación actual
@@ -65,4 +64,4 @@ Ninguno.
 
 ## Próxima acción
 
-Preparar CU-03 — Persistencia y gestion, despues de commit/push del cierre de CU-02.
+Preparar CU-03 — Persistencia y gestion de proyectos.
