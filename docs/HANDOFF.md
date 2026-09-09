@@ -16,7 +16,7 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## CU activo
 
-CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incremento 1 completado (13/13). Incrementos 2 y 3 no iniciados.
+CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incrementos 1 y 2 completados (27/43). Incremento 3 no iniciado.
 
 ## OpenSpec activo
 
@@ -26,6 +26,9 @@ CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incremento 1
 - `db:migrate:test` protege que `TEST_DATABASE_URL` apunte a `localhost:5432/examen_sw1_test`; la prueba usa UUID aleatorio y elimina solamente su propia fila.
 - Los contratos de lifecycle REST, UI, editor, guardado, dirty/conflictos y browser no fueron implementados.
 - Docker no esta disponible, pero no bloquea: la migracion existente fue aplicada a PostgreSQL local aislado y la prueba de integracion ya no esta omitida.
+- Incremento 2 completado: ProjectsModule/controller/service/repository, lifecycle REST, DTO validation, filtro de errores, limite de 1 MiB y CAS atomico Prisma por storageVersion.
+- Integracion PostgreSQL aislada verifica create/list/get/save/patch/delete, corrupt JSONB filtrado, validacion UML, concurrencia document/metadata y delete stale.
+- Correccion posterior: `ProjectsService.resource()` valida semanticamente toda fila persistida tras el decode; la regresion PostgreSQL cubre modelo estructuralmente valido con error UML y confirma `500 INTERNAL_ERROR` filtrado.
 
 ## Trabajo terminado en CU-02
 
@@ -107,7 +110,9 @@ CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incremento 1
 - `npm run typecheck --workspace backend`: verde.
 - `npm run lint --workspace backend`: verde.
 - `npm run build --workspace backend`: verde.
+- `npm run test:integration --workspace backend`: verde, 6 tests PostgreSQL.
+- `npm run test`: verde, 87 tests totales; typecheck, lint y build raiz verdes.
 
 ## Siguiente acción exacta
 
-Esperar instruccion para iniciar exclusivamente Incremento 2. Mantener Incremento 3 y Final Verification intactos.
+Esperar instruccion para iniciar exclusivamente Incremento 3. Mantener Final Verification intacta.

@@ -22,20 +22,20 @@
 
 **Boundary:** Deliver the complete REST lifecycle against PostgreSQL with explicit resource/DTO contracts and safe storage-version CAS. This increment does not add project-management UI, editor session loading, manual Save UI, dirty/conflict UI, or browser acceptance.
 
-- [ ] 2.1 Add a focused projects module/service/repository boundary using the Increment 1 Prisma mapper; controllers remain transport adapters.
-- [ ] 2.2 Define and validate `ProjectResource`, `ProjectSummary`, create, document-save, partial metadata-patch, and delete query contracts exactly as specified; reject unknown/server-owned fields and require at least one editable PATCH field.
-- [ ] 2.3 Configure NestJS/Fastify request-size protection, DTO transformation/whitelisting, UUID validation, and integer `baseStorageVersion >= 0` validation for write requests and Delete query parameters.
-- [ ] 2.4 Implement `POST /projects` to accept only create metadata and return `ProjectResource` for an empty canonical project with server-owned fields, `ownerId: null`, `storageVersion: 0`, and `documentSchemaVersion: 1`.
-- [ ] 2.5 Implement `GET /projects` as `{ items: ProjectSummary[] }` and `GET /projects/:id` as `ProjectResource`; verify temporary CU-03 pre-auth unfiltered listing and `404 PROJECT_NOT_FOUND`.
-- [ ] 2.6 Implement `PUT /projects/:id/document` using `SaveProjectDocumentRequest`: reconstruct server-owned document fields from the row, structurally decode, semantically validate, and atomically save submitted revision/model/layout with `baseStorageVersion`.
-- [ ] 2.7 Implement partial `PATCH /projects/:id` with `baseStorageVersion`, optional valid name, nullable description semantics, and atomic metadata CAS returning `ProjectResource`.
-- [ ] 2.8 Implement `DELETE /projects/:id?baseStorageVersion=<integer>` as confirmed hard delete with atomic ID/version matching; return `204` on match, `404` when absent, and `409 PROJECT_REVISION_CONFLICT` when stale.
-- [ ] 2.9 Add a stable error boundary using `{ error: { code, message, details } }`; cover malformed client input as `400 INVALID_REQUEST`, blocking UML diagnostics as `422 DOCUMENT_VALIDATION_FAILED`, unsupported format as `422 UNSUPPORTED_DOCUMENT_SCHEMA_VERSION`, corrupt stored JSONB as filtered `INTERNAL_ERROR`, and no leaked Prisma/SQL/stack details.
-- [ ] 2.10 Implement atomic compare-and-swap for document and metadata writes matching ID/storage version and incrementing storage version exactly once; distinguish absent row from stale row without read-then-write races.
-- [ ] 2.11 Add backend API/service tests for all lifecycle responses, exact resource/summary shapes, invalid UUID/query/body fields, payload limit, create/save/patch/delete, warning acceptance, blocking validation, and filtered errors.
-- [ ] 2.12 Add PostgreSQL integration tests for competing document saves and metadata writes using the same base version, proving exactly one success and stale non-mutation.
-- [ ] 2.13 Add PostgreSQL stale-delete integration evidence: delete with current version returns `204`; delete missing project returns `404`; delete with N-1 returns `409`, leaves the version-N project intact, and proves conditional deletion is atomic.
-- [ ] 2.14 Run Increment 2 backend/integration and relevant root checks; record exact results and resolve REST/concurrency regressions.
+- [x] 2.1 Add a focused projects module/service/repository boundary using the Increment 1 Prisma mapper; controllers remain transport adapters.
+- [x] 2.2 Define and validate `ProjectResource`, `ProjectSummary`, create, document-save, partial metadata-patch, and delete query contracts exactly as specified; reject unknown/server-owned fields and require at least one editable PATCH field.
+- [x] 2.3 Configure NestJS/Fastify request-size protection, DTO transformation/whitelisting, UUID validation, and integer `baseStorageVersion >= 0` validation for write requests and Delete query parameters.
+- [x] 2.4 Implement `POST /projects` to accept only create metadata and return `ProjectResource` for an empty canonical project with server-owned fields, `ownerId: null`, `storageVersion: 0`, and `documentSchemaVersion: 1`.
+- [x] 2.5 Implement `GET /projects` as `{ items: ProjectSummary[] }` and `GET /projects/:id` as `ProjectResource`; verify temporary CU-03 pre-auth unfiltered listing and `404 PROJECT_NOT_FOUND`.
+- [x] 2.6 Implement `PUT /projects/:id/document` using `SaveProjectDocumentRequest`: reconstruct server-owned document fields from the row, structurally decode, semantically validate, and atomically save submitted revision/model/layout with `baseStorageVersion`.
+- [x] 2.7 Implement partial `PATCH /projects/:id` with `baseStorageVersion`, optional valid name, nullable description semantics, and atomic metadata CAS returning `ProjectResource`.
+- [x] 2.8 Implement `DELETE /projects/:id?baseStorageVersion=<integer>` as confirmed hard delete with atomic ID/version matching; return `204` on match, `404` when absent, and `409 PROJECT_REVISION_CONFLICT` when stale.
+- [x] 2.9 Add a stable error boundary using `{ error: { code, message, details } }`; cover malformed client input as `400 INVALID_REQUEST`, blocking UML diagnostics as `422 DOCUMENT_VALIDATION_FAILED`, unsupported format as `422 UNSUPPORTED_DOCUMENT_SCHEMA_VERSION`, corrupt stored JSONB as filtered `INTERNAL_ERROR`, and no leaked Prisma/SQL/stack details.
+- [x] 2.10 Implement atomic compare-and-swap for document and metadata writes matching ID/storage version and incrementing storage version exactly once; distinguish absent row from stale row without read-then-write races.
+- [x] 2.11 Add backend API/service tests for all lifecycle responses, exact resource/summary shapes, invalid UUID/query/body fields, payload limit, create/save/patch/delete, warning acceptance, blocking validation, and filtered errors.
+- [x] 2.12 Add PostgreSQL integration tests for competing document saves and metadata writes using the same base version, proving exactly one success and stale non-mutation.
+- [x] 2.13 Add PostgreSQL stale-delete integration evidence: delete with current version returns `204`; delete missing project returns `404`; delete with N-1 returns `409`, leaves the version-N project intact, and proves conditional deletion is atomic.
+- [x] 2.14 Run Increment 2 backend/integration and relevant root checks; record exact results and resolve REST/concurrency regressions.
 
 **Increment 2 Definition of Done:** The REST lifecycle works against PostgreSQL with normative request/resource shapes. Document, metadata, and delete mutations use atomic `storageVersion` CAS; concurrent/stale document, metadata, and deletion behavior is proven safe by real PostgreSQL integration tests. No frontend management/editor UI or browser acceptance is required to close this increment.
 

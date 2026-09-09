@@ -20,7 +20,7 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 CU-03 — Persistencia y gestion de proyectos.
 
-Estado: EN PROGRESO, Incremento 1 COMPLETADO (13/13). CU-00, CU-01 y CU-02 permanecen COMPLETADOS. Los incrementos 2 y 3 no se han iniciado.
+Estado: EN PROGRESO, Incrementos 1 y 2 COMPLETADOS (27/43). CU-00, CU-01 y CU-02 permanecen COMPLETADOS. Incremento 3 no iniciado.
 
 ## Casos de uso completados
 
@@ -36,6 +36,8 @@ Estado: EN PROGRESO, Incremento 1 COMPLETADO (13/13). CU-00, CU-01 y CU-02 perma
 - La migracion se aplica reproduciblemente solo mediante `TEST_DATABASE_URL` a `localhost:5432/examen_sw1_test`; la integracion JSONB valida round-trip, decode estructural, equivalencia semantica, revision, timestamps y versiones. Cada prueba limpia solo su propia fila UUID.
 - No hay controladores, endpoints, UI ni integracion del editor; Incrementos 2 y 3 permanecen fuera de alcance.
 - Docker no esta disponible en esta maquina, pero no bloquea el Incremento 1: PostgreSQL local aislado esta verificado. Incrementos 2 y 3 permanecen fuera de alcance.
+- Incremento 2: lifecycle REST `POST/GET/PUT/PATCH/DELETE /projects`, DTO validation, envelope de errores filtrado, limite de payload de 1 MiB y CAS atomico Prisma por `storageVersion` implementados y probados contra PostgreSQL aislado. Sin auth, ownership filtering, Socket.IO ni UI.
+- Regresion Incremento 2 corregida: toda fila persistida que se expone como `ProjectResource` pasa structural decode y `validateProjectDocument()`; una fila estructuralmente valida pero semanticamente invalida retorna `500 INTERNAL_ERROR` filtrado.
 
 ## Problemas abiertos
 
@@ -79,7 +81,10 @@ Estado: EN PROGRESO, Incremento 1 COMPLETADO (13/13). CU-00, CU-01 y CU-02 perma
 - `npm run typecheck --workspace backend`: verde.
 - `npm run lint --workspace backend`: verde.
 - `npm run build --workspace backend`: verde.
+- `npm run test:integration --workspace backend`: verde, 6 tests PostgreSQL (round-trip y lifecycle/CAS).
+- `npm run test`: verde, 87 tests totales.
+- `npm run typecheck`, `npm run lint`, `npm run build`: verdes tras Incremento 2.
 
 ## Próxima acción
 
-Incremento 1 completado (13/13). Esperar instruccion para iniciar exclusivamente el Incremento 2; no iniciar Incrementos 2/3 automaticamente.
+Incremento 2 completado (14/14). Esperar instruccion para iniciar exclusivamente Incremento 3; no iniciar Incremento 3 ni Final Verification automaticamente.

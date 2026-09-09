@@ -14,7 +14,7 @@
     "db:validate": "prisma validate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:test": "node scripts/migrate-test-database.mjs",
-    "test:integration": "vitest run test/project-persistence.integration.spec.ts"
+    "test:integration": "vitest run test/project-persistence.integration.spec.ts test/projects-api.integration.spec.ts"
   },
   "dependencies": {
     "@examen-sw1/uml-core": "^0.0.0",
