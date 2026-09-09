@@ -16,11 +16,16 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## CU activo
 
-Ninguno.
+CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incremento 1 completado (13/13). Incrementos 2 y 3 no iniciados.
 
 ## OpenSpec activo
 
-Ninguno.
+`cu-03-project-persistence-management`.
+
+- Incremento 1 completado: Prisma 6, decoder estructural `unknown -> ProjectDocument/ProjectResource`, schema/migracion inicial, mapper/modulo Prisma y round-trip PostgreSQL JSONB real.
+- `db:migrate:test` protege que `TEST_DATABASE_URL` apunte a `localhost:5432/examen_sw1_test`; la prueba usa UUID aleatorio y elimina solamente su propia fila.
+- Los contratos de lifecycle REST, UI, editor, guardado, dirty/conflictos y browser no fueron implementados.
+- Docker no esta disponible, pero no bloquea: la migracion existente fue aplicada a PostgreSQL local aislado y la prueba de integracion ya no esta omitida.
 
 ## Trabajo terminado en CU-02
 
@@ -62,7 +67,8 @@ Ninguno.
 
 ## Problemas abiertos
 
-- `npm audit` reporta 2 vulnerabilidades moderadas transitivas al instalar desde la raiz; no se aplicó fix forzado.
+- `npm audit` reporta 5 vulnerabilidades transitivas (2 moderadas, 3 altas) despues de Prisma; no se aplicó fix forzado.
+- Docker no se reconoce en la maquina; no bloquea la persistencia local verificada.
 - Deuda menor: `favicon.ico` devuelve 404.
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` al usar Drawer MUI; no bloqueo el funcionamiento observado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace.
@@ -89,7 +95,19 @@ Ninguno.
 - `openspec doctor`: verde.
 - `git diff --check`: sin errores; solo warnings LF/CRLF de Windows.
 - Runtime local `/editor`: `GET /editor` devolvio `200` con HTML de Next.js en puerto temporal `3002`; no verifica consola del navegador.
+- `npm run db:generate --workspace backend`: verde con Prisma Client `6.19.3`.
+- `npm run db:validate --workspace backend`: verde.
+- `npm run test --workspace @examen-sw1/uml-core`: verde, 35 tests.
+- `npm run typecheck --workspace @examen-sw1/uml-core`: verde.
+- `npm run lint --workspace @examen-sw1/uml-core`: verde.
+- `npm run build --workspace @examen-sw1/uml-core`: verde.
+- `npm run db:migrate:test --workspace backend`: verde; sin migraciones pendientes tras aplicar la inicial a `examen_sw1_test`.
+- `npm run test:integration --workspace backend`: verde, 1 test PostgreSQL real, sin skip.
+- `npm run test --workspace backend`: verde, 4 tests con integracion activa.
+- `npm run typecheck --workspace backend`: verde.
+- `npm run lint --workspace backend`: verde.
+- `npm run build --workspace backend`: verde.
 
 ## Siguiente acción exacta
 
-Analisis y preparacion de CU-03 — Persistencia y gestion de proyectos. No crear OpenSpec ni implementar CU-03 hasta aprobar el plan.
+Esperar instruccion para iniciar exclusivamente Incremento 2. Mantener Incremento 3 y Final Verification intactos.

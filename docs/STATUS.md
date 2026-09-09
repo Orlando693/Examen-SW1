@@ -18,9 +18,9 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## Caso de uso activo
 
-Ninguno.
+CU-03 — Persistencia y gestion de proyectos.
 
-Estado: CU-00, CU-01 y CU-02 COMPLETADOS. Ningun CU activo.
+Estado: EN PROGRESO, Incremento 1 COMPLETADO (13/13). CU-00, CU-01 y CU-02 permanecen COMPLETADOS. Los incrementos 2 y 3 no se han iniciado.
 
 ## Casos de uso completados
 
@@ -30,11 +30,17 @@ Estado: CU-00, CU-01 y CU-02 COMPLETADOS. Ningun CU activo.
 
 ## OpenSpec activo
 
-Ninguno.
+`cu-03-project-persistence-management`.
+
+- Incremento 1: dependencias Prisma 6, decoder estructural independiente de framework, envelope `ProjectResource`, schema/migracion inicial, mapper y modulo Prisma implementados y verificados contra PostgreSQL local aislado.
+- La migracion se aplica reproduciblemente solo mediante `TEST_DATABASE_URL` a `localhost:5432/examen_sw1_test`; la integracion JSONB valida round-trip, decode estructural, equivalencia semantica, revision, timestamps y versiones. Cada prueba limpia solo su propia fila UUID.
+- No hay controladores, endpoints, UI ni integracion del editor; Incrementos 2 y 3 permanecen fuera de alcance.
+- Docker no esta disponible en esta maquina, pero no bloquea el Incremento 1: PostgreSQL local aislado esta verificado. Incrementos 2 y 3 permanecen fuera de alcance.
 
 ## Problemas abiertos
 
-- `npm audit` reporta 2 vulnerabilidades moderadas en dependencias transitivas al instalar desde la raiz. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
+- `npm audit` reporta 5 vulnerabilidades transitivas (2 moderadas y 3 altas) despues de agregar Prisma. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
+- Docker no esta instalado/disponible (`docker` no se reconoce); no bloquea el Incremento 1 porque la migracion y la integracion usan PostgreSQL local aislado.
 - Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
@@ -61,7 +67,19 @@ Ninguno.
 - `openspec doctor`: verde.
 - `git diff --check`: sin errores; solo warnings LF/CRLF de Windows.
 - Runtime local `/editor`: `GET /editor` devolvio `200` con HTML de Next.js en puerto temporal `3002`; no verifica consola del navegador.
+- `npm run db:generate --workspace backend`: verde con Prisma Client `6.19.3`.
+- `npm run db:validate --workspace backend`: verde.
+- `npm run test --workspace @examen-sw1/uml-core`: verde, 35 tests.
+- `npm run typecheck --workspace @examen-sw1/uml-core`: verde.
+- `npm run lint --workspace @examen-sw1/uml-core`: verde.
+- `npm run build --workspace @examen-sw1/uml-core`: verde.
+- `npm run db:migrate:test --workspace backend`: verde; migracion inicial aplicada y luego sin migraciones pendientes en `examen_sw1_test`.
+- `npm run test:integration --workspace backend`: verde, 1 prueba PostgreSQL real, sin skip.
+- `npm run test --workspace backend`: verde, 4 tests; integracion PostgreSQL activa.
+- `npm run typecheck --workspace backend`: verde.
+- `npm run lint --workspace backend`: verde.
+- `npm run build --workspace backend`: verde.
 
 ## Próxima acción
 
-Preparar CU-03 — Persistencia y gestion de proyectos.
+Incremento 1 completado (13/13). Esperar instruccion para iniciar exclusivamente el Incremento 2; no iniciar Incrementos 2/3 automaticamente.
