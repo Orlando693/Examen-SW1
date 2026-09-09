@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { UmlEditorClient } from '../../components/editor/UmlEditorClient';
 
 export const metadata: Metadata = {
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function EditorPage() {
-  return <UmlEditorClient />;
+  return <Suspense fallback={null}><UmlEditorClient /></Suspense>;
 }

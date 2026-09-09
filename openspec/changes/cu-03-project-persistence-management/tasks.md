@@ -43,17 +43,17 @@
 
 **Boundary:** Connect the existing Next.js editor and a minimal Material project-management flow to the completed API. This increment excludes final browser acceptance, OpenSpec verification, archive, commit, and push.
 
-- [ ] 3.1 Add a small typed fetch-based frontend project API client that treats API data as unknown, applies shared decoding, and maps the stable error envelope without adding a data-fetching dependency.
-- [ ] 3.2 Replace the root health-only placeholder with a scrollable Material project-management landing containing list, New Project, Open, Rename, confirmed version-aware Delete, loading, retryable error, and empty states.
-- [ ] 3.3 Retain `/editor` and load persisted projects through `/editor?projectId=<uuid>`; make bare `/editor` redirect to project selection or present an explicit selection state instead of silently loading demo data.
-- [ ] 3.4 Add atomic editor-session replacement that creates a fresh `UmlHistory`, sets decoded document/diagnostics, clears selection/transient UI and operational errors, resets counts, records `storageVersion` and `savedPersistentSnapshot`, and marks clean.
-- [ ] 3.5 Replace sequential IDs in real editor creation actions with UUID-based canonical IDs; verify class, enum, attribute, literal, and relationship creation after reload cannot collide with prior sessions.
-- [ ] 3.6 Add persistible snapshot comparison and `idle`/`dirty`/`saving`/`saved`/`error`/`conflict` semantics based only on editable metadata, model, and layout; verify Undo to saved content becomes clean.
-- [ ] 3.7 Add manual Save behavior using `SaveProjectDocumentRequest`; preserve Undo/Redo after success, update session storage version/server metadata/saved snapshot, and never autosave.
-- [ ] 3.8 Preserve local document/history after validation, network, or `409 PROJECT_REVISION_CONFLICT`; provide explicit confirmed authoritative reload without merge or force overwrite.
-- [ ] 3.9 Guard project-switch and asynchronous load/save/auto-layout work so a late result cannot mutate another project session; include project identity in relevant canvas reset/refit behavior.
-- [ ] 3.10 Add frontend tests for list loading/error/empty, create/open/rename/version-aware delete, bare editor behavior, fresh history per project, UUID creation after reload, dirty transitions, save success/failure, stale conflict, and confirmed reload.
-- [ ] 3.11 Run Increment 3 frontend and relevant root checks; record exact results and resolve UI/editor regressions.
+- [x] 3.1 Add a small typed fetch-based frontend project API client that treats API data as unknown, applies shared decoding, and maps the stable error envelope without adding a data-fetching dependency.
+- [x] 3.2 Replace the root health-only placeholder with a scrollable Material project-management landing containing list, New Project, Open, Rename, confirmed version-aware Delete, loading, retryable error, and empty states.
+- [x] 3.3 Retain `/editor` and load persisted projects through `/editor?projectId=<uuid>`; make bare `/editor` redirect to project selection or present an explicit selection state instead of silently loading demo data.
+- [x] 3.4 Add atomic editor-session replacement that creates a fresh `UmlHistory`, sets decoded document/diagnostics, clears selection/transient UI and operational errors, resets counts, records `storageVersion` and `savedPersistentSnapshot`, and marks clean.
+- [x] 3.5 Replace sequential IDs in real editor creation actions with UUID-based canonical IDs; verify class, enum, attribute, literal, and relationship creation after reload cannot collide with prior sessions.
+- [x] 3.6 Add persistible snapshot comparison and `idle`/`dirty`/`saving`/`saved`/`error`/`conflict` semantics based only on editable metadata, model, and layout; verify Undo to saved content becomes clean.
+- [x] 3.7 Add manual Save behavior using `SaveProjectDocumentRequest`; preserve Undo/Redo after success, update session storage version/server metadata/saved snapshot, and never autosave.
+- [x] 3.8 Preserve local document/history after validation, network, or `409 PROJECT_REVISION_CONFLICT`; provide explicit confirmed authoritative reload without merge or force overwrite.
+- [x] 3.9 Guard project-switch and asynchronous load/save/auto-layout work so a late result cannot mutate another project session; include project identity in relevant canvas reset/refit behavior.
+- [x] 3.10 Add frontend tests for list loading/error/empty, create/open/rename/version-aware delete, bare editor behavior, fresh history per project, UUID creation after reload, dirty transitions, save success/failure, stale conflict, and confirmed reload.
+- [x] 3.11 Run Increment 3 frontend and relevant root checks; record exact results and resolve UI/editor regressions.
 
 **Increment 3 Definition of Done:** The frontend manages projects and edits a persisted project through the API. Each opened project creates a fresh history, manual save and dirty/conflict states are correct, local work survives failures, and persistent element IDs are durable. Final real-browser acceptance remains pending.
 

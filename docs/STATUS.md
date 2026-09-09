@@ -20,7 +20,7 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 CU-03 — Persistencia y gestion de proyectos.
 
-Estado: EN PROGRESO, Incrementos 1 y 2 COMPLETADOS (27/43). CU-00, CU-01 y CU-02 permanecen COMPLETADOS. Incremento 3 no iniciado.
+Estado: EN PROGRESO, Incrementos 1, 2 y 3 COMPLETADOS (38/43). CU-00, CU-01 y CU-02 permanecen COMPLETADOS. Final Verification permanece pendiente.
 
 ## Casos de uso completados
 
@@ -38,6 +38,7 @@ Estado: EN PROGRESO, Incrementos 1 y 2 COMPLETADOS (27/43). CU-00, CU-01 y CU-02
 - Docker no esta disponible en esta maquina, pero no bloquea el Incremento 1: PostgreSQL local aislado esta verificado. Incrementos 2 y 3 permanecen fuera de alcance.
 - Incremento 2: lifecycle REST `POST/GET/PUT/PATCH/DELETE /projects`, DTO validation, envelope de errores filtrado, limite de payload de 1 MiB y CAS atomico Prisma por `storageVersion` implementados y probados contra PostgreSQL aislado. Sin auth, ownership filtering, Socket.IO ni UI.
 - Regresion Incremento 2 corregida: toda fila persistida que se expone como `ProjectResource` pasa structural decode y `validateProjectDocument()`; una fila estructuralmente valida pero semanticamente invalida retorna `500 INTERNAL_ERROR` filtrado.
+- Incremento 3: cliente fetch tipado con decode compartido, landing Material de proyectos (list/create/open/rename/delete CAS), carga de `/editor?projectId=<uuid>`, sesion atomica con `UmlHistory` fresco, UUIDs de dominio, dirty/save/conflict/reload manual y guardas contra resultados asincronos obsoletos implementados y cubiertos.
 
 ## Problemas abiertos
 
@@ -84,7 +85,12 @@ Estado: EN PROGRESO, Incrementos 1 y 2 COMPLETADOS (27/43). CU-00, CU-01 y CU-02
 - `npm run test:integration --workspace backend`: verde, 6 tests PostgreSQL (round-trip y lifecycle/CAS).
 - `npm run test`: verde, 87 tests totales.
 - `npm run typecheck`, `npm run lint`, `npm run build`: verdes tras Incremento 2.
+- `npm run test --workspace frontend`: verde, 51 tests.
+- `npm run test`: verde, 95 tests totales.
+- `npm run typecheck`: verde.
+- `npm run lint`: verde.
+- `npm run build`: verde.
 
 ## Próxima acción
 
-Incremento 2 completado (14/14). Esperar instruccion para iniciar exclusivamente Incremento 3; no iniciar Incremento 3 ni Final Verification automaticamente.
+Incremento 3 completado (11/11). Esperar instruccion para iniciar exclusivamente Final Verification; no ejecutar sus tareas, verificar OpenSpec, archivar, commitear ni pushear automaticamente.

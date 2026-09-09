@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   UmlHistory,
+  createUuid,
   stringType,
   validateProjectDocument,
   type CommandResult,
@@ -13,9 +14,17 @@ import {
 } from '@examen-sw1/uml-core';
 import { createDemoProjectDocument } from '../lib/editor/demo/demo-document';
 import { createAutoLayoutCommand } from '../lib/editor/layout/auto-layout';
+import { projectApi, type ProjectApiError } from '../lib/projects/project-api';
 import type { EditorSelection } from '../lib/editor/projection/project-document-to-flow';
 
 export type EditorTool = 'select' | 'class' | 'enum' | 'association' | 'aggregation' | 'composition' | 'generalization';
+export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
+
+export interface PersistibleSnapshot {
+  metadata: ProjectDocument['metadata'];
+  model: ProjectDocument['model'];
+  layout: ProjectDocument['layout'];
+}
 
 interface RelationshipDraft {
   kind: Exclude<UmlRelationshipKind, 'generalization'> | 'generalization';
@@ -34,6 +43,11 @@ interface EditorStore {
   lastCommandError: string | null;
   undoCount: number;
   redoCount: number;
+  projectId: string | null;
+  storageVersion: number | null;
+  savedPersistentSnapshot: PersistibleSnapshot | null;
+  saveState: SaveState;
+  operationalError: string | null;
   setSelection: (selection: EditorSelection) => void;
   setActiveTool: (tool: EditorTool) => void;
   toggleSidebar: () => void;
@@ -57,20 +71,29 @@ interface EditorStore {
   deleteRelationship: (relationshipId: string) => CommandResult;
   moveNode: (elementId: string, position: { x: number; y: number }) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
+  replaceProjectSession: (resource: { project: ProjectDocument; storageVersion: number }) => void;
+  save: () => Promise<void>;
+  reloadProject: () => Promise<void>;
   undo: () => void;
   redo: () => void;
 }
 
 const initialDocument = createDemoProjectDocument();
-let generatedIdSequence = 0;
-
-function nextGeneratedId(prefix: string): string {
-  generatedIdSequence += 1;
-  return `${prefix}-${generatedIdSequence}`;
-}
 
 function diagnosticsFor(document: ProjectDocument): ValidationDiagnostic[] {
   return validateProjectDocument(document).diagnostics;
+}
+
+function persistibleSnapshot(document: ProjectDocument): PersistibleSnapshot {
+  return structuredClone({ metadata: document.metadata, model: document.model, layout: document.layout });
+}
+
+function snapshotsEqual(left: PersistibleSnapshot | null, right: PersistibleSnapshot): boolean {
+  return left !== null && JSON.stringify(left) === JSON.stringify(right);
+}
+
+function saveStateFor(document: ProjectDocument, saved: PersistibleSnapshot | null): SaveState {
+  return snapshotsEqual(saved, persistibleSnapshot(document)) ? 'idle' : 'dirty';
 }
 
 function syncFromHistory(history: UmlHistory) {
@@ -78,8 +101,8 @@ function syncFromHistory(history: UmlHistory) {
   return {
     currentDocument,
     diagnostics: diagnosticsFor(currentDocument),
-    undoCount: history.undoCount,
-    redoCount: history.redoCount,
+      undoCount: history.undoCount,
+      redoCount: history.redoCount,
   };
 }
 
@@ -87,7 +110,7 @@ function executeAndSync(history: UmlHistory, command: UmlCommand) {
   const result = history.execute(command);
   return {
     result,
-    sync: result.ok ? syncFromHistory(history) : { lastCommandError: result.message, diagnostics: result.diagnostics },
+    sync: result.ok ? { ...syncFromHistory(history), saveState: 'dirty' as const } : { lastCommandError: result.message, diagnostics: result.diagnostics },
   };
 }
 
@@ -110,19 +133,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   lastCommandError: null,
   undoCount: 0,
   redoCount: 0,
+  projectId: null,
+  storageVersion: null,
+  savedPersistentSnapshot: null,
+  saveState: 'idle',
+  operationalError: null,
   setSelection: (selection) => set((state) => (sameSelection(state.selection, selection) ? state : { selection })),
   setActiveTool: (activeTool) => set((state) => (state.activeTool === activeTool && state.relationshipDraft === null ? state : { activeTool, relationshipDraft: null, lastCommandError: null })),
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   toggleInspector: () => set((state) => ({ isInspectorOpen: !state.isInspectorOpen })),
   createClass: () => {
-    const id = nextGeneratedId('class');
+    const id = createUuid();
     const { result, sync } = executeAndSync(get().history, { type: 'CreateClass', classId: id, name: 'NewClass' });
     set({ ...sync, selection: result.ok ? { type: 'class', id } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   renameClass: (classId, name) => {
     const { result, sync } = executeAndSync(get().history, { type: 'RenameClass', classId, name });
-    set({ ...sync, lastCommandError: result.ok ? null : result.message });
+    set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteClass: (classId) => {
@@ -131,7 +159,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return result;
   },
   addAttribute: (classId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'AddAttribute', classId, attributeId: nextGeneratedId('attr'), name: 'newAttribute', attributeType: stringType() });
+    const { result, sync } = executeAndSync(get().history, { type: 'AddAttribute', classId, attributeId: createUuid(), name: 'newAttribute', attributeType: stringType() });
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -146,7 +174,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return result;
   },
   createEnumeration: () => {
-    const id = nextGeneratedId('enum');
+    const id = createUuid();
     const { result, sync } = executeAndSync(get().history, { type: 'CreateEnumeration', enumerationId: id, name: 'NewEnum' });
     set({ ...sync, selection: result.ok ? { type: 'enumeration', id } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
@@ -162,7 +190,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return result;
   },
   addEnumerationLiteral: (enumerationId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'AddEnumerationLiteral', enumerationId, literalId: nextGeneratedId('literal'), name: 'NEW_LITERAL' });
+    const { result, sync } = executeAndSync(get().history, { type: 'AddEnumerationLiteral', enumerationId, literalId: createUuid(), name: 'NEW_LITERAL' });
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -187,7 +215,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set({ relationshipDraft: null, activeTool: 'select', lastCommandError: 'No se puede crear una relacion de una clase hacia si misma en CU-02.' });
       return null;
     }
-    const relationshipId = nextGeneratedId('rel');
+    const relationshipId = createUuid();
     const command: UmlCommand = draft.kind === 'generalization'
       ? { type: 'CreateGeneralization', relationshipId, sourceClassId: draft.sourceClassId, targetClassId }
       : { type: 'CreateAssociation', relationshipId, kind: draft.kind, sourceClassId: draft.sourceClassId, targetClassId, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: '*' } };
@@ -211,7 +239,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return result;
   },
   applyAutoLayout: async () => {
-    const command = await createAutoLayoutCommand(get().currentDocument);
+    const document = get().currentDocument;
+    const projectId = get().projectId;
+    const command = await createAutoLayoutCommand(document);
+    if (get().currentDocument !== document || get().projectId !== projectId) {
+      return { ok: false, command, document, reason: 'INVALID_COMMAND', message: 'Auto layout result belongs to a previous project session.', diagnostics: [] };
+    }
     const { result, sync } = executeAndSync(get().history, command);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
@@ -219,20 +252,68 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   undo: () => {
     const result = get().history.undo();
     if (result.ok) {
-      set({ ...syncFromHistory(get().history), lastCommandError: null });
+      set({ ...syncFromHistory(get().history), saveState: saveStateFor(get().history.document, get().savedPersistentSnapshot), lastCommandError: null });
     }
   },
   redo: () => {
     const result = get().history.redo();
     if (result.ok) {
-      set({ ...syncFromHistory(get().history), lastCommandError: null });
+      set({ ...syncFromHistory(get().history), saveState: saveStateFor(get().history.document, get().savedPersistentSnapshot), lastCommandError: null });
+    }
+  },
+  replaceProjectSession: (resource) => {
+    const validation = validateProjectDocument(resource.project);
+    if (validation.diagnostics.some((diagnostic) => diagnostic.severity === 'ERROR')) {
+      throw new Error('The server returned a project with blocking UML diagnostics.');
+    }
+    const history = new UmlHistory(resource.project);
+    set({
+      history,
+      ...syncFromHistory(history),
+      selection: null,
+      activeTool: 'select',
+      relationshipDraft: null,
+      isSidebarOpen: false,
+      isInspectorOpen: false,
+      lastCommandError: null,
+      projectId: resource.project.id,
+      storageVersion: resource.storageVersion,
+      savedPersistentSnapshot: persistibleSnapshot(resource.project),
+      saveState: 'idle',
+      operationalError: null,
+    });
+  },
+  save: async () => {
+    const state = get();
+    if (!state.projectId || state.storageVersion === null || state.saveState === 'saving') return;
+    const projectId = state.projectId;
+    const document = state.currentDocument;
+    const storageVersion = state.storageVersion;
+    set({ saveState: 'saving', operationalError: null });
+    try {
+      const resource = await projectApi.saveDocument(projectId, { baseStorageVersion: storageVersion, document: { revision: document.revision, model: document.model, layout: document.layout } });
+      if (get().projectId !== projectId || get().currentDocument !== document) return;
+      set({ storageVersion: resource.storageVersion, savedPersistentSnapshot: persistibleSnapshot(resource.project), saveState: 'saved', operationalError: null });
+    } catch (cause) {
+      if (get().projectId !== projectId) return;
+      const error = cause as ProjectApiError;
+      set({ saveState: error.code === 'PROJECT_REVISION_CONFLICT' ? 'conflict' : 'error', operationalError: error.message });
+    }
+  },
+  reloadProject: async () => {
+    const projectId = get().projectId;
+    if (!projectId || !window.confirm('Reload the authoritative project? Unsaved local changes will be discarded.')) return;
+    try {
+      const resource = await projectApi.get(projectId);
+      if (get().projectId === projectId) get().replaceProjectSession(resource);
+    } catch (cause) {
+      if (get().projectId === projectId) set({ operationalError: cause instanceof Error ? cause.message : 'Unable to reload project.', saveState: get().saveState });
     }
   },
 }));
 
 export function resetEditorStoreForTests(document = createDemoProjectDocument()) {
   const history = new UmlHistory(document);
-  generatedIdSequence = 0;
   useEditorStore.setState({
     history,
     currentDocument: document,
@@ -245,5 +326,10 @@ export function resetEditorStoreForTests(document = createDemoProjectDocument())
     lastCommandError: null,
     undoCount: 0,
     redoCount: 0,
+    projectId: null,
+    storageVersion: null,
+    savedPersistentSnapshot: null,
+    saveState: 'idle',
+    operationalError: null,
   });
 }

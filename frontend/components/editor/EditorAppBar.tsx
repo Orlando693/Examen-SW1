@@ -12,6 +12,9 @@ export function EditorAppBar({ compact }: { compact: boolean }) {
   const applyAutoLayout = useEditorStore((state) => state.applyAutoLayout);
   const toggleSidebar = useEditorStore((state) => state.toggleSidebar);
   const toggleInspector = useEditorStore((state) => state.toggleInspector);
+  const save = useEditorStore((state) => state.save);
+  const reloadProject = useEditorStore((state) => state.reloadProject);
+  const saveState = useEditorStore((state) => state.saveState);
 
   return (
     <AppBar position="static" elevation={0} sx={{ bgcolor: '#0B1F33', borderBottom: '1px solid rgba(216,226,232,0.16)' }}>
@@ -23,6 +26,8 @@ export function EditorAppBar({ compact }: { compact: boolean }) {
         </Box>
         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={undo} disabled={undoCount === 0} sx={{ flex: '0 0 auto', minWidth: compact ? 42 : 64, px: compact ? 0.75 : 1, textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>Undo</Button>
         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={redo} disabled={redoCount === 0} sx={{ flex: '0 0 auto', minWidth: compact ? 42 : 64, px: compact ? 0.75 : 1, textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>Redo</Button>
+        <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void save()} disabled={saveState === 'idle' || saveState === 'saving'} sx={{ flex: '0 0 auto', textTransform: 'none' }}>{saveState === 'saving' ? 'Saving' : 'Save'}</Button>
+        {(saveState === 'conflict' || saveState === 'error') && <Button size="small" color="inherit" onClick={() => void reloadProject()} sx={{ flex: '0 0 auto', textTransform: 'none' }}>Reload</Button>}
         {!compact && <Button size="medium" color="inherit" onClick={() => void applyAutoLayout()} sx={{ flex: '0 0 auto', minWidth: 112, whiteSpace: 'nowrap', textTransform: 'none' }}>Auto Layout</Button>}
         {compact && <Button size="small" color="inherit" onClick={toggleInspector} sx={{ flex: '0 0 auto', minWidth: 54, px: 0.75, textTransform: 'none' }}>Props</Button>}
       </Toolbar>

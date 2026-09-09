@@ -16,7 +16,7 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## CU activo
 
-CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incrementos 1 y 2 completados (27/43). Incremento 3 no iniciado.
+CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incrementos 1, 2 y 3 completados (38/43). Final Verification pendiente.
 
 ## OpenSpec activo
 
@@ -29,6 +29,8 @@ CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incrementos 
 - Incremento 2 completado: ProjectsModule/controller/service/repository, lifecycle REST, DTO validation, filtro de errores, limite de 1 MiB y CAS atomico Prisma por storageVersion.
 - Integracion PostgreSQL aislada verifica create/list/get/save/patch/delete, corrupt JSONB filtrado, validacion UML, concurrencia document/metadata y delete stale.
 - Correccion posterior: `ProjectsService.resource()` valida semanticamente toda fila persistida tras el decode; la regresion PostgreSQL cubre modelo estructuralmente valido con error UML y confirma `500 INTERNAL_ERROR` filtrado.
+- Incremento 3 completado: `project-api` fetch/decode, landing de gestion Material, editor por `projectId`, sesion/historial fresco, UUIDs, dirty/manual save/conflict/reload y guardas de asincronia obsoleta.
+- Cobertura frontend nueva: landing carga/vacio/error/retry/create/rename/delete CAS; bare editor; sesion fresca; UUIDs de elementos; dirty por Undo; save exitoso/error/conflict/reload confirmado; auto-layout tardio tras cambio de proyecto.
 
 ## Trabajo terminado en CU-02
 
@@ -112,7 +114,10 @@ CU-03 — Persistencia y gestion de proyectos. Estado: EN PROGRESO; Incrementos 
 - `npm run build --workspace backend`: verde.
 - `npm run test:integration --workspace backend`: verde, 6 tests PostgreSQL.
 - `npm run test`: verde, 87 tests totales; typecheck, lint y build raiz verdes.
+- `npm run test --workspace frontend`: verde, 51 tests.
+- `npm run test`: verde, 95 tests totales.
+- `npm run typecheck`, `npm run lint`, `npm run build`: verdes tras Incremento 3.
 
 ## Siguiente acción exacta
 
-Esperar instruccion para iniciar exclusivamente Incremento 3. Mantener Final Verification intacta.
+Esperar instruccion para iniciar exclusivamente Final Verification. Mantener sus tareas, OpenSpec verify, archive, commit y push intactos hasta nueva instruccion.

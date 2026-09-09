@@ -1,20 +1,41 @@
 import { act } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetEditorStoreForTests, useEditorStore } from './editor-store';
 import { createDemoProjectDocument } from '../lib/editor/demo/demo-document';
 import { projectDocumentToFlow } from '../lib/editor/projection/project-document-to-flow';
 
-vi.mock('../lib/editor/layout/auto-layout', () => ({
-  createAutoLayoutCommand: vi.fn(async () => ({
-    type: 'ApplyLayout',
-    updates: [
-      { elementId: 'class-customer', position: { x: 10, y: 20 } },
-      { elementId: 'class-order', position: { x: 300, y: 20 } },
-    ],
-  })),
+const createAutoLayoutCommandMock = vi.hoisted(() => vi.fn());
+const projectApiMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  saveDocument: vi.fn(),
 }));
 
+vi.mock('../lib/editor/layout/auto-layout', () => ({
+  createAutoLayoutCommand: createAutoLayoutCommandMock,
+}));
+
+vi.mock('../lib/projects/project-api', () => ({ projectApi: projectApiMock }));
+
+function projectResource(id: string, storageVersion = 0) {
+  const project = createDemoProjectDocument();
+  project.id = id;
+  project.metadata.name = `Project ${id}`;
+  return { project, storageVersion };
+}
+
 describe('editor store', () => {
+  beforeEach(() => {
+    createAutoLayoutCommandMock.mockResolvedValue({
+      type: 'ApplyLayout',
+      updates: [
+        { elementId: 'class-customer', position: { x: 10, y: 20 } },
+        { elementId: 'class-order', position: { x: 300, y: 20 } },
+      ],
+    });
+    projectApiMock.get.mockReset();
+    projectApiMock.saveDocument.mockReset();
+  });
+
   it('does not notify subscribers for redundant selection updates', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     let updates = 0;
@@ -184,5 +205,95 @@ describe('editor store', () => {
       useEditorStore.getState().renameClass('class-order', 'PurchaseOrder');
     });
     expect(useEditorStore.getState().redoCount).toBe(0);
+  });
+
+  it('replaces a project with a fresh clean history and durable UUID command IDs', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-a', 3)));
+    act(() => useEditorStore.getState().renameClass('class-customer', 'Local change'));
+    const previousHistory = useEditorStore.getState().history;
+
+    act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-b', 7)));
+    act(() => {
+      useEditorStore.getState().createClass();
+      const classId = useEditorStore.getState().selection?.id ?? '';
+      useEditorStore.getState().addAttribute(classId);
+      useEditorStore.getState().createEnumeration();
+      const enumerationId = useEditorStore.getState().selection?.id ?? '';
+      useEditorStore.getState().addEnumerationLiteral(enumerationId);
+      useEditorStore.getState().startRelationship('association', 'class-customer');
+      useEditorStore.getState().completeRelationship(classId);
+    });
+
+    const state = useEditorStore.getState();
+    const createdClass = state.currentDocument.model.classes.at(-1)!;
+    const createdEnumeration = state.currentDocument.model.enumerations.at(-1)!;
+    const createdRelationship = state.currentDocument.model.relationships.at(-1)!;
+    expect(state.history).not.toBe(previousHistory);
+    expect(state.projectId).toBe('project-b');
+    expect(state.storageVersion).toBe(7);
+    expect(state.undoCount).toBe(5);
+    expect(createdClass.id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(createdClass.attributes.at(-1)?.id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(createdEnumeration.id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(createdEnumeration.literals.at(-1)?.id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(createdRelationship.id).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it('derives dirty state from the saved snapshot and becomes clean after undo', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-a')));
+
+    act(() => useEditorStore.getState().renameClass('class-customer', 'Changed'));
+    expect(useEditorStore.getState().saveState).toBe('dirty');
+
+    act(() => useEditorStore.getState().undo());
+    expect(useEditorStore.getState().saveState).toBe('idle');
+  });
+
+  it('preserves local history across save success, failure, conflict, and confirmed reload', async () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-a', 2)));
+    act(() => useEditorStore.getState().renameClass('class-customer', 'Changed'));
+    const history = useEditorStore.getState().history;
+    const document = useEditorStore.getState().currentDocument;
+    projectApiMock.saveDocument.mockResolvedValue({ project: document, storageVersion: 3 });
+
+    await act(async () => useEditorStore.getState().save());
+    expect(useEditorStore.getState()).toMatchObject({ storageVersion: 3, saveState: 'saved' });
+    expect(useEditorStore.getState().history).toBe(history);
+    expect(useEditorStore.getState().undoCount).toBe(1);
+
+    act(() => useEditorStore.getState().renameClass('class-order', 'Purchase'));
+    const unsavedDocument = useEditorStore.getState().currentDocument;
+    projectApiMock.saveDocument.mockRejectedValue({ code: 'NETWORK_ERROR', message: 'Offline' });
+    await act(async () => useEditorStore.getState().save());
+    expect(useEditorStore.getState()).toMatchObject({ saveState: 'error', storageVersion: 3, currentDocument: unsavedDocument });
+
+    projectApiMock.saveDocument.mockRejectedValue({ code: 'PROJECT_REVISION_CONFLICT', message: 'Stale' });
+    await act(async () => useEditorStore.getState().save());
+    expect(useEditorStore.getState()).toMatchObject({ saveState: 'conflict', storageVersion: 3, currentDocument: unsavedDocument });
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    projectApiMock.get.mockResolvedValue(projectResource('project-a', 9));
+    await act(async () => useEditorStore.getState().reloadProject());
+    expect(confirm).toHaveBeenCalled();
+    expect(useEditorStore.getState()).toMatchObject({ projectId: 'project-a', storageVersion: 9, saveState: 'idle' });
+    expect(useEditorStore.getState().history).not.toBe(history);
+    confirm.mockRestore();
+  });
+
+  it('ignores an auto-layout result that resolves after a project switch', async () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-a')));
+    let resolveLayout: (command: { type: 'ApplyLayout'; updates: Array<{ elementId: string; position: { x: number; y: number } }> }) => void;
+    createAutoLayoutCommandMock.mockImplementationOnce(() => new Promise((resolve) => { resolveLayout = resolve; }));
+
+    const pending = useEditorStore.getState().applyAutoLayout();
+    act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-b')));
+    resolveLayout!({ type: 'ApplyLayout', updates: [{ elementId: 'class-customer', position: { x: 900, y: 900 } }] });
+    await expect(pending).resolves.toMatchObject({ ok: false, reason: 'INVALID_COMMAND' });
+    expect(useEditorStore.getState().projectId).toBe('project-b');
+    expect(useEditorStore.getState().currentDocument.layout.nodes.find((node) => node.elementId === 'class-customer')?.position).toEqual({ x: 80, y: 80 });
   });
 });

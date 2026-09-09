@@ -108,7 +108,7 @@ describe('UmlEditorClient', () => {
 
   it('renders the workspace shell, route-owned editor content and projected canvas', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
-    render(<UmlEditorClient />);
+    render(<UmlEditorClient allowDemoForTests />);
 
     expect(screen.getByTestId('editor-root')).toHaveStyle({ height: '100dvh', overflow: 'hidden' });
     expect(screen.getByTestId('uml-workspace')).toBeInTheDocument();
@@ -125,12 +125,21 @@ describe('UmlEditorClient', () => {
   it('keeps the server HTML on the desktop-safe branch before client hydration', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
 
-    const html = renderToString(<UmlEditorClient />);
+    const html = renderToString(<UmlEditorClient allowDemoForTests />);
 
     expect(html).toContain('CASE / UML / WORKBENCH');
     expect(html).toContain('Auto Layout');
     expect(html).not.toContain('aria-label="Menu"');
     expect(html).not.toContain('Props');
+  });
+
+  it('requires a project selection instead of loading the demo editor on bare /editor', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    render(<UmlEditorClient allowDemoForTests={false} />);
+
+    expect(screen.getByText('Select a persisted project before opening the editor.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to projects' })).toHaveAttribute('href', '/');
+    expect(screen.queryByTestId('uml-workspace')).not.toBeInTheDocument();
   });
 
   it('renders a readable desktop toolbox with complete labels and no horizontal scrolling mode', () => {

@@ -29,6 +29,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
   const relationshipDraft = useEditorStore((state) => state.relationshipDraft);
   const moveNode = useEditorStore((state) => state.moveNode);
   const document = useEditorStore((state) => state.currentDocument);
+  const projectId = useEditorStore((state) => state.projectId);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<UmlFlowNode, UmlFlowEdge> | null>(null);
   const lastFitKeyRef = useRef('');
@@ -142,7 +143,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
     if (!canMount || !isCanvasReady || containerSize.width <= 0 || containerSize.height <= 0 || flow.nodes.length === 0) {
       return;
     }
-    const fitKey = `${compact}:${containerSize.width}:${containerSize.height}:${viewportKey}`;
+    const fitKey = `${projectId ?? 'unpersisted'}:${compact}:${containerSize.width}:${containerSize.height}:${viewportKey}`;
     if (lastFitKeyRef.current === fitKey) {
       return;
     }
@@ -151,7 +152,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
       reactFlowRef.current?.fitView({ padding: compact ? 0.08 : 0.18, duration: 120, minZoom: compact ? 0.72 : 0.1 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [canMount, compact, containerSize.height, containerSize.width, flow.nodes.length, isCanvasReady, viewportKey]);
+  }, [canMount, compact, containerSize.height, containerSize.width, flow.nodes.length, isCanvasReady, projectId, viewportKey]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
