@@ -20,6 +20,7 @@ export type UmlCommand =
   | CreateGeneralizationCommand
   | DeleteRelationshipCommand
   | UpdateMultiplicityCommand
+  | UpdateRelationshipCommand
   | MoveNodeCommand
   | ApplyLayoutCommand;
 
@@ -138,6 +139,14 @@ export interface UpdateMultiplicityCommand {
   relationshipId: Uuid;
   endpoint: 'source' | 'target';
   multiplicity: Multiplicity;
+}
+
+export interface UpdateRelationshipCommand {
+  type: 'UpdateRelationship';
+  relationshipId: Uuid;
+  name?: string | null;
+  sourceMultiplicity?: Multiplicity | null;
+  targetMultiplicity?: Multiplicity | null;
 }
 
 export interface MoveNodeCommand {

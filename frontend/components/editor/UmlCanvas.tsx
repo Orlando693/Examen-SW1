@@ -33,15 +33,21 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<UmlFlowNode, UmlFlowEdge> | null>(null);
   const lastFitKeyRef = useRef('');
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const lastMeasuredSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const reactFlowReadyRef = useRef(false);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+  const [isReactFlowReady, setIsReactFlowReady] = useState(false);
   const sourceClass = relationshipDraft?.sourceClassId ? document.model.classes.find((umlClass) => umlClass.id === relationshipDraft.sourceClassId) : undefined;
   const relationshipMode = activeTool !== 'select' && activeTool !== 'class' && activeTool !== 'enum';
   const viewportKey = useMemo(() => flow.nodes.map((node) => `${node.id}:${node.position.x}:${node.position.y}`).join('|'), [flow.nodes]);
 
   const onNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, node: Node) => {
+    const currentPosition = document.layout.nodes.find((layoutNode) => layoutNode.elementId === node.id)?.position;
+    if (currentPosition?.x === node.position.x && currentPosition.y === node.position.y) {
+      return;
+    }
     moveNode(node.id, node.position);
-  }, [moveNode]);
+  }, [document.layout.nodes, moveNode]);
 
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     if (relationshipMode) {
@@ -85,6 +91,10 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
 
   const onInit = useCallback((instance: ReactFlowInstance<UmlFlowNode, UmlFlowEdge>) => {
     reactFlowRef.current = instance;
+    if (!reactFlowReadyRef.current) {
+      reactFlowReadyRef.current = true;
+      setIsReactFlowReady(true);
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -96,8 +106,6 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
       return;
     }
     const host = element;
-    let cancelled = false;
-    let frame = 0;
     function readSize() {
       const rect = host.getBoundingClientRect();
       const width = Math.round(host.clientWidth || host.offsetWidth || rect.width || 0);
@@ -105,42 +113,45 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
       return { width, height };
     }
     function updateSize(width: number, height: number) {
-      setContainerSize((current) => (current.width === width && current.height === height ? current : { width, height }));
-      if (width > 0 && height > 0) {
-        setIsCanvasReady(true);
-      }
-    }
-    function measureUntilReady() {
-      if (cancelled) {
+      const nextSize = { width, height };
+      const previousSize = lastMeasuredSizeRef.current;
+      if (previousSize?.width === width && previousSize.height === height) {
         return;
       }
+      lastMeasuredSizeRef.current = nextSize;
+      if (width > 0 && height > 0) {
+        setContainerSize(nextSize);
+        return;
+      }
+      reactFlowRef.current = null;
+      if (reactFlowReadyRef.current) {
+        reactFlowReadyRef.current = false;
+        setIsReactFlowReady(false);
+      }
+      setContainerSize(null);
+    }
+    function measure() {
       const { width, height } = readSize();
       updateSize(width, height);
-      if (width <= 0 || height <= 0) {
-        frame = window.requestAnimationFrame(measureUntilReady);
-      }
     }
-    frame = window.requestAnimationFrame(measureUntilReady);
+    measure();
     if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
       return () => {
-        cancelled = true;
-        window.cancelAnimationFrame(frame);
+        window.removeEventListener('resize', measure);
       };
     }
     const observer = new ResizeObserver(() => {
-      const { width, height } = readSize();
-      updateSize(width, height);
+      measure();
     });
     observer.observe(host);
     return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
   }, [canMount]);
 
   useEffect(() => {
-    if (!canMount || !isCanvasReady || containerSize.width <= 0 || containerSize.height <= 0 || flow.nodes.length === 0) {
+    if (!canMount || !containerSize || !isReactFlowReady || flow.nodes.length === 0) {
       return;
     }
     const fitKey = `${projectId ?? 'unpersisted'}:${compact}:${containerSize.width}:${containerSize.height}:${viewportKey}`;
@@ -152,7 +163,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
       reactFlowRef.current?.fitView({ padding: compact ? 0.08 : 0.18, duration: 120, minZoom: compact ? 0.72 : 0.1 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [canMount, compact, containerSize.height, containerSize.width, flow.nodes.length, isCanvasReady, projectId, viewportKey]);
+  }, [canMount, compact, containerSize, flow.nodes.length, isReactFlowReady, projectId, viewportKey]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -165,7 +176,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
   }, [cancelRelationship, relationshipMode]);
 
   return (
-    <Box data-testid="uml-canvas" sx={{ position: 'absolute', inset: 0, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+    <Box data-testid="uml-canvas" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
       {relationshipMode && (
         <Paper data-testid="relationship-feedback" elevation={0} sx={{ position: 'absolute', zIndex: 6, right: 12, top: 12, px: 1.25, py: 1, maxWidth: { xs: 'calc(100% - 24px)', sm: 380 }, border: '1px solid #22A7B8', borderLeft: '4px solid #22A7B8', bgcolor: '#F8FAFB', borderRadius: 1 }}>
           <Typography variant="body2" fontWeight={800} sx={{ color: '#0B1F33' }}>{sourceClass ? `Choose target: source ${sourceClass.name}` : 'Choose source'}</Typography>
@@ -173,8 +184,8 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
           <Button size="small" onClick={cancelRelationship} sx={{ ml: 1, textTransform: 'none' }}>Cancelar</Button>
         </Paper>
       )}
-      <Box ref={canvasHostRef} data-testid="react-flow-host" sx={{ position: 'absolute', inset: 0, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-        {canMount && isCanvasReady && (
+      <Box ref={canvasHostRef} data-testid="react-flow-host" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+        {canMount && containerSize && (
           <ReactFlow<UmlFlowNode, UmlFlowEdge>
             nodes={flow.nodes}
             edges={flow.edges}

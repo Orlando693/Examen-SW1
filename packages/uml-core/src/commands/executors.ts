@@ -46,6 +46,8 @@ export function executeCommand(document: ProjectDocument, command: UmlCommand, o
       return deleteRelationship(document, command, options);
     case 'UpdateMultiplicity':
       return updateMultiplicity(document, command, options);
+    case 'UpdateRelationship':
+      return updateRelationship(document, command, options);
     case 'MoveNode':
       return withValidation(document, command, moveNode(document, command, options), options);
     case 'ApplyLayout':
@@ -303,6 +305,36 @@ function updateMultiplicity(document: ProjectDocument, command: Extract<UmlComma
     ...nextRelationship[command.endpoint],
     multiplicity: command.multiplicity,
   };
+  return withValidation(document, command, accept(command, next), options);
+}
+
+function updateRelationship(document: ProjectDocument, command: Extract<UmlCommand, { type: 'UpdateRelationship' }>, options: ExecuteCommandOptions): CommandResult {
+  const relationshipIndex = document.model.relationships.findIndex((relationship) => relationship.id === command.relationshipId);
+  if (relationshipIndex < 0) {
+    return reject(document, command, 'NOT_FOUND', `Relationship '${command.relationshipId}' was not found.`);
+  }
+  const relationship = document.model.relationships[relationshipIndex];
+  if (relationship.kind === 'generalization' && (command.sourceMultiplicity !== undefined || command.targetMultiplicity !== undefined)) {
+    return reject(document, command, 'INVALID_COMMAND', 'Generalization relationships do not have multiplicity.');
+  }
+
+  const next = nextDocument(document, options);
+  const current = next.model.relationships[relationshipIndex];
+  const nextRelationship = {
+    ...current,
+    ...(command.name === undefined ? {} : command.name === null ? { name: undefined } : { name: command.name }),
+  };
+  if (nextRelationship.kind !== 'generalization') {
+    nextRelationship.source = {
+      ...nextRelationship.source,
+      ...(command.sourceMultiplicity === undefined ? {} : { multiplicity: command.sourceMultiplicity ?? undefined }),
+    };
+    nextRelationship.target = {
+      ...nextRelationship.target,
+      ...(command.targetMultiplicity === undefined ? {} : { multiplicity: command.targetMultiplicity ?? undefined }),
+    };
+  }
+  next.model.relationships[relationshipIndex] = nextRelationship;
   return withValidation(document, command, accept(command, next), options);
 }
 

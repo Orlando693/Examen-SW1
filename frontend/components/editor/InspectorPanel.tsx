@@ -1,9 +1,9 @@
 'use client';
 
 import { Alert, Box, Button, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
-import type { PrimitiveTypeName, UmlTypeRef } from '@examen-sw1/uml-core';
+import type { Multiplicity, PrimitiveTypeName, UmlTypeRef } from '@examen-sw1/uml-core';
 
 const primitiveTypeOptions: PrimitiveTypeName[] = ['string', 'number', 'boolean', 'date', 'datetime'];
 
@@ -21,7 +21,7 @@ export function InspectorPanel() {
   const addEnumerationLiteral = useEditorStore((state) => state.addEnumerationLiteral);
   const updateEnumerationLiteral = useEditorStore((state) => state.updateEnumerationLiteral);
   const removeEnumerationLiteral = useEditorStore((state) => state.removeEnumerationLiteral);
-  const updateMultiplicity = useEditorStore((state) => state.updateMultiplicity);
+  const updateRelationship = useEditorStore((state) => state.updateRelationship);
   const deleteRelationship = useEditorStore((state) => state.deleteRelationship);
   const [draftName, setDraftName] = useState('');
 
@@ -114,18 +114,69 @@ export function InspectorPanel() {
             <>
               <Divider sx={{ borderColor: 'rgba(15,76,129,0.12)' }} />
               <SectionTitle>Multiplicity</SectionTitle>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Button onClick={() => updateMultiplicity(selectedRelationship.id, 'source', { lower: 1, upper: 1 })}>Origen 1</Button>
-              <Button onClick={() => updateMultiplicity(selectedRelationship.id, 'target', { lower: 0, upper: '*' })}>Destino 0..*</Button>
-            </Stack>
+              <RelationshipEditor relationship={selectedRelationship} updateRelationship={updateRelationship} />
             </>
           )}
+          {selectedRelationship.kind === 'generalization' && <RelationshipEditor relationship={selectedRelationship} updateRelationship={updateRelationship} />}
           <Button color="error" onClick={() => deleteRelationship(selectedRelationship.id)}>Eliminar relacion</Button>
           <DiagnosticSummary diagnostics={selectedDiagnostics} />
         </Stack>
       )}
     </Box>
   );
+}
+
+function RelationshipEditor({ relationship, updateRelationship }: { relationship: { id: string; kind: string; name?: string; source: { multiplicity?: Multiplicity }; target: { multiplicity?: Multiplicity } }; updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null }) => unknown }) {
+  const [name, setName] = useState(relationship.name ?? '');
+  const [sourceMultiplicity, setSourceMultiplicity] = useState(multiplicityPreset(relationship.source.multiplicity));
+  const [targetMultiplicity, setTargetMultiplicity] = useState(multiplicityPreset(relationship.target.multiplicity));
+
+  useEffect(() => {
+    setName(relationship.name ?? '');
+    setSourceMultiplicity(multiplicityPreset(relationship.source.multiplicity));
+    setTargetMultiplicity(multiplicityPreset(relationship.target.multiplicity));
+  }, [relationship.id, relationship.name, relationship.source.multiplicity, relationship.target.multiplicity]);
+
+  return <Stack spacing={1}>
+    <TextField label="Nombre de relación" size="small" fullWidth value={name} onChange={(event) => setName(event.target.value)} helperText="Deje vacío para quitarlo." />
+    {relationship.kind !== 'generalization' && <>
+      <MultiplicitySelect label="Multiplicidad origen" value={sourceMultiplicity} onChange={setSourceMultiplicity} />
+      <MultiplicitySelect label="Multiplicidad destino" value={targetMultiplicity} onChange={setTargetMultiplicity} />
+    </>}
+    <Button variant="outlined" onClick={() => updateRelationship(relationship.id, {
+      name: name.trim() === '' ? null : name.trim(),
+      ...(relationship.kind === 'generalization' ? {} : {
+        sourceMultiplicity: parseMultiplicityPreset(sourceMultiplicity),
+        targetMultiplicity: parseMultiplicityPreset(targetMultiplicity),
+      }),
+    })}>Guardar cambios</Button>
+  </Stack>;
+}
+
+function MultiplicitySelect({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <TextField select SelectProps={{ native: true }} label={label} size="small" fullWidth value={value} onChange={(event) => onChange(event.target.value)}>
+    <option value="">Sin multiplicidad</option>
+    <option value="0..1">0..1</option>
+    <option value="1">1</option>
+    <option value="0..*">0..*</option>
+    <option value="1..*">1..*</option>
+  </TextField>;
+}
+
+function multiplicityPreset(multiplicity: Multiplicity | undefined): string {
+  if (!multiplicity) return '';
+  if (multiplicity.lower === 0 && multiplicity.upper === 1) return '0..1';
+  if (multiplicity.lower === 1 && multiplicity.upper === 1) return '1';
+  if (multiplicity.lower === 1 && multiplicity.upper === '*') return '1..*';
+  return '0..*';
+}
+
+function parseMultiplicityPreset(value: string): Multiplicity | null {
+  if (value === '') return null;
+  if (value === '0..1') return { lower: 0, upper: 1 };
+  if (value === '1') return { lower: 1, upper: 1 };
+  if (value === '1..*') return { lower: 1, upper: '*' };
+  return { lower: 0, upper: '*' };
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {

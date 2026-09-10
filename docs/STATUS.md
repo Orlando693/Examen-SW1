@@ -18,27 +18,20 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## Caso de uso activo
 
-CU-03 — Persistencia y gestion de proyectos.
+CU-04 — Autenticacion, ownership e invitaciones.
 
-Estado: EN PROGRESO, Incrementos 1, 2 y 3 COMPLETADOS (38/43). CU-00, CU-01 y CU-02 permanecen COMPLETADOS. Final Verification permanece pendiente.
+Estado: PENDIENTE DE PLANIFICACION. CU-03 esta verificado, aceptado y archivado; no hay OpenSpec activo.
 
 ## Casos de uso completados
 
 - CU-00 — Base del proyecto. COMPLETADO. OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
 - CU-01 — Nucleo UML canonico. COMPLETADO. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`. Commit `69d1a3b` pusheado.
 - CU-02 — Workspace/editor UML manual. COMPLETADO, verificado, aceptado, archivado, commiteado y pusheado. OpenSpec archivado como `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`. Commit `67e5dee` pusheado.
+- CU-03 — Persistencia y gestion de proyectos. COMPLETADO, verificado, aceptado y archivado como `openspec/changes/archive/2026-09-09-cu-03-project-persistence-management`. Pendiente de commit y push por instruccion del usuario.
 
 ## OpenSpec activo
 
-`cu-03-project-persistence-management`.
-
-- Incremento 1: dependencias Prisma 6, decoder estructural independiente de framework, envelope `ProjectResource`, schema/migracion inicial, mapper y modulo Prisma implementados y verificados contra PostgreSQL local aislado.
-- La migracion se aplica reproduciblemente solo mediante `TEST_DATABASE_URL` a `localhost:5432/examen_sw1_test`; la integracion JSONB valida round-trip, decode estructural, equivalencia semantica, revision, timestamps y versiones. Cada prueba limpia solo su propia fila UUID.
-- No hay controladores, endpoints, UI ni integracion del editor; Incrementos 2 y 3 permanecen fuera de alcance.
-- Docker no esta disponible en esta maquina, pero no bloquea el Incremento 1: PostgreSQL local aislado esta verificado. Incrementos 2 y 3 permanecen fuera de alcance.
-- Incremento 2: lifecycle REST `POST/GET/PUT/PATCH/DELETE /projects`, DTO validation, envelope de errores filtrado, limite de payload de 1 MiB y CAS atomico Prisma por `storageVersion` implementados y probados contra PostgreSQL aislado. Sin auth, ownership filtering, Socket.IO ni UI.
-- Regresion Incremento 2 corregida: toda fila persistida que se expone como `ProjectResource` pasa structural decode y `validateProjectDocument()`; una fila estructuralmente valida pero semanticamente invalida retorna `500 INTERNAL_ERROR` filtrado.
-- Incremento 3: cliente fetch tipado con decode compartido, landing Material de proyectos (list/create/open/rename/delete CAS), carga de `/editor?projectId=<uuid>`, sesion atomica con `UmlHistory` fresco, UUIDs de dominio, dirty/save/conflict/reload manual y guardas contra resultados asincronos obsoletos implementados y cubiertos.
+No hay OpenSpec activo. El siguiente CU es `CU-04 — Autenticacion, ownership e invitaciones`; no se ha iniciado su planificacion ni implementacion.
 
 ## Problemas abiertos
 
@@ -90,7 +83,18 @@ Estado: EN PROGRESO, Incrementos 1, 2 y 3 COMPLETADOS (38/43). CU-00, CU-01 y CU
 - `npm run typecheck`: verde.
 - `npm run lint`: verde.
 - `npm run build`: verde.
+- Final Verification 2026-09-08: UML core PASS, 35 tests; typecheck/lint/build PASS.
+- Final Verification 2026-09-08: Prisma generate/validate/migracion aislada PASS; 6 pruebas de integracion PostgreSQL backend PASS; backend test PASS, 9 tests; typecheck/lint/build backend PASS.
+- Final Verification 2026-09-08: frontend test PASS, 51 tests; typecheck/lint/build frontend PASS. Root test PASS, 95 tests; root typecheck/lint/build PASS.
+- `openspec validate "cu-03-project-persistence-management" --strict` y `openspec validate --specs --strict` PASS; este ultimo valido 3 specs. `git diff --check` no reporto errores.
+- Chrome esta instalado, pero no existen `playwright` ni `@playwright/test` en el workspace, ni configuracion Playwright ni herramienta alternativa de interaccion de navegador en este entorno. No se instalo tooling. Real browser verification remains pending.
+- Correcciones 2026-09-09: test focalizado CORS backend PASS (2 tests, incluido preflight); test focalizado `UmlEditorClient` PASS (30 tests, incluido host dimensionado y ausencia de `LOCAL DEMO` en sesion persistida). Root `npm run test` PASS (97 tests: frontend 52, backend 10, UML core 35); root `npm run typecheck`, `npm run lint` y `npm run build` PASS. `git diff --check` PASS sin errores de whitespace, con warnings LF/CRLF de Windows.
+- Correccion de relaciones CU-03 pendiente de retest real: se identifico que la composicion flex/grid del host de React Flow podia carecer de dimensiones efectivas tras integrar la sesion persistida, a diferencia del flujo CU-02 en memoria. El host ahora conserva dimensiones completas sin alterar modelo, historial, Command Bus ni proyeccion. Las pruebas de componente cubren asociacion, agregacion, composicion y generalizacion en sesion persistida: UUID, extremos, documento, edge proyectado, reset de draft, ausencia de duplicado, Undo/Redo, dirty y save manual. La aceptacion en navegador real aun no se ha ejecutado.
+- Correccion de estabilidad de canvas 2026-09-09: el readiness anterior hacia polling por `requestAnimationFrame` mientras el host era `0x0` y encolaba actualizaciones locales para cada callback de `ResizeObserver`, incluido readiness ya verdadero. El montaje controlado de React Flow podia volver a notificar dimensiones y formar un ciclo de actualizaciones de presentacion en Chrome. `UmlCanvas` ahora mide de forma idempotente, deriva readiness solo de dimensiones positivas, no hace polling y espera `onInit` antes del `fitView`; no cambia `ProjectDocument`, `DiagramLayout`, sesion ni dirty state. Prueba focalizada cubre observador `0 -> valido -> mismo tamano` y rerender sin mutacion del store. Real browser verification remains pending.
+- Checks posteriores a la correccion de estabilidad: `npm run test` PASS (98 tests: frontend 53, backend 10, UML core 35); `npm run typecheck`, `npm run lint` y `npm run build` PASS.
+- Correccion focalizada de relaciones 2026-09-09: el edge custom ahora usa `getSmoothStepPath` ortogonal y una heuristica por eje dominante para sus lados; no cambia ciclo de vida del canvas, backend, persistencia ni Command Bus. El dialogo crea relaciones con nombre y multiplicidades opcionales validadas, sin `1`/`0..*` implicitos; el inspector actualiza las existentes por `UpdateMultiplicity` e historial. La proyeccion oculta multiplicidades de generalizacion. Frontend cubre lados, labels, dialogo, undo e inspector; raiz `npm run test` PASS (108: frontend 63, backend 10, UML core 35), typecheck/lint/build PASS, OpenSpec estricto PASS y `git diff --check` sin errores (warnings CRLF de Windows). La aceptacion real de navegador permanece pendiente.
+- UX focalizada de relaciones 2026-09-09: dialogo e inspector reemplazan limites manuales por selects accesibles de presets UML opcionales (`0..1`, `1`, `0..*`, `1..*`) y no asignan defaults. El inspector permite editar/limpiar nombre y aplicar nombre y ambas multiplicidades mediante un unico `UpdateRelationship` canonico, Command Bus e historial; generalizacion solo conserva nombre. No cambia routing, canvas lifecycle, backend ni persistencia. Pruebas cubren create, clear, Undo/Redo, dirty, Save y `storageVersion`; raiz `npm run test` PASS (109: frontend 63, backend 10, UML core 36), typecheck/lint/build y ambas validaciones OpenSpec estrictas PASS. `git diff --check` no reporta errores (warnings CRLF de Windows). La aceptacion real de navegador permanece pendiente.
 
 ## Próxima acción
 
-Incremento 3 completado (11/11). Esperar instruccion para iniciar exclusivamente Final Verification; no ejecutar sus tareas, verificar OpenSpec, archivar, commitear ni pushear automaticamente.
+Preparar y someter a aprobacion el plan de CU-04. No implementar CU-04 hasta contar con un OpenSpec activo y aprobacion del usuario.

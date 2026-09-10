@@ -89,13 +89,15 @@ export function relationshipToFlowEdge(relationship: UmlRelationship, selection:
     source: relationship.source.classId,
     target: relationship.target.classId,
     selected: selection?.type === 'relationship' && selection.id === relationship.id,
-    label: relationship.name ?? relationship.kind,
+    ...(relationship.name === undefined ? {} : { label: relationship.name }),
     data: {
       relationshipId: relationship.id,
       kind: relationship.kind,
       label: relationship.name,
-      sourceMultiplicity: formatMultiplicity(relationship.source.multiplicity),
-      targetMultiplicity: formatMultiplicity(relationship.target.multiplicity),
+      ...(relationship.kind === 'generalization' ? {} : {
+        sourceMultiplicity: formatMultiplicity(relationship.source.multiplicity),
+        targetMultiplicity: formatMultiplicity(relationship.target.multiplicity),
+      }),
     },
   };
 }

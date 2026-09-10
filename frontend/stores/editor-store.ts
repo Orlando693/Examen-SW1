@@ -31,6 +31,12 @@ interface RelationshipDraft {
   sourceClassId?: string;
 }
 
+interface RelationshipDetails {
+  name?: string;
+  sourceMultiplicity?: Multiplicity;
+  targetMultiplicity?: Multiplicity;
+}
+
 interface EditorStore {
   history: UmlHistory;
   currentDocument: ProjectDocument;
@@ -67,7 +73,9 @@ interface EditorStore {
   startRelationship: (kind: RelationshipDraft['kind'], sourceClassId: string) => void;
   cancelRelationship: () => void;
   completeRelationship: (targetClassId: string) => CommandResult | null;
+  createRelationship: (kind: RelationshipDraft['kind'], sourceClassId: string, targetClassId: string, details?: RelationshipDetails) => CommandResult | null;
   updateMultiplicity: (relationshipId: string, endpoint: 'source' | 'target', multiplicity: Multiplicity) => CommandResult;
+  updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null }) => CommandResult;
   deleteRelationship: (relationshipId: string) => CommandResult;
   moveNode: (elementId: string, position: { x: number; y: number }) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
@@ -112,6 +120,22 @@ function executeAndSync(history: UmlHistory, command: UmlCommand) {
     result,
     sync: result.ok ? { ...syncFromHistory(history), saveState: 'dirty' as const } : { lastCommandError: result.message, diagnostics: result.diagnostics },
   };
+}
+
+function createRelationshipCommand(kind: RelationshipDraft['kind'], sourceClassId: string, targetClassId: string, details: RelationshipDetails = {}): Extract<UmlCommand, { type: 'CreateAssociation' | 'CreateGeneralization' }> {
+  const relationshipId = createUuid();
+  return kind === 'generalization'
+    ? { type: 'CreateGeneralization', relationshipId, sourceClassId, targetClassId, ...(details.name === undefined ? {} : { name: details.name }) }
+    : {
+      type: 'CreateAssociation',
+      relationshipId,
+      kind,
+      sourceClassId,
+      targetClassId,
+      ...(details.name === undefined ? {} : { name: details.name }),
+      ...(details.sourceMultiplicity === undefined ? {} : { sourceMultiplicity: details.sourceMultiplicity }),
+      ...(details.targetMultiplicity === undefined ? {} : { targetMultiplicity: details.targetMultiplicity }),
+    };
 }
 
 function sameSelection(a: EditorSelection, b: EditorSelection): boolean {
@@ -215,17 +239,29 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set({ relationshipDraft: null, activeTool: 'select', lastCommandError: 'No se puede crear una relacion de una clase hacia si misma en CU-02.' });
       return null;
     }
-    const relationshipId = createUuid();
-    const command: UmlCommand = draft.kind === 'generalization'
-      ? { type: 'CreateGeneralization', relationshipId, sourceClassId: draft.sourceClassId, targetClassId }
-      : { type: 'CreateAssociation', relationshipId, kind: draft.kind, sourceClassId: draft.sourceClassId, targetClassId, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: '*' } };
+    const command = createRelationshipCommand(draft.kind, draft.sourceClassId, targetClassId);
     const { result, sync } = executeAndSync(get().history, command);
     set({ ...sync, relationshipDraft: null, activeTool: 'select', selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
+    return result;
+  },
+  createRelationship: (kind, sourceClassId, targetClassId, details) => {
+    if (sourceClassId === targetClassId) {
+      set({ lastCommandError: 'No se puede crear una relacion de una clase hacia si misma en CU-02.' });
+      return null;
+    }
+    const command = createRelationshipCommand(kind, sourceClassId, targetClassId, details);
+    const { result, sync } = executeAndSync(get().history, command);
+    set({ ...sync, selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateMultiplicity: (relationshipId, endpoint, multiplicity) => {
     const { result, sync } = executeAndSync(get().history, { type: 'UpdateMultiplicity', relationshipId, endpoint, multiplicity });
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
+    return result;
+  },
+  updateRelationship: (relationshipId, details) => {
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateRelationship', relationshipId, ...details });
+    set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteRelationship: (relationshipId) => {

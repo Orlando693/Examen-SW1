@@ -71,9 +71,9 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
     <Box data-testid="editor-root" sx={{ display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr) auto', width: '100vw', maxWidth: '100vw', height: '100dvh', minHeight: '100dvh', minWidth: 0, overflow: 'hidden', bgcolor: '#F3F7F9' }}>
        <EditorAppBar compact={compact} />
        {operationalError && <Alert severity="error" sx={{ position: 'absolute', zIndex: 20, top: 52, right: 16 }}>{operationalError}</Alert>}
-      <Box component="main" data-testid="uml-workspace" data-compact={compact ? 'true' : 'false'} sx={{ display: 'flex', minHeight: 0, minWidth: 0, width: '100%', overflow: 'hidden' }}>
+      <Box component="main" data-testid="uml-workspace" data-compact={compact ? 'true' : 'false'} sx={{ display: 'flex', height: '100%', minHeight: 0, minWidth: 0, width: '100%', overflow: 'hidden' }}>
         {!compact && <EditorSidebar compact={false} />}
-        <Box ref={canvasRegionRef} tabIndex={-1} data-testid="editor-canvas-region" sx={{ flex: '1 1 auto', alignSelf: 'stretch', width: '100%', minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden', outline: 0, bgcolor: '#F3F7F9', backgroundImage: 'linear-gradient(#D8E2E8 1px, transparent 1px), linear-gradient(90deg, #D8E2E8 1px, transparent 1px)', backgroundSize: '28px 28px' }}>
+        <Box ref={canvasRegionRef} tabIndex={-1} data-testid="editor-canvas-region" sx={{ flex: '1 1 0', alignSelf: 'stretch', height: '100%', minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden', outline: 0, bgcolor: '#F3F7F9', backgroundImage: 'linear-gradient(#D8E2E8 1px, transparent 1px), linear-gradient(90deg, #D8E2E8 1px, transparent 1px)', backgroundSize: '28px 28px' }}>
           <EditorToolbox compact={compact} />
           <UmlCanvas flow={flow} compact={compact} canMount={isHydrated} />
         </Box>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDemoProjectDocument } from '../demo/demo-document';
-import { projectDocumentToFlow } from './project-document-to-flow';
+import { projectDocumentToFlow, relationshipToFlowEdge } from './project-document-to-flow';
 
 describe('projectDocumentToFlow', () => {
   it('projects classes, enumerations and relationships from ProjectDocument', () => {
@@ -27,5 +27,26 @@ describe('projectDocumentToFlow', () => {
     projectDocumentToFlow(document, { type: 'class', id: 'class-customer' });
 
     expect(document).toEqual(before);
+  });
+
+  it('projects only an explicit relationship name as the central edge label', () => {
+    const document = createDemoProjectDocument();
+    const named = document.model.relationships.find((relationship) => relationship.id === 'rel-customer-orders');
+    const unnamed = { ...named!, id: 'rel-unnamed', name: undefined };
+
+    expect(relationshipToFlowEdge(named!, null)).toMatchObject({ label: 'orders', data: { sourceMultiplicity: '1', targetMultiplicity: '0..*' } });
+    expect(relationshipToFlowEdge(unnamed, null)).not.toHaveProperty('label');
+  });
+
+  it('does not project multiplicities for generalization', () => {
+    const generalization = {
+      id: 'rel-generalization',
+      kind: 'generalization' as const,
+      source: { classId: 'class-priority-order', multiplicity: { lower: 1, upper: 1 as const } },
+      target: { classId: 'class-order', multiplicity: { lower: 0, upper: '*' as const } },
+    };
+
+    expect(relationshipToFlowEdge(generalization, null).data).not.toHaveProperty('sourceMultiplicity');
+    expect(relationshipToFlowEdge(generalization, null).data).not.toHaveProperty('targetMultiplicity');
   });
 });

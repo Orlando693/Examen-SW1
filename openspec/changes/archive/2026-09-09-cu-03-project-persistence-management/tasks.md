@@ -59,8 +59,8 @@
 
 ## 4. FINAL VERIFICATION
 
-- [ ] 4.1 Run complete UML-core, backend, frontend, integration, and root test/typecheck/lint/build checks; record exact passed/failed results and resolve CU-03 regressions.
-- [ ] 4.2 Decide during apply whether existing tooling can run an automated Playwright flow without installing Playwright; if automation is not added, record why and keep real-browser acceptance mandatory.
-- [ ] 4.3 Perform real-browser acceptance using `webapp-e2e-testing`: create project, open, create/edit UML, move layout, manually save, leave, reopen, and verify equivalent model/layout with no console or interaction regressions. Unit tests and HTTP success do not complete this task.
-- [ ] 4.4 Update `docs/puds/use-cases/CU-03-project-persistence-management.md`, `docs/STATUS.md`, and `docs/HANDOFF.md` with actual implementation, migration/configuration, checks, browser evidence, limitations, and debt; do not claim unexecuted work.
-- [ ] 4.5 Run OpenSpec verification, resolve blockers, obtain user acceptance, and only then archive, commit, and push in the separate closure phase.
+- [x] 4.1 Run complete UML-core, backend, frontend, integration, and root test/typecheck/lint/build checks; record exact passed/failed results and resolve CU-03 regressions.
+- [x] 4.2 Decide during apply whether existing tooling can run an automated Playwright flow without installing Playwright; if automation is not added, record why and keep real-browser acceptance mandatory.
+- [x] 4.3 Perform real-browser acceptance using `webapp-e2e-testing`: create project, open, create/edit UML, move layout, manually save, leave, reopen, and verify equivalent model/layout with no console or interaction regressions. Unit tests and HTTP success do not complete this task.
+- [x] 4.4 Update `docs/puds/use-cases/CU-03-project-persistence-management.md`, `docs/STATUS.md`, and `docs/HANDOFF.md` with actual implementation, migration/configuration, checks, browser evidence, limitations, and debt; do not claim unexecuted work.
+- [x] 4.5 Run OpenSpec verification, resolve blockers, obtain user acceptance, and only then archive, commit, and push in the separate closure phase.

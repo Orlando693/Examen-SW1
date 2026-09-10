@@ -9,6 +9,9 @@ import { UmlEnumNode } from './nodes/UmlEnumNode';
 
 const fitViewMock = vi.hoisted(() => vi.fn());
 const reactFlowLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }));
+const projectApiMock = vi.hoisted(() => ({ saveDocument: vi.fn() }));
+
+vi.mock('../../lib/projects/project-api', () => ({ projectApi: projectApiMock }));
 
 vi.mock('@xyflow/react', async () => {
   const React = await import('react');
@@ -17,7 +20,7 @@ vi.mock('@xyflow/react', async () => {
     BaseEdge: () => <div data-testid="base-edge" />,
     Controls: () => <div data-testid="flow-controls">zoom pan fit view</div>,
     EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    getBezierPath: () => ['M0,0 C10,10 20,20 30,30', 15, 15],
+    getSmoothStepPath: () => ['M0,0 L30,30', 15, 15],
     Handle: () => <span data-testid="handle" />,
     MiniMap: () => <div data-testid="flow-minimap" />,
     Position: { Left: 'left', Right: 'right' },
@@ -37,7 +40,7 @@ vi.mock('@xyflow/react', async () => {
       return (
         <div data-testid="react-flow">
           {nodes.map((node) => (
-            <button key={node.id} data-testid={`flow-node-${node.id}`} onClick={() => onNodeClick(new MouseEvent('click'), node)} onDoubleClick={() => onNodeDragStop(new MouseEvent('mouseup'), { id: node.id, position: { x: 500, y: 600 } })}>
+            <button key={node.id} data-testid={`flow-node-${node.id}`} onClick={() => { onSelectionChange?.({ nodes: [node], edges: [] }); onNodeClick(new MouseEvent('click'), node); }} onDoubleClick={() => onNodeDragStop(new MouseEvent('mouseup'), { id: node.id, position: { x: 500, y: 600 } })}>
               {node.data.name}
             </button>
           ))}
@@ -71,6 +74,7 @@ describe('UmlEditorClient', () => {
 
   beforeEach(() => {
     fitViewMock.mockClear();
+    projectApiMock.saveDocument.mockReset();
     reactFlowLifecycle.mounts = 0;
     reactFlowLifecycle.unmounts = 0;
     resizeObserverCallbacks = [];
@@ -101,9 +105,13 @@ describe('UmlEditorClient', () => {
     globalThis.ResizeObserver = originalResizeObserver;
   });
 
-  function chooseRelationshipTool(label: string) {
+  function createRelationshipWithDialog(kind: string, sourceId: string, targetId: string) {
     fireEvent.click(screen.getByText('Relation'));
-    fireEvent.click(screen.getByRole('menuitem', { name: label }));
+    expect(screen.getByRole('dialog', { name: 'Crear relación' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tipo de relación'), { target: { value: kind } });
+    fireEvent.change(screen.getByLabelText('Origen'), { target: { value: sourceId } });
+    fireEvent.change(screen.getByLabelText('Destino'), { target: { value: targetId } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear' }));
   }
 
   it('renders the workspace shell, route-owned editor content and projected canvas', () => {
@@ -142,6 +150,15 @@ describe('UmlEditorClient', () => {
     expect(screen.queryByTestId('uml-workspace')).not.toBeInTheDocument();
   });
 
+  it('does not show the local demo badge for a persisted project session', () => {
+    const project = createDemoProjectDocument();
+    useEditorStore.getState().replaceProjectSession({ project: { ...project, id: '11111111-1111-4111-8111-111111111111' }, storageVersion: 0 });
+
+    render(<UmlEditorClient allowDemoForTests />);
+
+    expect(screen.queryByText('LOCAL DEMO')).not.toBeInTheDocument();
+  });
+
   it('renders a readable desktop toolbox with complete labels and no horizontal scrolling mode', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     render(<UmlEditorClient />);
@@ -156,7 +173,7 @@ describe('UmlEditorClient', () => {
     }
     fireEvent.click(within(toolbox).getByText('Relation'));
     for (const label of ['Asociación', 'Agregación', 'Composición', 'Herencia']) {
-      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: label })).toBeInTheDocument();
     }
   });
 
@@ -252,74 +269,167 @@ describe('UmlEditorClient', () => {
     fireEvent.click(screen.getAllByText('Quitar').at(-1)!);
     expect(useEditorStore.getState().currentDocument.model.enumerations.find((enumeration) => enumeration.id === 'enum-order-status')?.literals.some((literal) => literal.id === addedLiteral?.id)).toBe(false);
 
-    chooseRelationshipTool('Herencia');
-    fireEvent.click(screen.getByTestId('flow-node-class-priority-order'));
-    fireEvent.click(screen.getByTestId('flow-node-class-customer'));
+    createRelationshipWithDialog('generalization', 'class-priority-order', 'class-customer');
     expect(useEditorStore.getState().currentDocument.model.relationships.some((relationship) => relationship.kind === 'generalization' && relationship.target.classId === 'class-customer')).toBe(true);
   });
 
-  it.each(relationshipTools)('creates $kind from UI source to target and cleans draft state', ({ label, kind, sourceId, targetId }) => {
+  it('creates named associations with optional UML presets and saves inspector changes through one history command', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
+    render(<UmlEditorClient />);
+
+    fireEvent.click(screen.getByText('Relation'));
+    fireEvent.change(screen.getByLabelText('Nombre de relación'), { target: { value: 'assigned to' } });
+    expect(screen.getByLabelText('Multiplicidad origen')).toHaveValue('');
+    expect(screen.getByLabelText('Multiplicidad destino')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Multiplicidad origen'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Multiplicidad destino'), { target: { value: '0..*' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear' }));
+
+    const relationship = useEditorStore.getState().currentDocument.model.relationships.at(-1)!;
+    expect(relationship).toMatchObject({ name: 'assigned to', source: { multiplicity: { lower: 1, upper: 1 } }, target: { multiplicity: { lower: 0, upper: '*' } } });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Crear relación' })).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTestId(`flow-edge-${relationship.id}`));
+    const undoCount = useEditorStore.getState().undoCount;
+    fireEvent.change(screen.getByLabelText('Nombre de relación'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Multiplicidad origen'), { target: { value: '0..1' } });
+    fireEvent.change(screen.getByLabelText('Multiplicidad destino'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    expect(useEditorStore.getState().undoCount).toBe(undoCount + 1);
+    expect(useEditorStore.getState().saveState).toBe('dirty');
+    expect(useEditorStore.getState().currentDocument.model.relationships.at(-1)).toMatchObject({ source: { multiplicity: { lower: 0, upper: 1 } }, target: { multiplicity: undefined } });
+    expect(useEditorStore.getState().currentDocument.model.relationships.at(-1)?.name).toBeUndefined();
+    projectApiMock.saveDocument.mockResolvedValue({ project: useEditorStore.getState().currentDocument, storageVersion: 5 });
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(useEditorStore.getState()).toMatchObject({ storageVersion: 5, saveState: 'saved' }));
+    expect(projectApiMock.saveDocument).toHaveBeenCalledWith(project.id, expect.objectContaining({
+      baseStorageVersion: 4,
+      document: expect.objectContaining({ model: expect.objectContaining({ relationships: expect.arrayContaining([expect.objectContaining({ id: relationship.id, name: undefined, source: expect.objectContaining({ multiplicity: { lower: 0, upper: 1 } }), target: expect.objectContaining({ multiplicity: undefined }) })]) }) }),
+    }));
+    fireEvent.click(screen.getByText('Undo'));
+    expect(useEditorStore.getState().currentDocument.model.relationships.at(-1)).toMatchObject({ name: 'assigned to', source: { multiplicity: { lower: 1, upper: 1 } }, target: { multiplicity: { lower: 0, upper: '*' } } });
+    expect(useEditorStore.getState().saveState).toBe('dirty');
+    fireEvent.click(screen.getByText('Redo'));
+    expect(useEditorStore.getState().saveState).toBe('idle');
+  });
+
+  it('does not assign multiplicities or show multiplicity controls for generalization', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
+    render(<UmlEditorClient />);
+
+    fireEvent.click(screen.getByText('Relation'));
+    fireEvent.change(screen.getByLabelText('Tipo de relación'), { target: { value: 'generalization' } });
+    expect(screen.queryByLabelText('Multiplicidad origen')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear' }));
+
+    const relationship = useEditorStore.getState().currentDocument.model.relationships.at(-1)!;
+    expect(relationship).toMatchObject({ kind: 'generalization' });
+    expect(relationship.source.multiplicity).toBeUndefined();
+    expect(relationship.target.multiplicity).toBeUndefined();
+    fireEvent.click(screen.getByTestId(`flow-edge-${relationship.id}`));
+    const inspector = screen.getByTestId('inspector-relationship-sections');
+    expect(inspector).not.toHaveTextContent('Multiplicity');
+    expect(within(inspector).getByLabelText('Nombre de relación')).toBeInTheDocument();
+    expect(within(inspector).queryByLabelText('Multiplicidad origen')).not.toBeInTheDocument();
+  });
+
+  it.each(relationshipTools)('creates persisted $kind from the relation dialog with projection, history and manual save', async ({ kind, sourceId, targetId }) => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
     render(<UmlEditorClient />);
     const beforeCount = useEditorStore.getState().currentDocument.model.relationships.length;
 
-    chooseRelationshipTool(label);
-    expect(screen.getByTestId('relationship-feedback')).toHaveTextContent('Choose source');
+    createRelationshipWithDialog(kind, sourceId, targetId);
 
-    fireEvent.click(screen.getByTestId(`flow-node-${sourceId}`));
-    expect(useEditorStore.getState().relationshipDraft?.sourceClassId).toBe(sourceId);
-    expect(screen.getByTestId('relationship-feedback')).toHaveTextContent('Choose target');
+    let state = useEditorStore.getState();
+    const relationships = state.currentDocument.model.relationships;
+    const relationship = relationships.at(-1)!;
+    expect(relationships).toHaveLength(beforeCount + 1);
+    expect(relationship.id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(relationship).toMatchObject({ kind, source: { classId: sourceId }, target: { classId: targetId } });
+    expect(state.relationshipDraft).toBeNull();
+    expect(state.activeTool).toBe('select');
+    expect(state.saveState).toBe('dirty');
+    expect(state.storageVersion).toBe(4);
+    expect(screen.getByTestId(`flow-edge-${relationship.id}`)).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId(`flow-node-${targetId}`));
+    expect(useEditorStore.getState().currentDocument.model.relationships).toHaveLength(beforeCount + 1);
+    expect(useEditorStore.getState().storageVersion).toBe(4);
 
-    const relationships = useEditorStore.getState().currentDocument.model.relationships;
-    expect(relationships).toHaveLength(beforeCount + 1);
-    expect(relationships.at(-1)).toMatchObject({ kind, source: { classId: sourceId }, target: { classId: targetId } });
-    expect(useEditorStore.getState().relationshipDraft).toBeNull();
-    expect(useEditorStore.getState().activeTool).toBe('select');
-    expect(screen.getByTestId(`flow-edge-${relationships.at(-1)?.id}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Undo'));
+    state = useEditorStore.getState();
+    expect(state.currentDocument.model.relationships).toHaveLength(beforeCount);
+    expect(state.saveState).toBe('idle');
+
+    fireEvent.click(screen.getByText('Redo'));
+    state = useEditorStore.getState();
+    expect(state.currentDocument.model.relationships.at(-1)).toMatchObject({ id: relationship.id, kind, source: { classId: sourceId }, target: { classId: targetId } });
+    expect(state.saveState).toBe('dirty');
+
+    projectApiMock.saveDocument.mockResolvedValue({ project: state.currentDocument, storageVersion: 5 });
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(useEditorStore.getState()).toMatchObject({ storageVersion: 5, saveState: 'saved' }));
+    expect(projectApiMock.saveDocument).toHaveBeenCalledWith(project.id, expect.objectContaining({
+      baseStorageVersion: 4,
+      document: expect.objectContaining({
+        model: expect.objectContaining({ relationships: expect.arrayContaining([expect.objectContaining({ id: relationship.id, kind, source: expect.objectContaining({ classId: sourceId }), target: expect.objectContaining({ classId: targetId }) })]) }),
+      }),
+    }));
+
+    fireEvent.click(screen.getByText('Undo'));
+    expect(useEditorStore.getState().saveState).toBe('dirty');
+    fireEvent.click(screen.getByText('Redo'));
+    expect(useEditorStore.getState().saveState).toBe('idle');
   });
 
-  it('rejects invalid self relationships without mutating the document', () => {
+  it('blocks self relationships in the dialog without mutating the document', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     render(<UmlEditorClient />);
     const before = useEditorStore.getState().currentDocument;
 
-    chooseRelationshipTool('Agregación');
-    fireEvent.click(screen.getByTestId('flow-node-class-customer'));
-    fireEvent.click(screen.getByTestId('flow-node-class-customer'));
+    createRelationshipWithDialog('aggregation', 'class-customer', 'class-customer');
 
     expect(useEditorStore.getState().currentDocument).toEqual(before);
     expect(useEditorStore.getState().relationshipDraft).toBeNull();
-    expect(useEditorStore.getState().lastCommandError).toMatch(/si misma/);
+    expect(screen.getByRole('dialog', { name: 'Crear relación' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crear' })).toBeDisabled();
   });
 
-  it('cancels relationship creation with Selection tool and Escape', () => {
-    resetEditorStoreForTests(createDemoProjectDocument());
+  it('cancels the relation dialog without changing the persisted document or storage version', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
     render(<UmlEditorClient />);
+    const beforeDocument = structuredClone(useEditorStore.getState().currentDocument);
 
-    chooseRelationshipTool('Agregación');
-    fireEvent.click(screen.getByTestId('flow-node-class-customer'));
-    expect(useEditorStore.getState().relationshipDraft?.sourceClassId).toBe('class-customer');
-    fireEvent.click(screen.getByText('Select'));
-    expect(useEditorStore.getState().relationshipDraft).toBeNull();
+    fireEvent.click(screen.getByText('Relation'));
+    fireEvent.change(screen.getByLabelText('Tipo de relación'), { target: { value: 'composition' } });
+    fireEvent.change(screen.getByLabelText('Origen'), { target: { value: 'class-order' } });
+    fireEvent.change(screen.getByLabelText('Destino'), { target: { value: 'class-invoice' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
-    chooseRelationshipTool('Composición');
-    fireEvent.click(screen.getByTestId('flow-node-class-order'));
-    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Crear relación' })).not.toBeInTheDocument());
+    expect(useEditorStore.getState().currentDocument).toEqual(beforeDocument);
+    expect(useEditorStore.getState().storageVersion).toBe(4);
+    expect(projectApiMock.saveDocument).not.toHaveBeenCalled();
     expect(useEditorStore.getState().relationshipDraft).toBeNull();
     expect(useEditorStore.getState().activeTool).toBe('select');
   });
 
-  it('commits drag through MoveNode and keeps the semantic model unchanged', () => {
+  it('commits an intentional drag through exactly one MoveNode and keeps the semantic model unchanged', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     render(<UmlEditorClient />);
     const modelBefore = JSON.stringify(useEditorStore.getState().currentDocument.model);
 
     fireEvent.doubleClick(screen.getByTestId('flow-node-class-customer'));
+    fireEvent.doubleClick(screen.getByTestId('flow-node-class-customer'));
 
     expect(useEditorStore.getState().currentDocument.layout.nodes.find((node) => node.elementId === 'class-customer')?.position).toEqual({ x: 500, y: 600 });
     expect(JSON.stringify(useEditorStore.getState().currentDocument.model)).toBe(modelBefore);
+    expect(useEditorStore.getState().undoCount).toBe(1);
   });
 
   it('shows diagnostics and can navigate warnings to selected elements', () => {
@@ -367,9 +477,9 @@ describe('UmlEditorClient', () => {
       expect(screen.getByRole('button', { name: 'Props' })).toBeInTheDocument();
       expect(screen.getByTestId('uml-canvas')).toBeInTheDocument();
       expect(screen.getByTestId('uml-workspace')).toHaveAttribute('data-compact', 'true');
-      expect(screen.getByTestId('editor-canvas-region')).toHaveStyle({ width: '100%' });
-      expect(screen.getByTestId('uml-canvas')).toHaveStyle({ position: 'absolute', overflow: 'hidden' });
-      expect(screen.getByTestId('react-flow-host')).toHaveStyle({ position: 'absolute', inset: '0' });
+      expect(screen.getByTestId('editor-canvas-region')).toHaveStyle({ height: '100%' });
+      expect(screen.getByTestId('uml-canvas')).toHaveStyle({ position: 'absolute', height: '100%', overflow: 'hidden' });
+      expect(screen.getByTestId('react-flow-host')).toHaveStyle({ position: 'absolute', inset: '0', height: '100%' });
       expect(screen.getByTestId('editor-toolbox')).toHaveAttribute('data-compact', 'true');
       expect(screen.getByTestId('editor-toolbox')).toHaveStyle({ overflowX: 'auto', overflowY: 'hidden' });
       expect(screen.getByTestId('editor-toolbox')).toHaveTextContent('More');
@@ -442,6 +552,66 @@ describe('UmlEditorClient', () => {
     });
 
     await waitFor(() => expect(screen.getByTestId('react-flow')).toBeInTheDocument());
+  });
+
+  it('handles zero, valid and repeated observer sizes without mutating the persisted session', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
+    globalThis.ResizeObserver = class ResizeObserver {
+      private readonly callback: ResizeObserverCallback;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+
+      observe(target: Element) {
+        Object.defineProperties(target, {
+          clientWidth: { configurable: true, value: 0 },
+          clientHeight: { configurable: true, value: 0 },
+          offsetWidth: { configurable: true, value: 0 },
+          offsetHeight: { configurable: true, value: 0 },
+        });
+        resizeObserverCallbacks.push(this.callback);
+        this.callback([{ target, contentRect: { width: 0, height: 0 } as DOMRectReadOnly } as ResizeObserverEntry], this);
+      }
+
+      disconnect() {}
+      unobserve() {}
+    };
+    const beforeDocument = useEditorStore.getState().currentDocument;
+    const beforeLayout = structuredClone(beforeDocument.layout);
+    const beforeSaveState = useEditorStore.getState().saveState;
+
+    render(<UmlEditorClient />);
+    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument();
+    let storeUpdates = 0;
+    const unsubscribe = useEditorStore.subscribe(() => {
+      storeUpdates += 1;
+    });
+    const host = screen.getByTestId('react-flow-host');
+    Object.defineProperties(host, {
+      clientWidth: { configurable: true, value: 720 },
+      clientHeight: { configurable: true, value: 480 },
+      offsetWidth: { configurable: true, value: 720 },
+      offsetHeight: { configurable: true, value: 480 },
+    });
+
+    act(() => {
+      const callback = resizeObserverCallbacks.at(-1)!;
+      const entry = [{ target: host, contentRect: { width: 720, height: 480 } as DOMRectReadOnly } as unknown as ResizeObserverEntry];
+      callback(entry, {} as ResizeObserver);
+      callback(entry, {} as ResizeObserver);
+    });
+
+    await waitFor(() => expect(screen.getByTestId('react-flow')).toBeInTheDocument());
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalledTimes(1));
+    unsubscribe();
+    expect(reactFlowLifecycle.mounts).toBe(1);
+    expect(storeUpdates).toBe(0);
+    expect(useEditorStore.getState().currentDocument).toBe(beforeDocument);
+    expect(useEditorStore.getState().currentDocument.layout).toEqual(beforeLayout);
+    expect(useEditorStore.getState().saveState).toBe(beforeSaveState);
   });
 
   it('does not refit or write to the editor store when rerendering the same document and selection', async () => {
@@ -533,22 +703,38 @@ describe('UmlEditorClient', () => {
     expect(useEditorStore.getState().currentDocument.layout).toEqual(beforeLayout);
   });
 
-  it('keeps relationship mode active when React Flow emits selection changes before node clicks', () => {
+  it('keeps the domain snapshot unchanged when React Flow reports dimensions and selection', async () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    render(<UmlEditorClient />);
+    await waitFor(() => expect(screen.getByTestId('react-flow')).toBeInTheDocument());
+    const beforeDocument = useEditorStore.getState().currentDocument;
+    const beforeModel = structuredClone(beforeDocument.model);
+    const beforeLayout = structuredClone(beforeDocument.layout);
+    const host = screen.getByTestId('react-flow-host');
+
+    act(() => {
+      Object.defineProperties(host, {
+        clientWidth: { configurable: true, value: 760 },
+        clientHeight: { configurable: true, value: 540 },
+        offsetWidth: { configurable: true, value: 760 },
+        offsetHeight: { configurable: true, value: 540 },
+      });
+      resizeObserverCallbacks.at(-1)?.([{ contentRect: { width: 760, height: 540 } as DOMRectReadOnly } as ResizeObserverEntry], {} as ResizeObserver);
+      fireEvent.click(screen.getByTestId('flow-node-class-customer'));
+    });
+
+    await waitFor(() => expect(useEditorStore.getState().selection).toEqual({ type: 'class', id: 'class-customer' }));
+    expect(useEditorStore.getState().currentDocument).toBe(beforeDocument);
+    expect(useEditorStore.getState().currentDocument.model).toEqual(beforeModel);
+    expect(useEditorStore.getState().currentDocument.layout).toEqual(beforeLayout);
+    expect(useEditorStore.getState().undoCount).toBe(0);
+  });
+
+  it('creates a relationship from the dialog without activating the React Flow click tool', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     render(<UmlEditorClient />);
 
-    chooseRelationshipTool('Asociación');
-    act(() => {
-      useEditorStore.getState().setSelection(null);
-    });
-    fireEvent.click(screen.getByTestId('flow-node-class-customer'));
-    expect(useEditorStore.getState().activeTool).toBe('association');
-    expect(useEditorStore.getState().relationshipDraft).toEqual({ kind: 'association', sourceClassId: 'class-customer' });
-
-    act(() => {
-      useEditorStore.getState().setSelection({ type: 'class', id: 'class-order' });
-    });
-    fireEvent.click(screen.getByTestId('flow-node-class-order'));
+    createRelationshipWithDialog('association', 'class-customer', 'class-order');
 
     const relationship = useEditorStore.getState().currentDocument.model.relationships.at(-1);
     expect(relationship).toMatchObject({ kind: 'association', source: { classId: 'class-customer' }, target: { classId: 'class-order' } });

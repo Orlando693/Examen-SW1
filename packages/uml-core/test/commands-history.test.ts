@@ -73,6 +73,19 @@ describe('UmlCommandBus', () => {
     expect(updated.ok && updated.document.model.relationships[0].target.multiplicity).toEqual({ lower: 1, upper: 5 });
   });
 
+  it('updates a relationship name and both multiplicities as one undoable command', () => {
+    const history = new UmlHistory(twoClassDocument());
+    history.execute({ type: 'CreateAssociation', relationshipId: 'rel-a', sourceClassId: 'class-a', targetClassId: 'class-b', name: 'places', sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: '*' } });
+
+    const result = history.execute({ type: 'UpdateRelationship', relationshipId: 'rel-a', name: null, sourceMultiplicity: { lower: 0, upper: 1 }, targetMultiplicity: null });
+
+    expect(result.ok && result.document.model.relationships[0]).toMatchObject({ source: { multiplicity: { lower: 0, upper: 1 } }, target: { multiplicity: undefined } });
+    expect(result.ok && result.document.model.relationships[0].name).toBeUndefined();
+    expect(history.undoCount).toBe(2);
+    history.undo();
+    expect(history.document.model.relationships[0]).toMatchObject({ name: 'places', source: { multiplicity: { lower: 1, upper: 1 } }, target: { multiplicity: { lower: 0, upper: '*' } } });
+  });
+
   it('manages enumerations and literals through commands', () => {
     const bus = new UmlCommandBus();
     const created = bus.execute(emptyDocument(), { type: 'CreateEnumeration', enumerationId: 'enum-status', name: 'Status' });
