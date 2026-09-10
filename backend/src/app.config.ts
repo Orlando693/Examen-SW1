@@ -13,3 +13,12 @@ export function configureApplication(app: INestApplication) {
     methods: CORS_METHODS,
   });
 }
+
+export function validateEnvironment(environment = process.env): void {
+  if (!environment.JWT_SECRET || environment.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be configured with at least 32 characters.');
+  }
+  if (environment.JWT_ACCESS_TOKEN_TTL_SECONDS && Number(environment.JWT_ACCESS_TOKEN_TTL_SECONDS) !== 3600) {
+    throw new Error('JWT_ACCESS_TOKEN_TTL_SECONDS must be 3600.');
+  }
+}

@@ -3,6 +3,7 @@ import {
   type ProjectResource,
   type StructuralDiagnostic,
 } from '@examen-sw1/uml-core';
+import { clearAuthSession, getAuthSession } from '../auth/auth-session';
 
 export interface ProjectSummary {
   id: string;
@@ -75,9 +76,10 @@ function decodeResource(value: unknown): ProjectResource {
 async function request(path: string, init?: RequestInit): Promise<unknown> {
   let response: Response;
   try {
+    const session = getAuthSession();
     response = await fetch(`${apiBaseUrl()}${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', ...init?.headers },
+      headers: { 'content-type': 'application/json', ...(session ? { authorization: `Bearer ${session.accessToken}` } : {}), ...init?.headers },
     });
   } catch {
     throw new ProjectApiError('NETWORK_ERROR', 'Unable to reach the project service.');
@@ -86,6 +88,7 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   if (response.status === 204) return undefined;
   const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
+    if (response.status === 401) clearAuthSession();
     if (isRecord(body) && isRecord(body.error) && typeof body.error.code === 'string' && typeof body.error.message === 'string') {
       throw new ProjectApiError(body.error.code, body.error.message, isRecord(body.error.details) ? body.error.details : {}, response.status);
     }

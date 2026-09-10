@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import request from 'supertest';
-import { afterEach, beforeEach, describe, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from './app.module.js';
 import { configureApplication } from './app.config.js';
 
@@ -27,7 +27,7 @@ describe('GET /health', () => {
     await request(app.getHttpServer())
       .get('/health')
       .expect(200)
-      .expect({ status: 'ok' });
+      .expect(({ body }) => expect(body).toEqual({ status: 'ok' }));
   });
 
   it('accepts project API preflight requests from the configured frontend origin', async () => {

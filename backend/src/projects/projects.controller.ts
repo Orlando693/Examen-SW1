@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, ValidationPipe } from '@nestjs/common';
+import { Public } from '../auth/public.decorator.js';
 import type { ProjectResource } from '@examen-sw1/uml-core';
 import { CreateProjectDto, DeleteProjectQueryDto, ProjectIdParamsDto, SaveProjectDocumentDto, UpdateProjectMetadataDto } from './projects.dto.js';
 import { type ProjectSummary, ProjectsService } from './projects.service.js';
@@ -11,6 +12,7 @@ const updateMetadataPipe = new ValidationPipe({ ...validationOptions, expectedTy
 const deleteProjectPipe = new ValidationPipe({ ...validationOptions, expectedType: DeleteProjectQueryDto });
 
 @Controller('projects')
+@Public()
 export class ProjectsController {
   constructor(@Inject(ProjectsService) private readonly projects: ProjectsService) {}
 
