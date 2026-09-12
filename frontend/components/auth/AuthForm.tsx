@@ -4,6 +4,7 @@ import { Alert, Box, Button, Container, Paper, Stack, TextField, Typography } fr
 import { useSearchParams } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import { AuthApiError, authApi, safeReturnPath, setAuthSession } from '../../lib/auth/auth-session';
+import { getInvitationToken, invitationContinuationPath } from '../../lib/invitations/invitation-continuation';
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const searchParams = useSearchParams();
@@ -20,7 +21,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     try {
       const session = mode === 'login' ? await authApi.login({ email, password }) : await authApi.register({ email, password });
       setAuthSession(session);
-      window.location.assign(safeReturnPath(searchParams.get('returnTo')));
+      window.location.assign(invitationContinuationPath(Boolean(getInvitationToken()), safeReturnPath(searchParams.get('returnTo'))));
     } catch (cause) {
       setError(cause instanceof AuthApiError ? cause.message : 'Unable to authenticate.');
     } finally {

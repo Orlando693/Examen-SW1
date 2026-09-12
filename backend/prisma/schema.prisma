@@ -22,6 +22,7 @@ model Project {
 
   owner       User?               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   memberships ProjectMembership[]
+  invitations ProjectInvitation[]
 
   @@index([ownerId])
   @@map("projects")
@@ -36,6 +37,7 @@ model User {
 
   ownedProjects Project[]           @relation("ProjectOwner")
   memberships   ProjectMembership[]
+  sentInvitations ProjectInvitation[] @relation("InvitationInviter")
 
   @@map("users")
 }
@@ -56,4 +58,37 @@ model ProjectMembership {
   @@id([projectId, userId])
   @@index([userId])
   @@map("project_memberships")
+}
+
+enum ProjectInvitationRole {
+  EDITOR
+}
+
+enum ProjectInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  REVOKED
+}
+
+model ProjectInvitation {
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId    String                  @db.Uuid
+  inviterId    String                  @db.Uuid
+  invitedEmail String
+  role         ProjectInvitationRole   @default(EDITOR)
+  status       ProjectInvitationStatus @default(PENDING)
+  tokenHash    String                  @unique
+  createdAt    DateTime                @default(now()) @db.Timestamptz(3)
+  expiresAt    DateTime                @db.Timestamptz(3)
+  acceptedAt   DateTime?               @db.Timestamptz(3)
+  rejectedAt   DateTime?               @db.Timestamptz(3)
+  revokedAt    DateTime?               @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter User    @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, status])
+  @@index([inviterId])
+  @@map("project_invitations")
 }
