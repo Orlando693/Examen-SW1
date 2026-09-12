@@ -60,11 +60,11 @@
 
 ## 4. FINAL VERIFICATION
 
-- [ ] 4.1 Run complete Prisma generation/validation, isolated `TEST_DATABASE_URL` migration, backend unit/API/integration, frontend unit, UML-core, and root test/typecheck/lint/build checks; record exact results and resolve CU-04 regressions.
-- [ ] 4.2 Review API responses, logs, environment examples, and persisted test data for plaintext passwords, password hashes, JWT secrets, bearer tokens, raw invitation tokens, Prisma/SQL, stack traces, open redirects, and unauthorized resource/version leakage.
-- [ ] 4.3 Perform multi-account real-browser acceptance with owner, invited editor, and unrelated user: register/login, owner create/open/edit/save/invite, editor fragment acceptance/open/edit/save, editor rename/delete/invite denial, unrelated concealment, logout/session behavior, and no console/hydration/React Flow regressions.
-- [ ] 4.4 Verify legacy null-owner behavior remains no-list/no-read/no-auto-claim and document the explicit operator-only backfill procedure without creating a public claim endpoint.
-- [ ] 4.5 Update `docs/puds/use-cases/CU-04-authentication-ownership-invitations.md`, `docs/STATUS.md`, and `docs/HANDOFF.md` with actual implementation, migrations/configuration, evidence, browser outcomes, limitations, security observations, and technical debt; do not claim unexecuted work.
-- [ ] 4.6 Run `openspec validate "cu-04-auth-ownership-invitations" --strict` and require PASS, run OpenSpec verification, resolve blockers, obtain user acceptance, and only then archive, commit, and push in the separate closure phase.
+- [x] 4.1 Run complete Prisma generation/validation, isolated `TEST_DATABASE_URL` migration, backend unit/API/integration, frontend unit, UML-core, and root test/typecheck/lint/build checks; record exact results and resolve CU-04 regressions.
+- [x] 4.2 Review API responses, logs, environment examples, and persisted test data for plaintext passwords, password hashes, JWT secrets, bearer tokens, raw invitation tokens, Prisma/SQL, stack traces, open redirects, and unauthorized resource/version leakage.
+- [x] 4.3 Perform multi-account real-browser acceptance with owner, invited editor, and unrelated user: register/login, owner create/open/edit/save/invite, editor fragment acceptance/open/edit/save, editor rename/delete/invite denial, unrelated concealment, logout/session behavior, and no console/hydration/React Flow regressions.
+- [x] 4.4 Verify legacy null-owner behavior remains no-list/no-read/no-auto-claim and document the explicit operator-only backfill procedure without creating a public claim endpoint.
+- [x] 4.5 Update `docs/puds/use-cases/CU-04-authentication-ownership-invitations.md`, `docs/STATUS.md`, and `docs/HANDOFF.md` with actual implementation, migrations/configuration, evidence, browser outcomes, limitations, security observations, and technical debt; do not claim unexecuted work.
+- [x] 4.6 Run `openspec validate "cu-04-auth-ownership-invitations" --strict` and require PASS, run OpenSpec verification, resolve blockers, obtain user acceptance, and only then archive, commit, and push in the separate closure phase.
 
 **Final Definition of Done:** CU-04 has complete automated and multi-account browser evidence, documentation reflects actual behavior, OpenSpec verification has no blockers, and closure actions occur only after user acceptance.

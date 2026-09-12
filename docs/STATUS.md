@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-02 completado, verificado, aceptado, archivado, commiteado y pusheado. La verificacion manual real final en Chrome responsive confirmo Ctrl+F5 sin hydration mismatch, sin React Flow #004, sin `Maximum update depth exceeded`, responsive mobile funcional, Model Rail/Inspector mediante composicion compacta, creacion/seleccion/renombrado de clase desde responsive y canvas usable.
+CU-04 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. CU-05 es el siguiente caso de uso y permanece pendiente de planificacion, sin implementacion iniciada.
 
 ## Planificación vigente
 
@@ -18,20 +18,19 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## Caso de uso activo
 
-CU-04 — Autenticacion, ownership e invitaciones.
-
-Estado: PENDIENTE DE PLANIFICACION. CU-03 esta verificado, aceptado y archivado; no hay OpenSpec activo.
+No hay CU activo. CU-05 — Colaboracion en tiempo real queda pendiente de planificacion.
 
 ## Casos de uso completados
 
 - CU-00 — Base del proyecto. COMPLETADO. OpenSpec archivado como `openspec/changes/archive/2026-09-04-cu-00-project-foundation`.
 - CU-01 — Nucleo UML canonico. COMPLETADO. OpenSpec archivado como `openspec/changes/archive/2026-09-05-cu-01-canonical-uml-core`. Commit `69d1a3b` pusheado.
 - CU-02 — Workspace/editor UML manual. COMPLETADO, verificado, aceptado, archivado, commiteado y pusheado. OpenSpec archivado como `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`. Commit `67e5dee` pusheado.
-- CU-03 — Persistencia y gestion de proyectos. COMPLETADO, verificado, aceptado y archivado como `openspec/changes/archive/2026-09-09-cu-03-project-persistence-management`. Pendiente de commit y push por instruccion del usuario.
+- CU-03 — Persistencia y gestion de proyectos. COMPLETADO y archivado.
+- CU-04 — Autenticacion, ownership e invitaciones. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-12-cu-04-auth-ownership-invitations`.
 
 ## OpenSpec activo
 
-No hay OpenSpec activo. El siguiente CU es `CU-04 — Autenticacion, ownership e invitaciones`; no se ha iniciado su planificacion ni implementacion.
+No hay OpenSpec activo.
 
 ## Problemas abiertos
 
@@ -42,6 +41,14 @@ No hay OpenSpec activo. El siguiente CU es `CU-04 — Autenticacion, ownership e
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 
 ## Verificación actual
+
+- CU-04 final verification: root `npm run test` PASS, 133 tests (backend 24, frontend 73, UML core 36); typecheck/lint/build PASS.
+- Prisma generate/validate and `npm run db:migrate:test --workspace backend` PASS against `examen_sw1_test`.
+- Cadena limpia de cinco migraciones PASS en PostgreSQL temporal; `_prisma_migrations` verificó cinco filas exactas, finalizadas y sin rollback; DB temporal eliminada.
+- Chrome manual CU-04 PASS: owner create/open/edit/save/rename/reopen/invite/revoke; editor accept/open/edit/save y denegaciones administrativas; unrelated concealed; fragment, login continuation, mismatch y reject PASS; sin errores bloqueantes de consola.
+- OpenSpec strict y `git diff --check` PASS.
+- CU-04 entrego User/Auth foundation, Argon2id, JWT Bearer, autenticacion en `sessionStorage`, ownership de proyectos, autorizacion OWNER/EDITOR, ocultamiento IDOR, CAS `storageVersion` consciente de autorizacion, `ProjectMembership`, lifecycle seguro de `ProjectInvitation`, accept/reject/revoke, tokens de siete dias ligados al email y persistidos solo como hash, UI de invitaciones del owner y continuacion por login/register.
+- Realtime collaboration no pertenece a CU-04: colaboradores ven cambios persistidos despues de Manual Save. CU-05 sera responsable de Socket.IO, sincronizacion realtime, presence y flujo colaborativo autoritativo de comandos.
 
 - `npm run test --workspace @examen-sw1/uml-core`: verde, 30 tests.
 - `npm run typecheck --workspace @examen-sw1/uml-core`: verde.
@@ -97,4 +104,4 @@ No hay OpenSpec activo. El siguiente CU es `CU-04 — Autenticacion, ownership e
 
 ## Próxima acción
 
-Preparar y someter a aprobacion el plan de CU-04. No implementar CU-04 hasta contar con un OpenSpec activo y aprobacion del usuario.
+Preparar y someter a aprobacion la planificacion de CU-05. No implementar CU-05 antes de contar con un OpenSpec activo y aprobacion del usuario.
