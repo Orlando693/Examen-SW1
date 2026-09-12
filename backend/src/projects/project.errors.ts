@@ -10,6 +10,7 @@ export type ProjectErrorCode =
   | 'AUTHENTICATION_REQUIRED'
   | 'INVALID_CREDENTIALS'
   | 'EMAIL_ALREADY_REGISTERED'
+  | 'FORBIDDEN'
   | 'INTERNAL_ERROR';
 
 export class ProjectApiError extends Error {

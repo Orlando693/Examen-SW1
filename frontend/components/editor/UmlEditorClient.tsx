@@ -5,7 +5,7 @@ import '@xyflow/react/dist/style.css';
 import { Alert, Box, Button, CircularProgress, Drawer, Stack, useMediaQuery, useTheme } from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { projectApi } from '../../lib/projects/project-api';
+import { ProjectApiError, projectApi } from '../../lib/projects/project-api';
 import { useEditorStore } from '../../stores/editor-store';
 import { projectDocumentToFlow } from '../../lib/editor/projection/project-document-to-flow';
 import { EditorAppBar } from './EditorAppBar';
@@ -52,7 +52,13 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
     setLoading(true);
     void projectApi.get(selectedProjectId).then((resource) => {
       if (request === loadRequest.current) replaceProjectSession(resource);
-    }).catch(() => {
+    }).catch((cause: unknown) => {
+      if (request !== loadRequest.current) return;
+      if (cause instanceof ProjectApiError && cause.status === 401) {
+        window.location.assign('/login?returnTo=%2Feditor');
+      } else if (cause instanceof ProjectApiError && cause.code === 'PROJECT_NOT_FOUND') {
+        window.location.assign('/');
+      }
       // The store retains an already-open session if this request fails.
     }).finally(() => {
       if (request === loadRequest.current) setLoading(false);

@@ -1,9 +1,14 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import EditorPage, { metadata } from './page';
 
 vi.mock('../../components/editor/UmlEditorClient', () => ({
   UmlEditorClient: () => <div data-testid="editor-client-boundary">Client boundary</div>,
+}));
+
+vi.mock('../../components/auth/ProtectedRoute', () => ({
+  ProtectedRoute: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 describe('EditorPage', () => {

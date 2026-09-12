@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { UmlEditorClient } from '../../components/editor/UmlEditorClient';
+import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 
 export const metadata: Metadata = {
   title: 'Editor UML | Examen SW1 CASE',
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function EditorPage() {
-  return <Suspense fallback={null}><UmlEditorClient /></Suspense>;
+  return <ProtectedRoute returnTo="/editor"><Suspense fallback={null}><UmlEditorClient /></Suspense></ProtectedRoute>;
 }

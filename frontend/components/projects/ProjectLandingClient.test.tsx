@@ -21,6 +21,7 @@ const project = {
   storageVersion: 4,
   createdAt: '2026-09-08T00:00:00.000Z',
   updatedAt: '2026-09-08T00:00:00.000Z',
+  access: 'OWNER' as const,
 };
 
 describe('ProjectLandingClient', () => {
@@ -78,5 +79,15 @@ describe('ProjectLandingClient', () => {
     expect(screen.getByText('Delete “Orders”? This cannot be undone.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(projectApiMock.delete).toHaveBeenCalledWith(project.id, 4));
+  });
+
+  it('keeps project opening available to editors while hiding owner-only actions', async () => {
+    projectApiMock.list.mockResolvedValue([{ ...project, access: 'EDITOR' }]);
+    render(<ProjectLandingClient />);
+
+    expect(await screen.findByText(/Editor/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });
 });

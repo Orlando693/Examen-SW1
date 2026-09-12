@@ -12,6 +12,7 @@ export interface ProjectSummary {
   storageVersion: number;
   createdAt: string;
   updatedAt: string;
+  access: 'OWNER' | 'EDITOR';
 }
 
 export interface ProjectApiErrorDetails {
@@ -52,7 +53,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function decodeSummary(value: unknown, path: string): ProjectSummary {
-  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || (value.description !== null && typeof value.description !== 'string') || typeof value.storageVersion !== 'number' || !Number.isInteger(value.storageVersion) || value.storageVersion < 0 || typeof value.createdAt !== 'string' || typeof value.updatedAt !== 'string') {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || (value.description !== null && typeof value.description !== 'string') || typeof value.storageVersion !== 'number' || !Number.isInteger(value.storageVersion) || value.storageVersion < 0 || typeof value.createdAt !== 'string' || typeof value.updatedAt !== 'string' || (value.access !== 'OWNER' && value.access !== 'EDITOR')) {
     throw new ProjectApiError('INVALID_API_RESPONSE', `Invalid project summary at ${path}.`);
   }
   return {
@@ -62,6 +63,7 @@ function decodeSummary(value: unknown, path: string): ProjectSummary {
     storageVersion: value.storageVersion,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    access: value.access,
   };
 }
 

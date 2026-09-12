@@ -6,25 +6,38 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class ProjectsRepository {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  create(data: Prisma.ProjectCreateInput): Promise<Project> {
+  create(data: Prisma.ProjectUncheckedCreateInput): Promise<Project> {
     return this.prisma.project.create({ data });
   }
 
-  findById(id: string): Promise<Project | null> {
-    return this.prisma.project.findUnique({ where: { id } });
+  findAccessibleById(id: string, userId: string): Promise<Project | null> {
+    return this.prisma.project.findFirst({ where: { id, ...this.accessWhere(userId) } });
   }
 
-  list(): Promise<Project[]> {
-    return this.prisma.project.findMany({ orderBy: { updatedAt: 'desc' } });
+  findOwnedById(id: string, userId: string): Promise<Project | null> {
+    return this.prisma.project.findFirst({ where: { id, ownerId: userId } });
   }
 
-  async updateIfVersion(id: string, storageVersion: number, data: Prisma.ProjectUpdateManyMutationInput): Promise<boolean> {
-    const result = await this.prisma.project.updateMany({ where: { id, storageVersion }, data: { ...data, storageVersion: { increment: 1 } } });
+  listAccessible(userId: string): Promise<Project[]> {
+    return this.prisma.project.findMany({ where: this.accessWhere(userId), orderBy: { updatedAt: 'desc' } });
+  }
+
+  async updateIfAccessibleVersion(id: string, userId: string, storageVersion: number, data: Prisma.ProjectUpdateManyMutationInput): Promise<boolean> {
+    const result = await this.prisma.project.updateMany({ where: { AND: [{ id, storageVersion }, this.accessWhere(userId)] }, data: { ...data, storageVersion: { increment: 1 } } });
     return result.count === 1;
   }
 
-  async deleteIfVersion(id: string, storageVersion: number): Promise<boolean> {
-    const result = await this.prisma.project.deleteMany({ where: { id, storageVersion } });
+  async updateIfOwnerVersion(id: string, userId: string, storageVersion: number, data: Prisma.ProjectUpdateManyMutationInput): Promise<boolean> {
+    const result = await this.prisma.project.updateMany({ where: { id, ownerId: userId, storageVersion }, data: { ...data, storageVersion: { increment: 1 } } });
     return result.count === 1;
+  }
+
+  async deleteIfOwnerVersion(id: string, userId: string, storageVersion: number): Promise<boolean> {
+    const result = await this.prisma.project.deleteMany({ where: { id, ownerId: userId, storageVersion } });
+    return result.count === 1;
+  }
+
+  private accessWhere(userId: string): Prisma.ProjectWhereInput {
+    return { OR: [{ ownerId: userId }, { memberships: { some: { userId, role: 'EDITOR' } } }] };
   }
 }

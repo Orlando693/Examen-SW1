@@ -10,6 +10,7 @@ import {
   type ProjectResource,
 } from '@examen-sw1/uml-core';
 import type { Project } from '@prisma/client';
+import type { SafeUser } from '../auth/users.repository.js';
 import { toProjectPersistenceData, toProjectResource } from '../persistence/project-persistence.mapper.js';
 import { documentValidationError, ProjectApiError, StoredProjectDataError } from './project.errors.js';
 import type { CreateProjectDto, SaveProjectDocumentDto, UpdateProjectMetadataDto } from './projects.dto.js';
@@ -22,43 +23,44 @@ export interface ProjectSummary {
   storageVersion: number;
   createdAt: string;
   updatedAt: string;
+  access: 'OWNER' | 'EDITOR';
 }
 
 @Injectable()
 export class ProjectsService {
   constructor(@Inject(ProjectsRepository) private readonly repository: ProjectsRepository) {}
 
-  async create(input: CreateProjectDto): Promise<ProjectResource> {
-    const document = createProjectDocument({ name: input.name, ...(input.description === undefined || input.description === null ? {} : { description: input.description }) });
+  async create(user: SafeUser, input: CreateProjectDto): Promise<ProjectResource> {
+    const document = createProjectDocument({ name: input.name, ...(input.description === undefined || input.description === null ? {} : { description: input.description }), ownerId: user.id });
     const row = await this.repository.create(toProjectPersistenceData({ project: document, storageVersion: INITIAL_STORAGE_VERSION, documentSchemaVersion: INITIAL_DOCUMENT_SCHEMA_VERSION }));
     return this.resource(row);
   }
 
-  async list(): Promise<{ items: ProjectSummary[] }> {
-    const rows = await this.repository.list();
-    return { items: rows.map((row) => ({ id: row.id, name: row.name, description: row.description, storageVersion: row.storageVersion, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() })) };
+  async list(user: SafeUser): Promise<{ items: ProjectSummary[] }> {
+    const rows = await this.repository.listAccessible(user.id);
+    return { items: rows.map((row) => ({ id: row.id, name: row.name, description: row.description, storageVersion: row.storageVersion, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), access: row.ownerId === user.id ? 'OWNER' : 'EDITOR' })) };
   }
 
-  async get(id: string): Promise<ProjectResource> {
-    return this.resource(await this.requireRow(id));
+  async get(user: SafeUser, id: string): Promise<ProjectResource> {
+    return this.resource(await this.requireAccessibleRow(user.id, id));
   }
 
-  async saveDocument(id: string, input: SaveProjectDocumentDto): Promise<ProjectResource> {
-    const row = await this.requireRow(id);
+  async saveDocument(user: SafeUser, id: string, input: SaveProjectDocumentDto): Promise<ProjectResource> {
+    const row = await this.requireAccessibleRow(user.id, id);
     const candidate = this.decodeCandidate(row, input.document);
     const validation = validateProjectDocument(candidate);
     if (validation.hasErrors) throw documentValidationError(validation.errors);
 
-    const updated = await this.repository.updateIfVersion(id, input.baseStorageVersion, {
+    const updated = await this.repository.updateIfAccessibleVersion(id, user.id, input.baseStorageVersion, {
       revision: candidate.revision,
       model: candidate.model as never,
       layout: candidate.layout as never,
     });
-    if (!updated) await this.throwMutationFailure(id);
-    return this.get(id);
+    if (!updated) await this.throwAccessibleMutationFailure(user.id, id);
+    return this.get(user, id);
   }
 
-  async updateMetadata(id: string, input: UpdateProjectMetadataDto): Promise<ProjectResource> {
+  async updateMetadata(user: SafeUser, id: string, input: UpdateProjectMetadataDto): Promise<ProjectResource> {
     if (input.name === undefined && input.description === undefined) {
       throw new ProjectApiError(400, 'INVALID_REQUEST', 'At least one editable metadata field is required.');
     }
@@ -66,14 +68,14 @@ export class ProjectsService {
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.description === undefined ? {} : { description: input.description }),
     };
-    const updated = await this.repository.updateIfVersion(id, input.baseStorageVersion, data);
-    if (!updated) await this.throwMutationFailure(id);
-    return this.get(id);
+    const updated = await this.repository.updateIfOwnerVersion(id, user.id, input.baseStorageVersion, data);
+    if (!updated) await this.throwOwnerMutationFailure(user.id, id);
+    return this.get(user, id);
   }
 
-  async delete(id: string, baseStorageVersion: number): Promise<void> {
-    const deleted = await this.repository.deleteIfVersion(id, baseStorageVersion);
-    if (!deleted) await this.throwMutationFailure(id);
+  async delete(user: SafeUser, id: string, baseStorageVersion: number): Promise<void> {
+    const deleted = await this.repository.deleteIfOwnerVersion(id, user.id, baseStorageVersion);
+    if (!deleted) await this.throwOwnerMutationFailure(user.id, id);
   }
 
   private decodeCandidate(row: Project, document: SaveProjectDocumentDto['document']): ProjectDocument {
@@ -90,15 +92,25 @@ export class ProjectsService {
     return decoded.value;
   }
 
-  private async requireRow(id: string): Promise<Project> {
-    const row = await this.repository.findById(id);
+  private async requireAccessibleRow(userId: string, id: string): Promise<Project> {
+    const row = await this.repository.findAccessibleById(id, userId);
     if (!row) throw new ProjectApiError(404, 'PROJECT_NOT_FOUND', 'The project was not found.');
     return row;
   }
 
-  private async throwMutationFailure(id: string): Promise<never> {
-    if (await this.repository.findById(id)) {
+  private async throwAccessibleMutationFailure(userId: string, id: string): Promise<never> {
+    if (await this.repository.findAccessibleById(id, userId)) {
       throw new ProjectApiError(409, 'PROJECT_REVISION_CONFLICT', 'The project was modified by another operation.');
+    }
+    throw new ProjectApiError(404, 'PROJECT_NOT_FOUND', 'The project was not found.');
+  }
+
+  private async throwOwnerMutationFailure(userId: string, id: string): Promise<never> {
+    if (await this.repository.findOwnedById(id, userId)) {
+      throw new ProjectApiError(409, 'PROJECT_REVISION_CONFLICT', 'The project was modified by another operation.');
+    }
+    if (await this.repository.findAccessibleById(id, userId)) {
+      throw new ProjectApiError(403, 'FORBIDDEN', 'Only the project owner can administer this project.');
     }
     throw new ProjectApiError(404, 'PROJECT_NOT_FOUND', 'The project was not found.');
   }
