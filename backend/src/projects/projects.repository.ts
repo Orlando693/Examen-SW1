@@ -22,6 +22,16 @@ export class ProjectsRepository {
     return this.prisma.project.findMany({ where: this.accessWhere(userId), orderBy: { updatedAt: 'desc' } });
   }
 
+  findParticipants(id: string) {
+    return this.prisma.project.findUnique({
+      where: { id },
+      select: {
+        owner: { select: { id: true, email: true } },
+        memberships: { where: { role: 'EDITOR' }, select: { user: { select: { id: true, email: true } } } },
+      },
+    });
+  }
+
   async updateIfAccessibleVersion(id: string, userId: string, storageVersion: number, data: Prisma.ProjectUpdateManyMutationInput): Promise<boolean> {
     const result = await this.prisma.project.updateMany({ where: { AND: [{ id, storageVersion }, this.accessWhere(userId)] }, data: { ...data, storageVersion: { increment: 1 } } });
     return result.count === 1;

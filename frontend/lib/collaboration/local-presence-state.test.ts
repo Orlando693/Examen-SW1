@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+import { LocalPresenceState } from './local-presence-state';
+
+describe('LocalPresenceState', () => {
+  it('starts with the complete valid Presence payload and resets idempotently', () => { const state = new LocalPresenceState(); expect(state.snapshot()).toEqual({ cursor: null, selectionIds: [], editingElementId: null, activity: null }); state.reset(); state.reset(); expect(state.snapshot()).toEqual({ cursor: null, selectionIds: [], editingElementId: null, activity: null }); });
+  it('preserves every other field when cursor changes or clears', () => { const state = new LocalPresenceState(); state.setSelectionIds(['class-1']); state.setEditingElementId('class-2'); state.setActivity('editing'); state.setCursor({ x: 10, y: 20 }); expect(state.snapshot()).toEqual({ cursor: { x: 10, y: 20 }, selectionIds: ['class-1'], editingElementId: 'class-2', activity: 'editing' }); state.setCursor(null); expect(state.snapshot()).toMatchObject({ cursor: null, selectionIds: ['class-1'], editingElementId: 'class-2', activity: 'editing' }); });
+  it('preserves cursor across other updates and defensively copies selections', () => { const state = new LocalPresenceState(); const ids = ['class-1']; state.setCursor({ x: 1, y: 2 }); state.setSelectionIds(ids); ids.push('class-2'); state.setEditingElementId('class-3'); state.setActivity('dragging'); const snapshot = state.snapshot(); snapshot.selectionIds.push('mutated'); expect(state.snapshot()).toEqual({ cursor: { x: 1, y: 2 }, selectionIds: ['class-1'], editingElementId: 'class-3', activity: 'dragging' }); });
+  it('keeps instances isolated', () => { const first = new LocalPresenceState(); const second = new LocalPresenceState(); first.setSelectionIds(['class-1']); expect(second.snapshot().selectionIds).toEqual([]); });
+});

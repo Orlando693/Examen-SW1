@@ -25,6 +25,7 @@ vi.mock('@xyflow/react', async () => {
     MiniMap: () => <div data-testid="flow-minimap" />,
     Position: { Left: 'left', Right: 'right' },
     ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    ViewportPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useReactFlow: () => ({ fitView: fitViewMock }),
     ReactFlow: ({ nodes, edges, onInit, onNodeClick, onNodeDragStop, onEdgeClick, onSelectionChange, children }: { nodes: Array<{ id: string; type?: string; data: { name?: string } }>; edges: Array<{ id: string; label?: string }>; onInit?: (instance: { fitView: typeof fitViewMock }) => void; onNodeClick: (event: MouseEvent, node: { id: string; type?: string }) => void; onNodeDragStop: (event: MouseEvent, node: { id: string; position: { x: number; y: number } }) => void; onEdgeClick?: (event: MouseEvent, edge: { id: string }) => void; onSelectionChange?: (params: { nodes: unknown[]; edges: unknown[] }) => void; children: React.ReactNode }) => {
       React.useEffect(() => {

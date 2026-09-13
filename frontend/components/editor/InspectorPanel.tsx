@@ -7,7 +7,7 @@ import type { Multiplicity, PrimitiveTypeName, UmlTypeRef } from '@examen-sw1/um
 
 const primitiveTypeOptions: PrimitiveTypeName[] = ['string', 'number', 'boolean', 'date', 'datetime'];
 
-export function InspectorPanel() {
+export function InspectorPanel({ onEditingChange }: { onEditingChange?: (elementId: string | null) => void }) {
   const document = useEditorStore((state) => state.currentDocument);
   const diagnostics = useEditorStore((state) => state.diagnostics);
   const selection = useEditorStore((state) => state.selection);
@@ -31,7 +31,7 @@ export function InspectorPanel() {
   const selectedDiagnostics = selection ? diagnostics.filter((diagnostic) => diagnostic.elementId === selection.id) : [];
 
   return (
-    <Box data-testid="inspector-panel" sx={{ p: 2, overflowX: 'hidden', overflowY: 'auto', minWidth: 0, bgcolor: '#ffffff' }}>
+    <Box data-testid="inspector-panel" onFocusCapture={() => onEditingChange?.(selection?.id ?? null)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) onEditingChange?.(null); }} sx={{ p: 2, overflowX: 'hidden', overflowY: 'auto', minWidth: 0, bgcolor: '#ffffff' }}>
       <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>Inspector</Typography>
       {!selection && (
         <Paper variant="outlined" sx={{ mt: 1.5, p: 2, borderColor: 'rgba(15,76,129,0.14)', bgcolor: '#f8fbff' }}>

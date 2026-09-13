@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-04 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. CU-05 es el siguiente caso de uso y permanece pendiente de planificacion, sin implementacion iniciada.
+CU-04 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. CU-05 tiene Incremento 1 funcional, automatizado y manualmente aceptado; conserva 3 checkboxes mixtas (16/19) con dependencias de comandos/resource updates futuros. Incremento 2 esta READY TO START; no existe aun sincronizacion realtime durable de comandos UML.
 
 ## Planificación vigente
 
@@ -18,7 +18,7 @@ Ciclo 2 — Elaboracion, usuarios y colaboracion.
 
 ## Caso de uso activo
 
-No hay CU activo. CU-05 — Colaboracion en tiempo real queda pendiente de planificacion.
+CU-05 — Colaboracion realtime y presencia. Incremento 1 FUNCTIONAL SCOPE COMPLETE, automated validation PASS y manual browser acceptance PASS. El conteo permanece 16/19: 1.6 incluye matriz command/CAS de Incremento 2 y resource updates de Incremento 3; 1.8 incluye commandId dedupe de Incremento 2; 1.13 incluye broadcasts command/resource de Incrementos 2/3. Incremento 2 READY TO START; Incremento 3 NOT_STARTED.
 
 ## Casos de uso completados
 
@@ -30,7 +30,7 @@ No hay CU activo. CU-05 — Colaboracion en tiempo real queda pendiente de plani
 
 ## OpenSpec activo
 
-No hay OpenSpec activo.
+`cu-05-realtime-collaboration-presence` en `openspec/changes/cu-05-realtime-collaboration-presence`.
 
 ## Problemas abiertos
 
@@ -47,7 +47,9 @@ No hay OpenSpec activo.
 - Cadena limpia de cinco migraciones PASS en PostgreSQL temporal; `_prisma_migrations` verificó cinco filas exactas, finalizadas y sin rollback; DB temporal eliminada.
 - Chrome manual CU-04 PASS: owner create/open/edit/save/rename/reopen/invite/revoke; editor accept/open/edit/save y denegaciones administrativas; unrelated concealed; fragment, login continuation, mismatch y reject PASS; sin errores bloqueantes de consola.
 - OpenSpec strict y `git diff --check` PASS.
-- CU-04 entrego User/Auth foundation, Argon2id, JWT Bearer, autenticacion en `sessionStorage`, ownership de proyectos, autorizacion OWNER/EDITOR, ocultamiento IDOR, CAS `storageVersion` consciente de autorizacion, `ProjectMembership`, lifecycle seguro de `ProjectInvitation`, accept/reject/revoke, tokens de siete dias ligados al email y persistidos solo como hash, UI de invitaciones del owner y continuacion por login/register.
+- CU-05 Incremento 1: backend `npm test` PASS, 68 tests, con PostgreSQL real y Socket.IO serializado; frontend `npm test` PASS, 116 tests; typecheck/lint/build de ambos workspaces PASS; `openspec validate cu-05-realtime-collaboration-presence --strict` PASS. La cobertura real verifica OWNER/EDITOR, epoch de joins concurrentes, cambio de proyecto, expiracion, Presence de cursor/seleccion/edicion/actividad, aislamiento de room y limpieza offline. El join buffer y overflow/resync se verifican deterministamente en el bridge frontend.
+- Aceptacion manual multi-profile CU-05 PASS: OWNER y EDITOR confirmaron roster, cursores remotos bidireccionales, seleccion de nodo tras pan/zoom, seleccion de relationship, editing, dragging Presence, hidden-tab cleanup, disconnect/reconnect sin duplicados y consolas limpias. La seleccion remota no cambia la seleccion local ni mueve el viewport. Las mutaciones UML realtime siguen siendo comportamiento esperado pre-Incremento 2: Save y reload/F5 siguen siendo necesarios para observar persistencia.
+- CU-04 entrego User/Auth foundation, Argon2id, JWT Bearer con acceso de 60 minutos, autenticacion en `sessionStorage`, ownership de proyectos, autorizacion OWNER/EDITOR, ocultamiento IDOR, CAS `storageVersion` consciente de autorizacion, `ProjectMembership`, lifecycle seguro de `ProjectInvitation`, accept/reject/revoke, tokens de invitacion ligados al email con expiracion de siete dias y persistidos solo como hash, UI de invitaciones del owner y continuacion por login/register.
 - Realtime collaboration no pertenece a CU-04: colaboradores ven cambios persistidos despues de Manual Save. CU-05 sera responsable de Socket.IO, sincronizacion realtime, presence y flujo colaborativo autoritativo de comandos.
 
 - `npm run test --workspace @examen-sw1/uml-core`: verde, 30 tests.
@@ -104,4 +106,4 @@ No hay OpenSpec activo.
 
 ## Próxima acción
 
-Preparar y someter a aprobacion la planificacion de CU-05. No implementar CU-05 antes de contar con un OpenSpec activo y aprobacion del usuario.
+Iniciar el primer micro-pass de Incremento 2 de `cu-05-realtime-collaboration-presence`: decoder estricto framework-independent del command envelope y los 19 comandos UML; no implementar aun persistencia/CAS, Command Bus realtime ni frontend durable mutation pipeline.

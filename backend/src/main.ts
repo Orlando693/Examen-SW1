@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module.js';
 import { configureApplication, validateEnvironment } from './app.config.js';
 
@@ -15,6 +16,7 @@ async function bootstrap() {
   );
 
   configureApplication(app);
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const port = Number(process.env.BACKEND_PORT ?? DEFAULT_BACKEND_PORT);
   await app.listen(port, '0.0.0.0');

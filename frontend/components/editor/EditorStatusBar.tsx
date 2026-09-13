@@ -4,7 +4,7 @@ import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
 
-export function EditorStatusBar({ compact }: { compact: boolean }) {
+export function EditorStatusBar({ compact, collaborationState }: { compact: boolean; collaborationState?: string }) {
   const document = useEditorStore((state) => state.currentDocument);
   const diagnostics = useEditorStore((state) => state.diagnostics);
   const selection = useEditorStore((state) => state.selection);
@@ -15,7 +15,7 @@ export function EditorStatusBar({ compact }: { compact: boolean }) {
   return (
     <Box data-testid="editor-status-bar" sx={{ display: 'flex', gap: { xs: 0.75, sm: 1.25 }, alignItems: 'center', flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden', px: { xs: 1, sm: 1.5 }, py: 0.35, borderTop: 1, borderColor: '#C8D3DA', bgcolor: '#F8FAFB', color: '#647580', fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>
       {!compact && <StatusItem>REV {document.revision}</StatusItem>}
-      <StatusItem>LOCAL</StatusItem>
+      <StatusItem>{collaborationState === 'connected' ? 'REALTIME' : 'LOCAL'}</StatusItem>
       <StatusItem tone={errors > 0 ? 'error' : 'default'}>{errors} {compact ? 'ERR' : 'ERRORS'}</StatusItem>
       <StatusItem tone={warnings > 0 ? 'warning' : 'default'}>{warnings} {compact ? 'WARN' : 'WARNING'}</StatusItem>
       <Typography data-testid="status-selection" variant="caption" sx={{ ml: 'auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'inherit', fontWeight: 800, color: '#0B1F33' }}>{selectionLabel.toUpperCase()}</Typography>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, type Node, type OnSelectionChangeParams, type ReactFlowInstance } from '@xyflow/react';
+import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, ViewportPortal, type Node, type OnSelectionChangeParams, type ReactFlowInstance } from '@xyflow/react';
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
@@ -8,19 +8,26 @@ import type { ProjectDocumentFlow, UmlFlowEdge, UmlFlowNode } from '../../lib/ed
 import { UmlClassNode } from './nodes/UmlClassNode';
 import { UmlEnumNode } from './nodes/UmlEnumNode';
 import { UmlRelationshipEdge } from './edges/UmlRelationshipEdge';
+import { RemoteCursorsOverlay } from './RemoteCursorsOverlay';
+import { RemoteSelectionOverlay } from './RemoteSelectionOverlay';
+import { RemoteEditingOverlay } from './RemoteEditingOverlay';
+import type { CollaborationParticipant } from '../../lib/collaboration/contracts';
+import type { FlowCursor } from '../../lib/collaboration/cursor-presence-publisher';
+import { flowCursorFromPointer } from '../../lib/collaboration/local-cursor-presence';
+import { presenceSelectionIds } from '../../lib/collaboration/local-selection-presence';
 
 const nodeTypes = { umlClass: UmlClassNode, umlEnum: UmlEnumNode };
 const edgeTypes = { umlRelationship: UmlRelationshipEdge };
 
-export function UmlCanvas({ flow, compact = false, canMount = true }: { flow: ProjectDocumentFlow; compact?: boolean; canMount?: boolean }) {
+export function UmlCanvas({ flow, compact = false, canMount = true, participants = [], currentUserId = null, onLocalCursor, onLocalSelection, onLocalActivity }: { flow: ProjectDocumentFlow; compact?: boolean; canMount?: boolean; participants?: CollaborationParticipant[]; currentUserId?: string | null; onLocalCursor?: (cursor: FlowCursor) => void; onLocalSelection?: (ids: string[]) => void; onLocalActivity?: (activity: 'dragging' | null) => void }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner flow={flow} compact={compact} canMount={canMount} />
+      <CanvasInner flow={flow} compact={compact} canMount={canMount} participants={participants} currentUserId={currentUserId} onLocalCursor={onLocalCursor} onLocalSelection={onLocalSelection} onLocalActivity={onLocalActivity} />
     </ReactFlowProvider>
   );
 }
 
-function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; compact: boolean; canMount: boolean }) {
+function CanvasInner({ flow, compact, canMount, participants, currentUserId, onLocalCursor, onLocalSelection, onLocalActivity }: { flow: ProjectDocumentFlow; compact: boolean; canMount: boolean; participants: CollaborationParticipant[]; currentUserId: string | null; onLocalCursor?: (cursor: FlowCursor) => void; onLocalSelection?: (ids: string[]) => void; onLocalActivity?: (activity: 'dragging' | null) => void }) {
   const setSelection = useEditorStore((state) => state.setSelection);
   const activeTool = useEditorStore((state) => state.activeTool);
   const startRelationship = useEditorStore((state) => state.startRelationship);
@@ -42,14 +49,16 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
   const viewportKey = useMemo(() => flow.nodes.map((node) => `${node.id}:${node.position.x}:${node.position.y}`).join('|'), [flow.nodes]);
 
   const onNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, node: Node) => {
+    onLocalActivity?.(null);
     const currentPosition = document.layout.nodes.find((layoutNode) => layoutNode.elementId === node.id)?.position;
     if (currentPosition?.x === node.position.x && currentPosition.y === node.position.y) {
       return;
     }
     moveNode(node.id, node.position);
-  }, [document.layout.nodes, moveNode]);
+  }, [document.layout.nodes, moveNode, onLocalActivity]);
 
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
+    onLocalSelection?.(presenceSelectionIds(params.nodes, params.edges));
     if (relationshipMode) {
       return;
     }
@@ -64,7 +73,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
       return;
     }
     setSelection(null);
-  }, [relationshipMode, setSelection]);
+  }, [onLocalSelection, relationshipMode, setSelection]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: { id: string; type?: string }) => {
     if (relationshipMode) {
@@ -184,7 +193,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
           <Button size="small" onClick={cancelRelationship} sx={{ ml: 1, textTransform: 'none' }}>Cancelar</Button>
         </Paper>
       )}
-      <Box ref={canvasHostRef} data-testid="react-flow-host" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+      <Box ref={canvasHostRef} data-testid="react-flow-host" onPointerMove={(event) => { const instance = reactFlowRef.current; if (instance && onLocalCursor) onLocalCursor(flowCursorFromPointer(event, (position) => instance.screenToFlowPosition(position))); }} onPointerLeave={() => onLocalCursor?.(null)} sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
         {canMount && containerSize && (
           <ReactFlow<UmlFlowNode, UmlFlowEdge>
             nodes={flow.nodes}
@@ -193,6 +202,7 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
             edgeTypes={edgeTypes}
             onInit={onInit}
             onNodeDragStop={onNodeDragStop}
+            onNodeDragStart={() => onLocalActivity?.('dragging')}
             onSelectionChange={onSelectionChange}
             onNodeClick={onNodeClick}
             onEdgeClick={onEdgeClick}
@@ -200,6 +210,9 @@ function CanvasInner({ flow, compact, canMount }: { flow: ProjectDocumentFlow; c
             style={{ width: '100%', height: '100%' }}
           >
             <Background color="#D8E2E8" gap={28} />
+            <ViewportPortal><RemoteCursorsOverlay participants={participants} currentUserId={currentUserId} /></ViewportPortal>
+            <ViewportPortal><RemoteSelectionOverlay participants={participants} currentUserId={currentUserId} flow={flow} /></ViewportPortal>
+            <ViewportPortal><RemoteEditingOverlay participants={participants} currentUserId={currentUserId} flow={flow} /></ViewportPortal>
             {!compact && <MiniMap pannable zoomable />}
             <Controls showInteractive={false} />
           </ReactFlow>

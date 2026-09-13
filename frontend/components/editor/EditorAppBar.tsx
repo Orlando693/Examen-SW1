@@ -1,9 +1,11 @@
 'use client';
 
-import { AppBar, Box, Button, Toolbar, Typography } from '@mui/material';
+import { AppBar, Avatar, Badge, Box, Button, Stack, Toolbar, Tooltip, Typography } from '@mui/material';
+import type { CollaborationParticipant } from '../../lib/collaboration/contracts';
+import { avatarInitials } from '../../lib/collaboration/presence-roster';
 import { useEditorStore } from '../../stores/editor-store';
 
-export function EditorAppBar({ compact }: { compact: boolean }) {
+export function EditorAppBar({ compact, participants = [], currentUserId = null }: { compact: boolean; participants?: CollaborationParticipant[]; currentUserId?: string | null }) {
   const document = useEditorStore((state) => state.currentDocument);
   const undo = useEditorStore((state) => state.undo);
   const redo = useEditorStore((state) => state.redo);
@@ -24,6 +26,9 @@ export function EditorAppBar({ compact }: { compact: boolean }) {
           {!compact && <Typography variant="caption" sx={{ opacity: 0.74, letterSpacing: 0.5, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>CASE / UML / WORKBENCH</Typography>}
           <Typography variant={compact ? 'body2' : 'subtitle1'} fontWeight={700} noWrap sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{document.metadata.name}</Typography>
         </Box>
+        {!compact && participants.length > 0 && <Stack direction="row" spacing={-0.5} aria-label="Collaborators" sx={{ flex: '0 0 auto' }}>
+          {participants.map((participant) => <Tooltip key={participant.userId} title={`${participant.email}${participant.userId === currentUserId ? ' (You)' : ''}${participant.userId !== currentUserId && participant.online && participant.activity ? `: ${participant.activity}` : ''}`}><Badge overlap="circular" variant="dot" color={participant.online ? 'success' : 'default'} aria-label={`${participant.email} is ${participant.online ? (participant.activity ?? 'active') : 'offline'}`}><Avatar sx={{ width: 26, height: 26, fontSize: 11, border: '2px solid #0B1F33', bgcolor: participant.online ? '#2F6B8A' : '#6B7780' }}>{avatarInitials(participant)}</Avatar></Badge></Tooltip>)}
+        </Stack>}
         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={undo} disabled={undoCount === 0} sx={{ flex: '0 0 auto', minWidth: compact ? 42 : 64, px: compact ? 0.75 : 1, textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>Undo</Button>
         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={redo} disabled={redoCount === 0} sx={{ flex: '0 0 auto', minWidth: compact ? 42 : 64, px: compact ? 0.75 : 1, textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>Redo</Button>
         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void save()} disabled={saveState === 'idle' || saveState === 'saving'} sx={{ flex: '0 0 auto', textTransform: 'none' }}>{saveState === 'saving' ? 'Saving' : 'Save'}</Button>
