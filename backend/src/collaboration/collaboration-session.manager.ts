@@ -1,6 +1,14 @@
 import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ProjectMutationCoordinator } from './project-mutation-coordinator.js';
+import type { ProjectCommandApplied } from './project-command-applied.js';
+
+export interface DedupeEntry {
+  actorUserId: string;
+  intentDigest: string;
+  result: ProjectCommandApplied;
+  createdAt: number;
+}
 
 export interface ProjectSession {
   projectId: string;
@@ -9,6 +17,8 @@ export interface ProjectSession {
   realtimeVersion: number;
   socketIds: Set<string>;
   evictionTimer: NodeJS.Timeout | null;
+  dedupe: Map<string, DedupeEntry>;
+  poisoned: boolean;
 }
 
 @Injectable()
@@ -21,7 +31,7 @@ export class CollaborationSessionManager implements OnModuleDestroy {
   getOrCreate(projectId: string): ProjectSession {
     const existing = this.sessions.get(projectId);
     if (existing) return existing;
-    const session: ProjectSession = { projectId, generation: ++this.generation, sessionId: randomUUID(), realtimeVersion: 0, socketIds: new Set(), evictionTimer: null };
+    const session: ProjectSession = { projectId, generation: ++this.generation, sessionId: randomUUID(), realtimeVersion: 0, socketIds: new Set(), evictionTimer: null, dedupe: new Map(), poisoned: false };
     this.sessions.set(projectId, session);
     return session;
   }
@@ -46,5 +56,11 @@ export class CollaborationSessionManager implements OnModuleDestroy {
   }
 
   get(projectId: string): ProjectSession | undefined { return this.sessions.get(projectId); }
+  invalidate(projectId: string, sessionId: string): void {
+    const session = this.sessions.get(projectId);
+    if (!session || session.sessionId !== sessionId) return;
+    session.poisoned = true;
+    this.sessions.delete(projectId);
+  }
   onModuleDestroy(): void { for (const session of this.sessions.values()) if (session.evictionTimer) clearTimeout(session.evictionTimer); this.sessions.clear(); }
 }

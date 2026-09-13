@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetEditorStoreForTests, useEditorStore } from './editor-store';
 import { createDemoProjectDocument } from '../lib/editor/demo/demo-document';
 import { projectDocumentToFlow } from '../lib/editor/projection/project-document-to-flow';
+import { RealtimeCommandGate } from '../lib/collaboration/realtime-command-gate';
 
 const createAutoLayoutCommandMock = vi.hoisted(() => vi.fn());
 const projectApiMock = vi.hoisted(() => ({
@@ -240,6 +241,45 @@ describe('editor store', () => {
     expect(createdRelationship.id).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
+  it('installs an authoritative resource as one store update after command ingestion', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const resource = projectResource('project-a', 8);
+    resource.project.revision = 9;
+    resource.project.model.classes[0]!.name = 'Authoritative customer';
+    let updates = 0;
+    const unsubscribe = useEditorStore.subscribe(() => { updates += 1; });
+
+    act(() => useEditorStore.getState().installAuthoritativeDocument(resource));
+
+    unsubscribe();
+    expect(updates).toBe(1);
+    expect(useEditorStore.getState()).toMatchObject({ projectId: 'project-a', storageVersion: 8, currentDocument: { revision: 9 }, saveState: 'saved' });
+    expect(useEditorStore.getState().currentDocument.model.classes[0]?.name).toBe('Authoritative customer');
+  });
+
+  it('rebases empty history for every authoritative installation and collaboration exit', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    act(() => useEditorStore.getState().renameClass('class-customer', 'Pre-collaboration'));
+    const preCollaborationHistory = useEditorStore.getState().history;
+
+    let previousHistory = preCollaborationHistory;
+    for (const name of ['Join', 'Own applied', 'Remote applied', 'Resync']) {
+      const resource = projectResource('project-a');
+      resource.project.model.classes[0]!.name = name;
+      act(() => useEditorStore.getState().installAuthoritativeDocument(resource));
+      expect(useEditorStore.getState().history).not.toBe(previousHistory);
+      expect(useEditorStore.getState()).toMatchObject({ undoCount: 0, redoCount: 0 });
+      expect(useEditorStore.getState().currentDocument.model.classes[0]?.name).toBe(name);
+      act(() => useEditorStore.getState().undo());
+      expect(useEditorStore.getState().currentDocument.model.classes[0]?.name).toBe(name);
+      previousHistory = useEditorStore.getState().history;
+    }
+
+    act(() => useEditorStore.getState().rebaseHistoryToCurrentDocument());
+    expect(useEditorStore.getState().history).not.toBe(previousHistory);
+    expect(useEditorStore.getState()).toMatchObject({ undoCount: 0, redoCount: 0 });
+  });
+
   it('derives dirty state from the saved snapshot and becomes clean after undo', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     act(() => useEditorStore.getState().replaceProjectSession(projectResource('project-a')));
@@ -295,5 +335,73 @@ describe('editor store', () => {
     await expect(pending).resolves.toMatchObject({ ok: false, reason: 'INVALID_COMMAND' });
     expect(useEditorStore.getState().projectId).toBe('project-b');
     expect(useEditorStore.getState().currentDocument.layout.nodes.find((node) => node.elementId === 'class-customer')?.position).toEqual({ x: 80, y: 80 });
+  });
+
+  it.each([
+    ['CreateClass', () => useEditorStore.getState().createClass()],
+    ['RenameClass', () => useEditorStore.getState().renameClass('class-customer', 'Client')],
+    ['DeleteClass', () => useEditorStore.getState().deleteClass('class-invoice')],
+    ['AddAttribute', () => useEditorStore.getState().addAttribute('class-customer')],
+    ['UpdateAttribute', () => useEditorStore.getState().updateAttribute('class-customer', 'attr-customer-email', 'email')],
+    ['RemoveAttribute', () => useEditorStore.getState().removeAttribute('class-customer', 'attr-customer-email')],
+    ['CreateEnumeration', () => useEditorStore.getState().createEnumeration()],
+    ['RenameEnumeration', () => useEditorStore.getState().renameEnumeration('enum-order-status', 'Status')],
+    ['DeleteEnumeration', () => useEditorStore.getState().deleteEnumeration('enum-order-status')],
+    ['AddEnumerationLiteral', () => useEditorStore.getState().addEnumerationLiteral('enum-order-status')],
+    ['UpdateEnumerationLiteral', () => useEditorStore.getState().updateEnumerationLiteral('enum-order-status', 'literal-paid', 'PAID')],
+    ['RemoveEnumerationLiteral', () => useEditorStore.getState().removeEnumerationLiteral('enum-order-status', 'literal-paid')],
+    ['CreateAssociation', () => { useEditorStore.getState().startRelationship('association', 'class-customer'); return useEditorStore.getState().completeRelationship('class-order'); }],
+    ['CreateGeneralization', () => useEditorStore.getState().createRelationship('generalization', 'class-customer', 'class-order')],
+    ['DeleteRelationship', () => useEditorStore.getState().deleteRelationship('rel-customer-orders')],
+    ['UpdateMultiplicity', () => useEditorStore.getState().updateMultiplicity('rel-customer-orders', 'target', { lower: 1, upper: 1 })],
+    ['UpdateRelationship', () => useEditorStore.getState().updateRelationship('rel-customer-orders', { name: 'orders' })],
+    ['MoveNode', () => useEditorStore.getState().moveNode('class-customer', { x: 400, y: 500 })],
+    ['ApplyLayout', () => useEditorStore.getState().applyAutoLayout()],
+  ])('routes %s through the realtime gate without optimistic canonical state', async (expectedType, invoke) => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const submitted: unknown[] = [];
+    const gate = new RealtimeCommandGate(
+      () => ({ projectId: 'project-a', sessionId: 'session-a', realtimeVersion: 2, revision: 1, storageVersion: 4, documentDigest: 'digest' }),
+      { submitRealtimeCommand: (envelope) => { submitted.push(envelope); return new Promise(() => undefined); } },
+      useEditorStore.getState().setRealtimeCommandPending,
+      useEditorStore.getState().setRealtimeCommandError,
+    );
+    useEditorStore.getState().setRealtimeCommandGate(gate);
+    const before = useEditorStore.getState();
+    const document = before.currentDocument;
+    const history = before.history;
+    const storageVersion = before.storageVersion;
+    const savedPersistentSnapshot = before.savedPersistentSnapshot;
+
+    await act(async () => { await invoke(); });
+
+    const after = useEditorStore.getState();
+    expect(submitted).toHaveLength(1);
+    expect((submitted[0] as { command: { type: string } }).command.type).toBe(expectedType);
+    expect(after.currentDocument).toBe(document);
+    expect(after.history).toBe(history);
+    expect(after.currentDocument.revision).toBe(document.revision);
+    expect(after.storageVersion).toBe(storageVersion);
+    expect(after.savedPersistentSnapshot).toBe(savedPersistentSnapshot);
+    expect(after.undoCount).toBe(0);
+    expect(after.redoCount).toBe(0);
+    expect(after.realtimeCommandPending).toBe(true);
+  });
+
+  it('blocks undo, redo, and HTTP Save while realtime command authority is active', async () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    act(() => useEditorStore.getState().renameClass('class-customer', 'Local change'));
+    const gate = new RealtimeCommandGate(
+      () => ({ projectId: 'project-a', sessionId: 'session-a', realtimeVersion: 0, revision: 1, storageVersion: 0, documentDigest: 'digest' }),
+      { submitRealtimeCommand: async () => ({ ok: true, status: 'APPLIED', data: {} } as never) },
+    );
+    useEditorStore.getState().setRealtimeCommandGate(gate);
+    const document = useEditorStore.getState().currentDocument;
+
+    act(() => { useEditorStore.getState().undo(); useEditorStore.getState().redo(); });
+    await useEditorStore.getState().save();
+
+    expect(useEditorStore.getState().currentDocument).toBe(document);
+    expect(projectApiMock.saveDocument).not.toHaveBeenCalled();
   });
 });

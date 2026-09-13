@@ -5,7 +5,7 @@ import { ProjectsService } from '../projects/projects.service.js';
 import { CollaborationSessionManager } from './collaboration-session.manager.js';
 import { ProjectMutationCoordinator } from './project-mutation-coordinator.js';
 import { PresenceRegistry } from './presence.registry.js';
-import type { CollaborationAccess, CollaborationSnapshot, PresenceInput } from './contracts.js';
+import { createAuthoritativeResourceSnapshot, type CollaborationAccess, type CollaborationSnapshot, type PresenceInput } from './contracts.js';
 
 @Injectable()
 export class CollaborationService {
@@ -23,7 +23,7 @@ export class CollaborationService {
       const session = this.sessions.join(projectId, socketId);
       const accessLevel: CollaborationAccess = resource.project.ownerId === user.id ? 'OWNER' : 'EDITOR';
       this.presence.update(projectId, socketId, user.id, { cursor: null, selectionIds: [], editingElementId: null, activity: null });
-      return { projectId, resource, sessionId: session.sessionId, realtimeVersion: session.realtimeVersion, accessLevel, documentDigest: null, participants: await this.roster(projectId) };
+      return { projectId, ...createAuthoritativeResourceSnapshot(resource), sessionId: session.sessionId, realtimeVersion: session.realtimeVersion, accessLevel, participants: await this.roster(projectId) };
     });
   }
 

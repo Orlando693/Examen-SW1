@@ -16,6 +16,7 @@ import { createDemoProjectDocument } from '../lib/editor/demo/demo-document';
 import { createAutoLayoutCommand } from '../lib/editor/layout/auto-layout';
 import { projectApi, type ProjectApiError } from '../lib/projects/project-api';
 import type { EditorSelection } from '../lib/editor/projection/project-document-to-flow';
+import type { RealtimeCommandGate } from '../lib/collaboration/realtime-command-gate';
 
 export type EditorTool = 'select' | 'class' | 'enum' | 'association' | 'aggregation' | 'composition' | 'generalization';
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -54,6 +55,8 @@ interface EditorStore {
   savedPersistentSnapshot: PersistibleSnapshot | null;
   saveState: SaveState;
   operationalError: string | null;
+  realtimeCommandGate: RealtimeCommandGate | null;
+  realtimeCommandPending: boolean;
   setSelection: (selection: EditorSelection) => void;
   setActiveTool: (tool: EditorTool) => void;
   toggleSidebar: () => void;
@@ -80,10 +83,15 @@ interface EditorStore {
   moveNode: (elementId: string, position: { x: number; y: number }) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
   replaceProjectSession: (resource: { project: ProjectDocument; storageVersion: number }) => void;
+  installAuthoritativeDocument: (resource: { project: ProjectDocument; storageVersion: number }) => void;
+  rebaseHistoryToCurrentDocument: () => void;
   save: () => Promise<void>;
   reloadProject: () => Promise<void>;
   undo: () => void;
   redo: () => void;
+  setRealtimeCommandGate: (gate: RealtimeCommandGate | null) => void;
+  setRealtimeCommandPending: (pending: boolean) => void;
+  setRealtimeCommandError: (message: string) => void;
 }
 
 const initialDocument = createDemoProjectDocument();
@@ -114,7 +122,14 @@ function syncFromHistory(history: UmlHistory) {
   };
 }
 
-function executeAndSync(history: UmlHistory, command: UmlCommand) {
+function executeAndSync(history: UmlHistory, command: UmlCommand, gate: RealtimeCommandGate | null) {
+  if (gate) {
+    const submission = gate.submitRealtimeCommand(command);
+    const result: CommandResult = submission.accepted
+      ? { ok: true, command, document: history.document, diagnostics: [] }
+      : { ok: false, command, document: history.document, reason: 'INVALID_COMMAND', message: submission.message, diagnostics: [] };
+    return { result, sync: result.ok ? { lastCommandError: null } : { lastCommandError: result.message } };
+  }
   const result = history.execute(command);
   return {
     result,
@@ -162,69 +177,74 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   savedPersistentSnapshot: null,
   saveState: 'idle',
   operationalError: null,
+  realtimeCommandGate: null,
+  realtimeCommandPending: false,
   setSelection: (selection) => set((state) => (sameSelection(state.selection, selection) ? state : { selection })),
   setActiveTool: (activeTool) => set((state) => (state.activeTool === activeTool && state.relationshipDraft === null ? state : { activeTool, relationshipDraft: null, lastCommandError: null })),
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   toggleInspector: () => set((state) => ({ isInspectorOpen: !state.isInspectorOpen })),
+  setRealtimeCommandGate: (realtimeCommandGate) => set((state) => state.realtimeCommandGate === realtimeCommandGate ? state : { realtimeCommandGate }),
+  setRealtimeCommandPending: (realtimeCommandPending) => set((state) => state.realtimeCommandPending === realtimeCommandPending ? state : { realtimeCommandPending }),
+  setRealtimeCommandError: (message) => set({ lastCommandError: message }),
   createClass: () => {
     const id = createUuid();
-    const { result, sync } = executeAndSync(get().history, { type: 'CreateClass', classId: id, name: 'NewClass' });
+    const { result, sync } = executeAndSync(get().history, { type: 'CreateClass', classId: id, name: 'NewClass' }, get().realtimeCommandGate);
     set({ ...sync, selection: result.ok ? { type: 'class', id } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   renameClass: (classId, name) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RenameClass', classId, name });
+    const { result, sync } = executeAndSync(get().history, { type: 'RenameClass', classId, name }, get().realtimeCommandGate);
     set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteClass: (classId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'DeleteClass', classId });
+    const { result, sync } = executeAndSync(get().history, { type: 'DeleteClass', classId }, get().realtimeCommandGate);
     set({ ...sync, selection: result.ok ? null : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   addAttribute: (classId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'AddAttribute', classId, attributeId: createUuid(), name: 'newAttribute', attributeType: stringType() });
+    const { result, sync } = executeAndSync(get().history, { type: 'AddAttribute', classId, attributeId: createUuid(), name: 'newAttribute', attributeType: stringType() }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateAttribute: (classId, attributeId, name, attributeType) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateAttribute', classId, attributeId, name, attributeType });
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateAttribute', classId, attributeId, name, attributeType }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   removeAttribute: (classId, attributeId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RemoveAttribute', classId, attributeId });
+    const { result, sync } = executeAndSync(get().history, { type: 'RemoveAttribute', classId, attributeId }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   createEnumeration: () => {
     const id = createUuid();
-    const { result, sync } = executeAndSync(get().history, { type: 'CreateEnumeration', enumerationId: id, name: 'NewEnum' });
+    const { result, sync } = executeAndSync(get().history, { type: 'CreateEnumeration', enumerationId: id, name: 'NewEnum' }, get().realtimeCommandGate);
     set({ ...sync, selection: result.ok ? { type: 'enumeration', id } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   renameEnumeration: (enumerationId, name) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RenameEnumeration', enumerationId, name });
+    const { result, sync } = executeAndSync(get().history, { type: 'RenameEnumeration', enumerationId, name }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteEnumeration: (enumerationId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'DeleteEnumeration', enumerationId });
+    const { result, sync } = executeAndSync(get().history, { type: 'DeleteEnumeration', enumerationId }, get().realtimeCommandGate);
     set({ ...sync, selection: result.ok ? null : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   addEnumerationLiteral: (enumerationId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'AddEnumerationLiteral', enumerationId, literalId: createUuid(), name: 'NEW_LITERAL' });
+    const { result, sync } = executeAndSync(get().history, { type: 'AddEnumerationLiteral', enumerationId, literalId: createUuid(), name: 'NEW_LITERAL' }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateEnumerationLiteral: (enumerationId, literalId, name) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateEnumerationLiteral', enumerationId, literalId, name });
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateEnumerationLiteral', enumerationId, literalId, name }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   removeEnumerationLiteral: (enumerationId, literalId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RemoveEnumerationLiteral', enumerationId, literalId });
+    const { result, sync } = executeAndSync(get().history, { type: 'RemoveEnumerationLiteral', enumerationId, literalId }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -240,7 +260,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return null;
     }
     const command = createRelationshipCommand(draft.kind, draft.sourceClassId, targetClassId);
-    const { result, sync } = executeAndSync(get().history, command);
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate);
     set({ ...sync, relationshipDraft: null, activeTool: 'select', selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -250,27 +270,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return null;
     }
     const command = createRelationshipCommand(kind, sourceClassId, targetClassId, details);
-    const { result, sync } = executeAndSync(get().history, command);
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate);
     set({ ...sync, selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateMultiplicity: (relationshipId, endpoint, multiplicity) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateMultiplicity', relationshipId, endpoint, multiplicity });
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateMultiplicity', relationshipId, endpoint, multiplicity }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateRelationship: (relationshipId, details) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateRelationship', relationshipId, ...details });
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateRelationship', relationshipId, ...details }, get().realtimeCommandGate);
     set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteRelationship: (relationshipId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'DeleteRelationship', relationshipId });
+    const { result, sync } = executeAndSync(get().history, { type: 'DeleteRelationship', relationshipId }, get().realtimeCommandGate);
     set({ ...sync, selection: result.ok ? null : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   moveNode: (elementId, position) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'MoveNode', elementId, position });
+    const { result, sync } = executeAndSync(get().history, { type: 'MoveNode', elementId, position }, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -281,17 +301,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (get().currentDocument !== document || get().projectId !== projectId) {
       return { ok: false, command, document, reason: 'INVALID_COMMAND', message: 'Auto layout result belongs to a previous project session.', diagnostics: [] };
     }
-    const { result, sync } = executeAndSync(get().history, command);
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   undo: () => {
+    if (get().realtimeCommandGate) return;
     const result = get().history.undo();
     if (result.ok) {
       set({ ...syncFromHistory(get().history), saveState: saveStateFor(get().history.document, get().savedPersistentSnapshot), lastCommandError: null });
     }
   },
   redo: () => {
+    if (get().realtimeCommandGate) return;
     const result = get().history.redo();
     if (result.ok) {
       set({ ...syncFromHistory(get().history), saveState: saveStateFor(get().history.document, get().savedPersistentSnapshot), lastCommandError: null });
@@ -319,9 +341,30 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       operationalError: null,
     });
   },
+  installAuthoritativeDocument: (resource) => {
+    const validation = validateProjectDocument(resource.project);
+    if (validation.diagnostics.some((diagnostic) => diagnostic.severity === 'ERROR')) {
+      throw new Error('The server returned a project with blocking UML diagnostics.');
+    }
+    const history = new UmlHistory(resource.project);
+    set({
+      history,
+      ...syncFromHistory(history),
+      projectId: resource.project.id,
+      storageVersion: resource.storageVersion,
+      savedPersistentSnapshot: persistibleSnapshot(resource.project),
+      saveState: 'saved',
+      operationalError: null,
+      lastCommandError: null,
+    });
+  },
+  rebaseHistoryToCurrentDocument: () => {
+    const history = new UmlHistory(get().currentDocument);
+    set({ history, ...syncFromHistory(history) });
+  },
   save: async () => {
     const state = get();
-    if (!state.projectId || state.storageVersion === null || state.saveState === 'saving') return;
+    if (state.realtimeCommandGate || !state.projectId || state.storageVersion === null || state.saveState === 'saving') return;
     const projectId = state.projectId;
     const document = state.currentDocument;
     const storageVersion = state.storageVersion;
@@ -367,5 +410,7 @@ export function resetEditorStoreForTests(document = createDemoProjectDocument())
     savedPersistentSnapshot: null,
     saveState: 'idle',
     operationalError: null,
+    realtimeCommandGate: null,
+    realtimeCommandPending: false,
   });
 }

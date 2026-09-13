@@ -1,5 +1,6 @@
 import type { ProjectResource } from '@examen-sw1/uml-core';
-import type { CollaborationAck, CollaborationParticipant, CollaborationSnapshot } from './contracts';
+import { AuthoritativeCommandIngestionController } from './authoritative-command-ingestion-controller';
+import type { CollaborationAck, CollaborationParticipant, CollaborationSnapshot, ProjectCommandApplied } from './contracts';
 
 export interface CollaborationSessionMetadata {
   projectId: string;
@@ -11,6 +12,7 @@ export interface CollaborationSessionMetadata {
 }
 export const JOIN_BUFFER_CAPACITY = 128;
 type BufferedPresence = { projectId: string; participants: CollaborationParticipant[] };
+type BufferedApplied = { projectId: string; applied: ProjectCommandApplied };
 
 export interface CollaborationSessionClient {
   joinProject(projectId: string): Promise<CollaborationAck<CollaborationSnapshot>>;
@@ -22,19 +24,33 @@ export class CollaborationSessionBridge {
   private metadata: CollaborationSessionMetadata | null = null;
   private joiningProjectId: string | null = null;
   private readonly joinBuffer: BufferedPresence[] = [];
+  private readonly appliedJoinBuffer: BufferedApplied[] = [];
   private overflowedGeneration: number | null = null;
-  private recoveryInFlight: Promise<void> | null = null;
+  private recoveryInFlight: Promise<boolean> | null = null;
+  private readonly ingestion: AuthoritativeCommandIngestionController;
 
-  constructor(private readonly client: CollaborationSessionClient, private readonly installResource: (resource: ProjectResource) => void, private readonly installRoster: (projectId: string, participants: CollaborationParticipant[]) => void = () => undefined) {}
+  constructor(private readonly client: CollaborationSessionClient, private readonly installResource: (resource: ProjectResource) => void, private readonly installRoster: (projectId: string, participants: CollaborationParticipant[]) => void = () => undefined) {
+    this.ingestion = new AuthoritativeCommandIngestionController({
+      onApplied: ({ baseline }) => {
+        if (!baseline || baseline.generation !== this.generation) return;
+        this.installResource(baseline.resource);
+        this.installMetadata(baseline);
+      },
+      onRecoveryRequired: () => {
+        const metadata = this.metadata;
+        if (metadata) void this.recoverCurrent(this.generation, metadata.projectId);
+      },
+    });
+  }
 
   get session(): CollaborationSessionMetadata | null { return this.metadata; }
 
   async join(projectId: string): Promise<{ ack: CollaborationAck<CollaborationSnapshot>; applied: boolean }> {
     const generation = ++this.generation;
-    this.metadata = null; this.joiningProjectId = projectId; this.joinBuffer.length = 0;
+    this.metadata = null; this.joiningProjectId = projectId; this.joinBuffer.length = 0; this.appliedJoinBuffer.length = 0;
     const ack = await this.client.joinProject(projectId);
-    const applied = ack.ok && this.installIfCurrent(generation, projectId, ack.data);
-    if (applied && this.overflowedGeneration === generation) await this.recover(generation, projectId);
+    const applied = ack.ok && await this.installIfCurrent(generation, projectId, ack.data);
+    if (applied && this.overflowedGeneration === generation) await this.recoverCurrent(generation, projectId);
     if (!applied) this.discardJoinBuffer();
     return { ack, applied };
   }
@@ -47,45 +63,71 @@ export class CollaborationSessionBridge {
     this.joinBuffer.push({ projectId, participants: [...participants] }); return 'BUFFERED';
   }
 
+  receiveApplied(applied: ProjectCommandApplied): Promise<void> {
+    if (this.metadata?.projectId === applied.projectId) {
+      return this.ingestion.ingest(this.generation, applied).then(() => undefined);
+    }
+    if (this.joiningProjectId !== applied.projectId || this.overflowedGeneration === this.generation) return Promise.resolve();
+    if (this.appliedJoinBuffer.length >= JOIN_BUFFER_CAPACITY) {
+      this.appliedJoinBuffer.length = 0;
+      this.joinBuffer.length = 0;
+      this.overflowedGeneration = this.generation;
+      return Promise.resolve();
+    }
+    if (!this.appliedJoinBuffer.some((entry) => entry.applied.commandId === applied.commandId)) {
+      this.appliedJoinBuffer.push({ projectId: applied.projectId, applied });
+    }
+    return Promise.resolve();
+  }
+
   async resync(): Promise<{ ack: CollaborationAck<CollaborationSnapshot>; applied: boolean }> {
     const projectId = this.metadata?.projectId;
     if (!projectId) return { ack: { ok: false, error: { code: 'PROJECT_NOT_JOINED', message: 'No active project.' }, action: 'LEAVE' }, applied: false };
     const generation = this.generation;
     const ack = await this.client.resync();
-    return { ack, applied: ack.ok && this.installIfCurrent(generation, projectId, ack.data) };
+    return { ack, applied: ack.ok && await this.installIfCurrent(generation, projectId, ack.data) };
+  }
+
+  /** Recovery always installs the server snapshot before releasing an uncertain command gate. */
+  recover(): Promise<boolean> {
+    const metadata = this.metadata;
+    return metadata ? this.recoverCurrent(this.generation, metadata.projectId) : Promise.resolve(false);
   }
 
   clear(): void { this.generation += 1; this.metadata = null; this.overflowedGeneration = null; this.recoveryInFlight = null; this.discardJoinBuffer(); }
 
-  private installIfCurrent(generation: number, projectId: string, snapshot: CollaborationSnapshot): boolean {
+  private async installIfCurrent(generation: number, projectId: string, snapshot: CollaborationSnapshot): Promise<boolean> {
     if (generation !== this.generation || snapshot.projectId !== projectId) return false;
-    this.installResource(snapshot.resource);
-    this.metadata = {
-      projectId: snapshot.projectId,
-      sessionId: snapshot.sessionId,
-      realtimeVersion: snapshot.realtimeVersion,
-      storageVersion: snapshot.resource.storageVersion,
-      revision: snapshot.resource.project.revision,
-      documentDigest: snapshot.documentDigest,
-    };
+    const installed = await this.ingestion.installSnapshot(generation, snapshot);
+    if (generation !== this.generation || !installed.baseline) return false;
+    // The store sees only a digest-verified authoritative baseline.
+    this.installResource(installed.baseline.resource);
+    this.installMetadata(installed.baseline);
     this.installRoster(snapshot.projectId, snapshot.participants);
     const buffered = this.overflowedGeneration === generation ? [] : this.joinBuffer.splice(0);
+    const bufferedApplied = this.overflowedGeneration === generation ? [] : this.appliedJoinBuffer.splice(0);
     this.joiningProjectId = null;
     for (const event of buffered) if (event.projectId === snapshot.projectId) this.installRoster(event.projectId, event.participants);
+    for (const event of bufferedApplied) if (event.projectId === snapshot.projectId) await this.ingestion.ingest(generation, event.applied);
     return true;
   }
 
-  private discardJoinBuffer(): void { this.joiningProjectId = null; this.joinBuffer.length = 0; }
+  private discardJoinBuffer(): void { this.joiningProjectId = null; this.joinBuffer.length = 0; this.appliedJoinBuffer.length = 0; }
 
-  private async recover(generation: number, projectId: string): Promise<void> {
+  private async recoverCurrent(generation: number, projectId: string): Promise<boolean> {
     if (this.recoveryInFlight) return this.recoveryInFlight;
-    this.recoveryInFlight = this.client.resync().then((ack) => {
-      if (!ack.ok || generation !== this.generation || ack.data.projectId !== projectId) return;
-      this.installResource(ack.data.resource);
-      this.metadata = { projectId: ack.data.projectId, sessionId: ack.data.sessionId, realtimeVersion: ack.data.realtimeVersion, storageVersion: ack.data.resource.storageVersion, revision: ack.data.resource.project.revision, documentDigest: ack.data.documentDigest };
-      this.installRoster(ack.data.projectId, ack.data.participants);
+    this.recoveryInFlight = this.client.resync().then(async (ack) => {
+      if (!ack.ok || generation !== this.generation || ack.data.projectId !== projectId) return false;
+      const installed = await this.installIfCurrent(generation, projectId, ack.data);
+      if (!installed) return false;
       this.overflowedGeneration = null;
-    }).finally(() => { if (generation === this.generation) this.recoveryInFlight = null; });
+      return true;
+    }).catch(() => false).finally(() => { if (generation === this.generation) this.recoveryInFlight = null; });
     return this.recoveryInFlight;
   }
+
+  private installMetadata(baseline: { projectId: string; sessionId: string; realtimeVersion: number; storageVersion: number; revision: number; documentDigest: string }): void {
+    this.metadata = { projectId: baseline.projectId, sessionId: baseline.sessionId, realtimeVersion: baseline.realtimeVersion, storageVersion: baseline.storageVersion, revision: baseline.revision, documentDigest: baseline.documentDigest };
+  }
+
 }

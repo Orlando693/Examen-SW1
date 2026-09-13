@@ -2,7 +2,7 @@
 
 import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, ViewportPortal, type Node, type OnSelectionChangeParams, type ReactFlowInstance } from '@xyflow/react';
 import { Box, Button, Paper, Typography } from '@mui/material';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
 import type { ProjectDocumentFlow, UmlFlowEdge, UmlFlowNode } from '../../lib/editor/projection/project-document-to-flow';
 import { UmlClassNode } from './nodes/UmlClassNode';
@@ -46,7 +46,6 @@ function CanvasInner({ flow, compact, canMount, participants, currentUserId, onL
   const [isReactFlowReady, setIsReactFlowReady] = useState(false);
   const sourceClass = relationshipDraft?.sourceClassId ? document.model.classes.find((umlClass) => umlClass.id === relationshipDraft.sourceClassId) : undefined;
   const relationshipMode = activeTool !== 'select' && activeTool !== 'class' && activeTool !== 'enum';
-  const viewportKey = useMemo(() => flow.nodes.map((node) => `${node.id}:${node.position.x}:${node.position.y}`).join('|'), [flow.nodes]);
 
   const onNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, node: Node) => {
     onLocalActivity?.(null);
@@ -163,7 +162,8 @@ function CanvasInner({ flow, compact, canMount, participants, currentUserId, onL
     if (!canMount || !containerSize || !isReactFlowReady || flow.nodes.length === 0) {
       return;
     }
-    const fitKey = `${projectId ?? 'unpersisted'}:${compact}:${containerSize.width}:${containerSize.height}:${viewportKey}`;
+    // Logical layout changes, including authoritative remote commands, must not recenter a user's viewport.
+    const fitKey = `${projectId ?? 'unpersisted'}:${compact}:${containerSize.width}:${containerSize.height}`;
     if (lastFitKeyRef.current === fitKey) {
       return;
     }
@@ -172,7 +172,7 @@ function CanvasInner({ flow, compact, canMount, participants, currentUserId, onL
       reactFlowRef.current?.fitView({ padding: compact ? 0.08 : 0.18, duration: 120, minZoom: compact ? 0.72 : 0.1 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [canMount, compact, containerSize, flow.nodes.length, isReactFlowReady, projectId, viewportKey]);
+  }, [canMount, compact, containerSize, flow.nodes.length, isReactFlowReady, projectId]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

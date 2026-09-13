@@ -44,6 +44,14 @@ describe('CollaborationClient', () => {
     expect(client.publishPresence({ cursor: { x: 20, y: 30 }, selectionIds: [], editingElementId: null, activity: null })).toBe(true); expect(socket.emitted.at(-1)).toMatchObject({ event: 'project:presence', args: [{ cursor: { x: 20, y: 30 }, selectionIds: [], editingElementId: null, activity: null }] });
   });
 
+  it('submits the typed project command envelope unchanged', async () => {
+    const { client, sockets } = setup(); client.connect('token');
+    const command = client.submitRealtimeCommand({ projectId: 'project-a', sessionId: 'session-a', commandId: 'command-a', baseRealtimeVersion: 4, baseRevision: 2, command: { type: 'RenameClass', classId: 'class-a', name: 'Renamed' } });
+    expect(sockets[0]!.emitted.at(-1)).toMatchObject({ event: 'project:command', args: [{ projectId: 'project-a', sessionId: 'session-a', commandId: 'command-a', baseRealtimeVersion: 4, baseRevision: 2, command: { type: 'RenameClass', classId: 'class-a', name: 'Renamed' } }, expect.any(Function)] });
+    sockets[0]!.acknowledge('project:command', { ok: true, status: 'APPLIED', data: { commandId: 'command-a' } });
+    await expect(command).resolves.toMatchObject({ ok: true, status: 'APPLIED', data: { commandId: 'command-a' } });
+  });
+
   it('cleans listeners and state idempotently without reconnect duplication', () => {
     const { client, sockets } = setup(); let calls = 0; client.subscribe('auth:expired', () => { calls += 1; }); client.connect('token'); client.connect('token');
     expect(sockets[0]!.disconnects).toBe(1); expect(sockets[0]!.listeners.get('auth:expired')?.size).toBe(0); expect(sockets[1]!.listeners.get('auth:expired')?.size).toBe(1);

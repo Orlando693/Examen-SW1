@@ -18,6 +18,8 @@ import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { EditorStatusBar } from './EditorStatusBar';
 import { CollaborationClient } from '../../lib/collaboration/collaboration-client';
 import { CollaborationSessionBridge } from '../../lib/collaboration/collaboration-session-bridge';
+import { RealtimeCommandGate } from '../../lib/collaboration/realtime-command-gate';
+import { isProjectCommandApplied } from '../../lib/collaboration/project-command-applied';
 import { isPresenceRoster, PresenceRoster } from '../../lib/collaboration/presence-roster';
 import { LocalCursorPresence } from '../../lib/collaboration/local-cursor-presence';
 import { LocalPresenceState } from '../../lib/collaboration/local-presence-state';
@@ -41,6 +43,10 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
   const replaceProjectSession = useEditorStore((state) => state.replaceProjectSession);
   const sessionProjectId = useEditorStore((state) => state.projectId);
   const operationalError = useEditorStore((state) => state.operationalError);
+  const setRealtimeCommandGate = useEditorStore((state) => state.setRealtimeCommandGate);
+  const setRealtimeCommandPending = useEditorStore((state) => state.setRealtimeCommandPending);
+  const setRealtimeCommandError = useEditorStore((state) => state.setRealtimeCommandError);
+  const rebaseHistoryToCurrentDocument = useEditorStore((state) => state.rebaseHistoryToCurrentDocument);
   const canvasRegionRef = useRef<HTMLDivElement | null>(null);
   const flow = useMemo(() => projectDocumentToFlow(currentDocument, selection, diagnostics), [currentDocument, selection, diagnostics]);
   const focusCanvas = () => window.requestAnimationFrame(() => canvasRegionRef.current?.focus());
@@ -88,19 +94,29 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
     if (!session) { setParticipants([]); setCollaborationState('auth-required'); return; }
     const client = collaboration.current = new CollaborationClient();
     const roster = new PresenceRoster();
-    const bridge = new CollaborationSessionBridge(client, replaceProjectSession, (projectId, nextParticipants) => setParticipants(roster.replace(projectId, nextParticipants)));
+    const bridge = new CollaborationSessionBridge(client, useEditorStore.getState().installAuthoritativeDocument, (projectId, nextParticipants) => setParticipants(roster.replace(projectId, nextParticipants)));
+    let commandGate: RealtimeCommandGate | null = null;
+    let collaborationJoined = false;
+    const exitCollaboration = () => {
+      commandGate?.clear(); commandGate = null; setRealtimeCommandGate(null);
+      localCursor.current?.dispose(); localCursor.current = null; localPresence.current = null;
+      bridge.clear();
+      if (collaborationJoined) { rebaseHistoryToCurrentDocument(); collaborationJoined = false; }
+      roster.clear(); setParticipants([]);
+    };
     const unsubscribeConnect = client.subscribe('connect', () => {
       setCollaborationState('joining');
-      void bridge.join(selectedProjectId).then(({ ack, applied }) => { if (applied) { localCursor.current?.dispose(); localPresence.current = new LocalPresenceState(); localCursor.current = new LocalCursorPresence((cursor) => { localPresence.current?.setCursor(cursor); const presence = localPresence.current?.snapshot(); if (presence) client.publishPresence(presence); }); setCollaborationState('connected'); } else if (!ack.ok) setCollaborationState(ack.action === 'REAUTHENTICATE' ? 'auth-required' : 'error'); });
+      void bridge.join(selectedProjectId).then(({ ack, applied }) => { if (applied) { collaborationJoined = true; commandGate?.clear(); commandGate = new RealtimeCommandGate(() => bridge.session, client, setRealtimeCommandPending, setRealtimeCommandError, (result) => bridge.receiveApplied(result), undefined, async () => { setCollaborationState('resyncing'); const recovered = await bridge.recover(); if (recovered) setCollaborationState('connected'); return recovered; }); setRealtimeCommandGate(commandGate); localCursor.current?.dispose(); localPresence.current = new LocalPresenceState(); localCursor.current = new LocalCursorPresence((cursor) => { localPresence.current?.setCursor(cursor); const presence = localPresence.current?.snapshot(); if (presence) client.publishPresence(presence); }); setCollaborationState('connected'); } else if (!ack.ok) setCollaborationState(ack.action === 'REAUTHENTICATE' ? 'auth-required' : 'error'); });
     });
+    const unsubscribeApplied = client.subscribe('project:command-applied', (value) => { if (isProjectCommandApplied(value)) bridge.receiveApplied(value); });
     const unsubscribePresence = client.subscribe('project:presence', (value) => { if (isPresenceRoster(value)) { const projectId = bridge.session?.projectId ?? selectedProjectId; if (bridge.receivePresence(projectId, value) === 'APPLIED') { const nextParticipants = roster.update(projectId, value); if (nextParticipants) setParticipants(nextParticipants); } } });
-    const unsubscribeDisconnect = client.subscribe('disconnect', () => { localCursor.current?.dispose(); localCursor.current = null; localPresence.current = null; bridge.clear(); roster.clear(); setParticipants([]); setCollaborationState('disconnected'); });
-    const unsubscribeExpiry = client.subscribe('auth:expired', () => { localCursor.current?.dispose(); localCursor.current = null; localPresence.current = null; bridge.clear(); roster.clear(); setParticipants([]); setCollaborationState('auth-required'); });
+    const unsubscribeDisconnect = client.subscribe('disconnect', () => { exitCollaboration(); setCollaborationState('disconnected'); });
+    const unsubscribeExpiry = client.subscribe('auth:expired', () => { exitCollaboration(); setCollaborationState('auth-required'); });
     const onVisibilityChange = () => { if (document.visibilityState === 'hidden') localCursor.current?.clear(); };
     document.addEventListener('visibilitychange', onVisibilityChange);
     client.connect(session.accessToken);
-    return () => { document.removeEventListener('visibilitychange', onVisibilityChange); localCursor.current?.dispose(); localCursor.current = null; localPresence.current = null; bridge.clear(); roster.clear(); setParticipants([]); unsubscribeConnect(); unsubscribePresence(); unsubscribeDisconnect(); unsubscribeExpiry(); client.disconnect(); if (collaboration.current === client) collaboration.current = null; };
-  }, [selectedProjectId, sessionProjectId, replaceProjectSession]);
+    return () => { document.removeEventListener('visibilitychange', onVisibilityChange); exitCollaboration(); unsubscribeConnect(); unsubscribePresence(); unsubscribeApplied(); unsubscribeDisconnect(); unsubscribeExpiry(); client.disconnect(); if (collaboration.current === client) collaboration.current = null; };
+  }, [selectedProjectId, sessionProjectId, replaceProjectSession, rebaseHistoryToCurrentDocument, setRealtimeCommandError, setRealtimeCommandGate, setRealtimeCommandPending]);
 
   if (!selectedProjectId && !allowDemoForTests) {
     return <Box component="main" sx={{ height: '100dvh', display: 'grid', placeItems: 'center' }}><Stack spacing={2} alignItems="center"><Alert severity="info">Select a persisted project before opening the editor.</Alert><Button href="/">Go to projects</Button></Stack></Box>;

@@ -5,7 +5,8 @@ import { AccessTokenAuthenticator } from '../auth/access-token-authenticator.js'
 import type { SafeUser } from '../auth/users.repository.js';
 import { CollaborationService } from './collaboration.service.js';
 import { PresenceRateLimiter } from './presence-rate-limiter.js';
-import { collaborationRoom, type CollaborationAck, type CollaborationError, type PresenceInput } from './contracts.js';
+import { ProjectCommandCoordinator } from './project-command-coordinator.js';
+import { collaborationRoom, type CollaborationAck, type CollaborationError, type PresenceInput, type ProjectCommandAck } from './contracts.js';
 
 interface SocketState {
   lifecycleGeneration: number;
@@ -25,7 +26,7 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000').
 @WebSocketGateway({ namespace: '/collaboration', cors: { origin: allowedOrigins, credentials: false }, maxHttpBufferSize: 32_768, allowRequest: (request, callback) => callback(null, !request.headers.origin || allowedOrigins.includes(request.headers.origin)) })
 export class CollaborationGateway {
   @WebSocketServer() private server!: Server;
-  constructor(@Inject(AccessTokenAuthenticator) private readonly authenticator: AccessTokenAuthenticator, @Inject(CollaborationService) private readonly collaboration: CollaborationService, @Inject(PresenceRateLimiter) private readonly presenceRateLimiter: PresenceRateLimiter = new PresenceRateLimiter()) {}
+  constructor(@Inject(AccessTokenAuthenticator) private readonly authenticator: AccessTokenAuthenticator, @Inject(CollaborationService) private readonly collaboration: CollaborationService, @Inject(PresenceRateLimiter) private readonly presenceRateLimiter: PresenceRateLimiter = new PresenceRateLimiter(), @Inject(ProjectCommandCoordinator) private readonly commands?: ProjectCommandCoordinator) {}
 
   afterInit(server: Server): void {
     server.use(async (socket, next) => {
@@ -93,9 +94,20 @@ export class CollaborationGateway {
     } catch { await this.leave(socket); return this.failure('PROJECT_NOT_FOUND', 'The project was not found.', 'LEAVE'); }
   }
 
-  private async emitProtected(projectId: string, event: string, payload: unknown): Promise<void> {
+  @SubscribeMessage('project:command')
+  async command(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown): Promise<ProjectCommandAck> {
+    const state = this.state(socket);
+    if (!state) return this.failure('AUTHENTICATION_REQUIRED', 'Authentication is required.', 'REAUTHENTICATE');
+    if (!this.commands) return this.failure('INTERNAL_ERROR', 'Command service is unavailable.', 'RESYNC');
+    const result = await this.commands.execute({ socketId: socket.id, user: state.user, expiresAt: state.expiresAt, activeProjectId: state.activeProjectId, activeSessionId: state.activeSessionId, envelope: body });
+    if (result.ok && result.status === 'APPLIED') await this.emitProtected(result.data.projectId, 'project:command-applied', result.data, socket.id);
+    return result;
+  }
+
+  private async emitProtected(projectId: string, event: string, payload: unknown, excludedSocketId?: string): Promise<void> {
     const sockets = await this.server.in(collaborationRoom(projectId)).fetchSockets();
     await Promise.all(sockets.map(async (target) => {
+      if (target.id === excludedSocketId) return;
       const state = this.state(target as unknown as Socket);
       if (!state) return;
       try { await this.authenticator.revalidate(state.user, state.expiresAt); await this.collaboration.revalidate(projectId, state.user); target.emit(event, payload); }

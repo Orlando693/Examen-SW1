@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import type { CollaborationAck, CollaborationSnapshot, PresenceInput } from './contracts';
+import type { CollaborationAck, CollaborationSnapshot, PresenceInput, ProjectCommandAck, RealtimeCommandEnvelope } from './contracts';
 
 const DEFAULT_REALTIME_URL = 'http://localhost:3001';
 
@@ -12,7 +12,7 @@ interface CollaborationSocket {
 }
 
 type SocketFactory = (url: string, options: { auth: { token: string }; transports: string[] }) => CollaborationSocket;
-type CollaborationEvent = 'connect' | 'disconnect' | 'auth:expired' | 'project:presence' | 'project:revoked';
+type CollaborationEvent = 'connect' | 'disconnect' | 'auth:expired' | 'project:presence' | 'project:revoked' | 'project:command-applied';
 type EventListener = (...args: unknown[]) => void;
 
 const createSocket: SocketFactory = (url, options) => io(url, options) as unknown as CollaborationSocket;
@@ -57,6 +57,10 @@ export class CollaborationClient {
     return this.emitAck<CollaborationSnapshot>('project:resync');
   }
 
+  submitRealtimeCommand(envelope: RealtimeCommandEnvelope): Promise<ProjectCommandAck> {
+    return this.emitRawAck<ProjectCommandAck>('project:command', envelope);
+  }
+
   publishPresence(presence: PresenceInput): boolean {
     if (!this.socket?.connected || !this.projectId) return false;
     this.socket.emit('project:presence', presence);
@@ -78,10 +82,14 @@ export class CollaborationClient {
   }
 
   private emitAck<T>(event: string, payload?: unknown): Promise<CollaborationAck<T>> {
+    return this.emitRawAck<CollaborationAck<T>>(event, payload);
+  }
+
+  private emitRawAck<T>(event: string, payload?: unknown): Promise<T> {
     const socket = this.socket;
-    if (!socket) return Promise.resolve({ ok: false, error: { code: 'AUTHENTICATION_REQUIRED', message: 'Collaboration is disconnected.' }, action: 'REAUTHENTICATE' });
+    if (!socket) return Promise.resolve({ ok: false, error: { code: 'AUTHENTICATION_REQUIRED', message: 'Collaboration is disconnected.' }, action: 'REAUTHENTICATE' } as T);
     return new Promise((resolve) => {
-      const acknowledge = (ack: CollaborationAck<T>) => resolve(ack);
+      const acknowledge = (ack: T) => resolve(ack);
       if (payload === undefined) socket.emit(event, acknowledge); else socket.emit(event, payload, acknowledge);
     });
   }

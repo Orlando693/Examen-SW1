@@ -2,10 +2,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UmlEditorClient } from './UmlEditorClient';
+import { UmlCanvas } from './UmlCanvas';
 import { resetEditorStoreForTests, useEditorStore } from '../../stores/editor-store';
 import { createDemoProjectDocument } from '../../lib/editor/demo/demo-document';
+import { projectDocumentToFlow } from '../../lib/editor/projection/project-document-to-flow';
 import { UmlClassNode } from './nodes/UmlClassNode';
 import { UmlEnumNode } from './nodes/UmlEnumNode';
+import { RealtimeCommandGate } from '../../lib/collaboration/realtime-command-gate';
 
 const fitViewMock = vi.hoisted(() => vi.fn());
 const reactFlowLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }));
@@ -27,7 +30,7 @@ vi.mock('@xyflow/react', async () => {
     ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     ViewportPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useReactFlow: () => ({ fitView: fitViewMock }),
-    ReactFlow: ({ nodes, edges, onInit, onNodeClick, onNodeDragStop, onEdgeClick, onSelectionChange, children }: { nodes: Array<{ id: string; type?: string; data: { name?: string } }>; edges: Array<{ id: string; label?: string }>; onInit?: (instance: { fitView: typeof fitViewMock }) => void; onNodeClick: (event: MouseEvent, node: { id: string; type?: string }) => void; onNodeDragStop: (event: MouseEvent, node: { id: string; position: { x: number; y: number } }) => void; onEdgeClick?: (event: MouseEvent, edge: { id: string }) => void; onSelectionChange?: (params: { nodes: unknown[]; edges: unknown[] }) => void; children: React.ReactNode }) => {
+    ReactFlow: ({ nodes, edges, onInit, onNodeClick, onNodeDragStart, onNodeDragStop, onEdgeClick, onSelectionChange, children }: { nodes: Array<{ id: string; type?: string; data: { name?: string } }>; edges: Array<{ id: string; label?: string }>; onInit?: (instance: { fitView: typeof fitViewMock }) => void; onNodeClick: (event: MouseEvent, node: { id: string; type?: string }) => void; onNodeDragStart?: (event: MouseEvent, node: { id: string; position: { x: number; y: number } }) => void; onNodeDragStop: (event: MouseEvent, node: { id: string; position: { x: number; y: number } }) => void; onEdgeClick?: (event: MouseEvent, edge: { id: string }) => void; onSelectionChange?: (params: { nodes: unknown[]; edges: unknown[] }) => void; children: React.ReactNode }) => {
       React.useEffect(() => {
         reactFlowLifecycle.mounts += 1;
         return () => {
@@ -41,7 +44,7 @@ vi.mock('@xyflow/react', async () => {
       return (
         <div data-testid="react-flow">
           {nodes.map((node) => (
-            <button key={node.id} data-testid={`flow-node-${node.id}`} onClick={() => { onSelectionChange?.({ nodes: [node], edges: [] }); onNodeClick(new MouseEvent('click'), node); }} onDoubleClick={() => onNodeDragStop(new MouseEvent('mouseup'), { id: node.id, position: { x: 500, y: 600 } })}>
+            <button key={node.id} data-testid={`flow-node-${node.id}`} onClick={() => { onSelectionChange?.({ nodes: [node], edges: [] }); onNodeClick(new MouseEvent('click'), node); }} onMouseDown={() => onNodeDragStart?.(new MouseEvent('mousedown'), { id: node.id, position: { x: 80, y: 80 } })} onDoubleClick={() => onNodeDragStop(new MouseEvent('mouseup'), { id: node.id, position: { x: 500, y: 600 } })}>
               {node.data.name}
             </button>
           ))}
@@ -433,6 +436,58 @@ describe('UmlEditorClient', () => {
     expect(useEditorStore.getState().undoCount).toBe(1);
   });
 
+  it('keeps drag start and frames presence-only, then submits one flow-space MoveNode without optimistic state', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const submitted: unknown[] = [];
+    const activity = vi.fn();
+    const gate = new RealtimeCommandGate(
+      () => ({ projectId: 'project-a', sessionId: 'session-a', realtimeVersion: 2, revision: 1, storageVersion: 4, documentDigest: 'digest' }),
+      { submitRealtimeCommand: (envelope) => { submitted.push(envelope); return new Promise(() => undefined); } },
+    );
+    useEditorStore.getState().setRealtimeCommandGate(gate);
+    const before = useEditorStore.getState();
+    const flow = projectDocumentToFlow(before.currentDocument, before.selection, before.diagnostics);
+    render(<UmlCanvas flow={flow} onLocalActivity={activity} />);
+    const node = screen.getByTestId('flow-node-class-customer');
+
+    fireEvent.mouseDown(node);
+    fireEvent.mouseMove(node);
+
+    expect(activity).toHaveBeenCalledWith('dragging');
+    expect(submitted).toEqual([]);
+    expect(useEditorStore.getState().currentDocument).toBe(before.currentDocument);
+    expect(useEditorStore.getState().history).toBe(before.history);
+
+    fireEvent.doubleClick(node);
+    fireEvent.doubleClick(node);
+
+    expect(activity).toHaveBeenLastCalledWith(null);
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0]).toMatchObject({ command: { type: 'MoveNode', elementId: 'class-customer', position: { x: 500, y: 600 } } });
+    expect(useEditorStore.getState().currentDocument).toBe(before.currentDocument);
+    expect(useEditorStore.getState().history).toBe(before.history);
+    expect(useEditorStore.getState().currentDocument.layout.nodes.find((entry) => entry.elementId === 'class-customer')?.position).toEqual({ x: 80, y: 80 });
+  });
+
+  it('submits one connected ApplyLayout without MoveNode commands or optimistic layout mutation', async () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const submitted: unknown[] = [];
+    const gate = new RealtimeCommandGate(
+      () => ({ projectId: 'project-a', sessionId: 'session-a', realtimeVersion: 2, revision: 1, storageVersion: 4, documentDigest: 'digest' }),
+      { submitRealtimeCommand: (envelope) => { submitted.push(envelope); return new Promise(() => undefined); } },
+    );
+    useEditorStore.getState().setRealtimeCommandGate(gate);
+    const before = useEditorStore.getState();
+
+    await act(async () => { await useEditorStore.getState().applyAutoLayout(); });
+
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0]).toMatchObject({ command: { type: 'ApplyLayout' } });
+    expect((submitted[0] as { command: { type: string } }).command.type).not.toBe('MoveNode');
+    expect(useEditorStore.getState().currentDocument).toBe(before.currentDocument);
+    expect(useEditorStore.getState().history).toBe(before.history);
+  });
+
   it('shows diagnostics and can navigate warnings to selected elements', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     render(<UmlEditorClient />);
@@ -455,6 +510,26 @@ describe('UmlEditorClient', () => {
 
     fireEvent.click(screen.getByText('Redo'));
     expect(useEditorStore.getState().redoCount).toBe(0);
+  });
+
+  it('uses keyboard history outside realtime and disables it with the realtime controls', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    render(<UmlEditorClient />);
+
+    fireEvent.click(screen.getByText('Clase'));
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    expect(useEditorStore.getState().redoCount).toBe(1);
+
+    const gate = new RealtimeCommandGate(
+      () => ({ projectId: 'project-a', sessionId: 'session-a', realtimeVersion: 0, revision: 1, storageVersion: 0, documentDigest: 'digest' }),
+      { submitRealtimeCommand: async () => ({ ok: true, status: 'APPLIED', data: {} } as never) },
+    );
+    act(() => useEditorStore.getState().setRealtimeCommandGate(gate));
+
+    expect(screen.getByText('Undo')).toBeDisabled();
+    expect(screen.getByText('Redo')).toBeDisabled();
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+    expect(useEditorStore.getState().redoCount).toBe(1);
   });
 
   it('uses compact drawers instead of fixed side columns on small viewports', () => {
@@ -635,6 +710,28 @@ describe('UmlEditorClient', () => {
     expect(storeUpdates).toBe(0);
     expect(reactFlowLifecycle.mounts).toBe(1);
     expect(reactFlowLifecycle.unmounts).toBe(0);
+  });
+
+  it('does not refit or emit feedback when an authoritative layout installation changes projected nodes', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
+    render(<UmlEditorClient />);
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalledTimes(1));
+    fitViewMock.mockClear();
+    const authoritative = structuredClone(project);
+    authoritative.layout.nodes[0]!.position = { x: 900, y: 800 };
+    authoritative.revision += 1;
+    let storeUpdates = 0;
+    const unsubscribe = useEditorStore.subscribe(() => { storeUpdates += 1; });
+
+    act(() => useEditorStore.getState().installAuthoritativeDocument({ project: authoritative, storageVersion: 5 }));
+    await act(async () => { await new Promise((resolve) => window.requestAnimationFrame(resolve)); });
+
+    unsubscribe();
+    expect(storeUpdates).toBe(1);
+    expect(fitViewMock).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().currentDocument.layout.nodes[0]?.position).toEqual({ x: 900, y: 800 });
   });
 
   it('uses a readable minimum zoom for automatic mobile fitView', async () => {

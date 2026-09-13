@@ -1,28 +1,31 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CollaborationSessionManager } from './collaboration-session.manager.js';
-import { ProjectMutationCoordinator } from './project-mutation-coordinator.js';
 
 describe('CollaborationSessionManager', () => {
-  afterEach(() => { vi.useRealTimers(); delete process.env.COLLABORATION_RECONNECT_TTL_MS; });
-  function manager() { return new CollaborationSessionManager(new ProjectMutationCoordinator()); }
+  const originalTtl = process.env.COLLABORATION_RECONNECT_TTL_MS;
 
-  it('returns one logical session for concurrent first callers', () => {
-    const sessions = manager();
-    const [first, second] = [sessions.getOrCreate('project'), sessions.getOrCreate('project')];
-    expect(first).toBe(second); expect(first.sessionId).toBe(second.sessionId); expect(first.realtimeVersion).toBe(0);
+  afterEach(() => {
+    if (originalTtl === undefined) delete process.env.COLLABORATION_RECONNECT_TTL_MS;
+    else process.env.COLLABORATION_RECONNECT_TTL_MS = originalTtl;
+    vi.useRealTimers();
   });
 
-  it('evicts an empty session only after its valid timer', () => {
-    vi.useFakeTimers(); process.env.COLLABORATION_RECONNECT_TTL_MS = '10';
-    const sessions = manager(); sessions.join('project', 'socket'); sessions.leave('project', 'socket');
-    vi.advanceTimersByTime(10);
-    expect(sessions.get('project')).toBeUndefined();
-  });
-
-  it('cancels an old eviction when the session is reactivated', () => {
-    vi.useFakeTimers(); process.env.COLLABORATION_RECONNECT_TTL_MS = '10';
-    const sessions = manager(); const first = sessions.join('project', 'socket-a'); sessions.leave('project', 'socket-a');
-    const reactivated = sessions.join('project', 'socket-b'); vi.advanceTimersByTime(10);
-    expect(sessions.get('project')).toBe(reactivated); expect(reactivated.generation).toBe(first.generation);
+  it('cancels a pending eviction on rejoin and prevents its old timer from removing the later epoch', () => {
+    vi.useFakeTimers();
+    process.env.COLLABORATION_RECONNECT_TTL_MS = '100';
+    const manager = new CollaborationSessionManager({ isIdle: () => true } as never);
+    const first = manager.join('project-a', 'socket-a');
+    manager.leave('project-a', 'socket-a');
+    manager.join('project-a', 'socket-b');
+    vi.advanceTimersByTime(100);
+    expect(manager.get('project-a')).toBe(first);
+    manager.leave('project-a', 'socket-b');
+    vi.advanceTimersByTime(100);
+    expect(manager.get('project-a')).toBeUndefined();
+    const replacement = manager.join('project-a', 'socket-c');
+    expect(replacement.sessionId).not.toBe(first.sessionId);
+    vi.advanceTimersByTime(100);
+    expect(manager.get('project-a')).toBe(replacement);
+    manager.onModuleDestroy();
   });
 });
