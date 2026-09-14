@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createDemoProjectDocument } from '../editor/demo/demo-document';
 import { sha256Canonical } from './canonical-digest';
 import { CollaborationSessionBridge, JOIN_BUFFER_CAPACITY, type CollaborationSessionClient } from './collaboration-session-bridge';
-import type { CollaborationAck, CollaborationSnapshot, ProjectCommandApplied } from './contracts';
-import { UmlCommandBus } from '@examen-sw1/uml-core';
+import type { CollaborationAck, CollaborationSnapshot, ProjectCommandApplied, ProjectResourceUpdated } from './contracts';
+import { UmlCommandBus, type ProjectResource } from '@examen-sw1/uml-core';
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; }); return { promise, resolve }; }
 function snapshot(projectId: string, sessionId: string, realtimeVersion: number): CollaborationSnapshot { return { projectId, sessionId, realtimeVersion, accessLevel: 'OWNER', documentDigest: null, participants: [], resource: { project: { id: projectId, revision: 7 } as never, storageVersion: 4 } as never }; }
@@ -139,6 +139,36 @@ describe('CollaborationSessionBridge', () => {
     await expect(second).resolves.toBe(true);
     expect(installed).toHaveLength(2);
     expect(bridge.session).toMatchObject({ sessionId: 'session-b', realtimeVersion: 1 });
+  });
+
+  it('installs only the next digest-verified metadata resource update for its current epoch', async () => {
+    const initial = commandSnapshot('project-a', 'session-a', 0);
+    const installed: ProjectResource[] = [];
+    const bridge = new CollaborationSessionBridge({ joinProject: async () => ({ ok: true, data: initial }), resync: async () => ({ ok: false, error: { code: 'PROJECT_NOT_JOINED', message: '' }, action: 'LEAVE' }) }, (resource) => installed.push(resource));
+    await bridge.join('project-a');
+    const resource = structuredClone(initial.resource);
+    resource.storageVersion = 5;
+    resource.project.metadata.name = 'Renamed';
+    const update: ProjectResourceUpdated = { projectId: 'project-a', sessionId: 'session-a', resource, documentDigest: await sha256Canonical(resource.project) };
+    await expect(bridge.receiveResourceUpdated(update)).resolves.toBe('APPLIED');
+    await expect(bridge.receiveResourceUpdated({ ...update, sessionId: 'old-session' })).resolves.toBe('IGNORED');
+    expect(installed).toHaveLength(2);
+    expect(bridge.session).toMatchObject({ storageVersion: 5, revision: 0, documentDigest: update.documentDigest });
+  });
+
+  it('recovers rather than applying an old-epoch or canonical-race resource update', async () => {
+    const initial = commandSnapshot('project-a', 'session-a', 0);
+    const recovered = deferred<CollaborationAck<CollaborationSnapshot>>();
+    let resyncs = 0;
+    const bridge = new CollaborationSessionBridge({ joinProject: async () => ({ ok: true, data: initial }), resync: () => { resyncs += 1; return recovered.promise; } }, () => undefined);
+    await bridge.join('project-a');
+    const resource = structuredClone(initial.resource);
+    resource.storageVersion = 5;
+    resource.project.revision = 1;
+    const update: ProjectResourceUpdated = { projectId: 'project-a', sessionId: 'session-a', resource, documentDigest: await sha256Canonical(resource.project) };
+    await expect(bridge.receiveResourceUpdated(update)).resolves.toBe('RECOVERING');
+    expect(resyncs).toBe(1);
+    recovered.resolve({ ok: true, data: commandSnapshot('project-a', 'session-b', 0) });
   });
 
 });

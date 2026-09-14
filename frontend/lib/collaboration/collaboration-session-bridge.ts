@@ -1,6 +1,7 @@
 import type { ProjectResource } from '@examen-sw1/uml-core';
 import { AuthoritativeCommandIngestionController } from './authoritative-command-ingestion-controller';
-import type { CollaborationAck, CollaborationParticipant, CollaborationSnapshot, ProjectCommandApplied } from './contracts';
+import { sha256Canonical } from './canonical-digest';
+import type { CollaborationAck, CollaborationParticipant, CollaborationSnapshot, ProjectCommandApplied, ProjectResourceUpdated } from './contracts';
 
 export interface CollaborationSessionMetadata {
   projectId: string;
@@ -78,6 +79,29 @@ export class CollaborationSessionBridge {
       this.appliedJoinBuffer.push({ projectId: applied.projectId, applied });
     }
     return Promise.resolve();
+  }
+
+  async receiveResourceUpdated(update: ProjectResourceUpdated): Promise<'APPLIED' | 'IGNORED' | 'RECOVERING'> {
+    const metadata = this.metadata;
+    if (!metadata || update.projectId !== metadata.projectId || update.sessionId !== metadata.sessionId) return 'IGNORED';
+    if (update.resource.project.id !== metadata.projectId || update.resource.project.revision !== metadata.revision) {
+      void this.recoverCurrent(this.generation, metadata.projectId);
+      return 'RECOVERING';
+    }
+    if (update.resource.storageVersion < metadata.storageVersion) return 'IGNORED';
+    if (update.resource.storageVersion === metadata.storageVersion) {
+      if (update.documentDigest === metadata.documentDigest) return 'IGNORED';
+      void this.recoverCurrent(this.generation, metadata.projectId);
+      return 'RECOVERING';
+    }
+    if (update.resource.storageVersion !== metadata.storageVersion + 1 || await sha256Canonical(update.resource.project) !== update.documentDigest) {
+      void this.recoverCurrent(this.generation, metadata.projectId);
+      return 'RECOVERING';
+    }
+    if (metadata !== this.metadata) return 'IGNORED';
+    this.installResource(update.resource);
+    this.metadata = { ...metadata, storageVersion: update.resource.storageVersion, documentDigest: update.documentDigest };
+    return 'APPLIED';
   }
 
   async resync(): Promise<{ ack: CollaborationAck<CollaborationSnapshot>; applied: boolean }> {

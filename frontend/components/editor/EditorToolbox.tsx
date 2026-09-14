@@ -22,6 +22,10 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
   const document = useEditorStore((state) => state.currentDocument);
   const createRelationship = useEditorStore((state) => state.createRelationship);
   const applyAutoLayout = useEditorStore((state) => state.applyAutoLayout);
+  const collaborationRequired = useEditorStore((state) => state.collaborationRequired);
+  const collaborationState = useEditorStore((state) => state.collaborationState);
+  const realtimeCommandPending = useEditorStore((state) => state.realtimeCommandPending);
+  const mutationsBlocked = collaborationRequired && (collaborationState !== 'connected' || realtimeCommandPending);
   const [isRelationDialogOpen, setIsRelationDialogOpen] = useState(false);
   const [relationKind, setRelationKind] = useState<RelationshipTool>('association');
   const [sourceClassId, setSourceClassId] = useState('');
@@ -91,13 +95,13 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
         <ToolButton label="Select" active={activeTool === 'select'} onClick={() => choose('select')} />
         <Divider orientation="vertical" flexItem />
         <Box data-testid="toolbox-group-elements" sx={{ display: 'flex', gap: 0.5 }}>
-          <ToolButton label="Clase" active={activeTool === 'class'} onClick={() => choose('class')} />
-          {!compact && <ToolButton label="Enum" active={activeTool === 'enum'} onClick={() => choose('enum')} />}
+          <ToolButton label="Clase" active={activeTool === 'class'} onClick={() => choose('class')} disabled={mutationsBlocked} />
+          {!compact && <ToolButton label="Enum" active={activeTool === 'enum'} onClick={() => choose('enum')} disabled={mutationsBlocked} />}
         </Box>
         <Divider orientation="vertical" flexItem />
         <Box data-testid="toolbox-group-relationships">
           <Tooltip title="Crear relación UML">
-            <Button size="small" variant="text" aria-haspopup="dialog" onClick={openRelationDialog} sx={toolButtonSx(false)}>
+            <Button size="small" variant="text" aria-haspopup="dialog" onClick={openRelationDialog} disabled={mutationsBlocked} aria-describedby={mutationsBlocked ? 'collaboration-mutation-help' : undefined} sx={toolButtonSx(false)}>
               Relation
             </Button>
           </Tooltip>
@@ -123,18 +127,18 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setIsRelationDialogOpen(false)}>Cancelar</Button>
-              <Button variant="contained" onClick={confirmRelation} disabled={!sourceClassId || !targetClassId || sourceClassId === targetClassId}>Crear</Button>
+              <Button variant="contained" onClick={confirmRelation} disabled={mutationsBlocked || !sourceClassId || !targetClassId || sourceClassId === targetClassId}>Crear</Button>
             </DialogActions>
           </Dialog>
         </Box>
         <Divider orientation="vertical" flexItem />
-        {!compact && <Button size="small" variant="text" onClick={() => void applyAutoLayout()} sx={toolButtonSx(false)}>Layout</Button>}
+        {!compact && <Button size="small" variant="text" onClick={() => void applyAutoLayout()} disabled={mutationsBlocked} aria-describedby={mutationsBlocked ? 'collaboration-mutation-help' : undefined} sx={toolButtonSx(false)}>Layout</Button>}
         {compact && (
           <Box data-testid="toolbox-group-more">
             <Button size="small" variant="text" aria-haspopup="menu" onClick={(event) => setMoreAnchor(event.currentTarget)} sx={toolButtonSx(false)}>More</Button>
             <Menu anchorEl={moreAnchor} open={Boolean(moreAnchor)} onClose={() => setMoreAnchor(null)}>
-              <MenuItem onClick={() => { setMoreAnchor(null); choose('enum'); }}>Enum</MenuItem>
-              <MenuItem onClick={() => { setMoreAnchor(null); void applyAutoLayout(); }}>Layout</MenuItem>
+              <MenuItem disabled={mutationsBlocked} onClick={() => { setMoreAnchor(null); choose('enum'); }}>Enum</MenuItem>
+              <MenuItem disabled={mutationsBlocked} onClick={() => { setMoreAnchor(null); void applyAutoLayout(); }}>Layout</MenuItem>
             </Menu>
           </Box>
         )}
@@ -160,10 +164,10 @@ function parseMultiplicityPreset(value: string): Multiplicity {
   return { lower: 0, upper: '*' };
 }
 
-function ToolButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function ToolButton({ label, active, onClick, disabled = false }: { label: string; active: boolean; onClick: () => void; disabled?: boolean }) {
   return (
     <Tooltip title={label}>
-      <Button size="small" variant={active ? 'contained' : 'text'} aria-pressed={active} onClick={onClick} sx={toolButtonSx(active)}>{label}</Button>
+      <Button size="small" variant={active ? 'contained' : 'text'} aria-pressed={active} onClick={onClick} disabled={disabled} aria-describedby={disabled ? 'collaboration-mutation-help' : undefined} sx={toolButtonSx(active)}>{label}</Button>
     </Tooltip>
   );
 }

@@ -17,6 +17,7 @@ import { ProjectCommandCoordinator } from '../src/collaboration/project-command-
 import { digestProjectDocument } from '../src/collaboration/canonical-digest.js';
 import { UmlCommandBus, type ProjectResource } from '@examen-sw1/uml-core';
 import type { ProjectCommandApplied } from '../src/collaboration/project-command-applied.js';
+import { ProjectsService } from '../src/projects/projects.service.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (!testDatabaseUrl || testDatabaseUrl === process.env.DATABASE_URL) throw new Error('Realtime integration requires isolated TEST_DATABASE_URL.');
@@ -83,6 +84,9 @@ describe('Realtime collaboration authentication', () => {
     expect(socket.connected).toBe(true); return socket;
   }
   function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; }); return { promise, resolve }; }
+  function replacementDocument(name: string) {
+    return { revision: 1, model: { packages: [], classes: [{ id: `class-${name}`, name, attributes: [], operations: [] }], enumerations: [], relationships: [] }, layout: { nodes: [] } };
+  }
   function waitForClientEvent(client: FrontendClient, event: 'connect' | 'project:command-applied'): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { unsubscribe(); reject(new Error(`${event} timed out`)); }, 2_000);
@@ -94,11 +98,28 @@ describe('Realtime collaboration authentication', () => {
   function resync(socket: Socket): Promise<CollaborationAck<CollaborationSnapshot>> { return new Promise((resolve, reject) => socket.timeout(2_000).emit('project:resync', (error: Error | null, response: CollaborationAck<CollaborationSnapshot>) => error ? reject(error) : resolve(response))); }
   function presence(socket: Socket, input: unknown): Promise<CollaborationAck<unknown>> { return new Promise((resolve, reject) => socket.timeout(2_000).emit('project:presence', input, (error: Error | null, response: CollaborationAck<unknown>) => error ? reject(error) : resolve(response))); }
   function command(socket: Socket, input: unknown): Promise<unknown> { return new Promise((resolve, reject) => socket.timeout(2_000).emit('project:command', input, (error: Error | null, response: unknown) => error ? reject(error) : resolve(response))); }
+
+  it('enforces the command-rate boundary on the real Socket.IO transport', async () => {
+    const { account, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${account.accessToken}`).send({ name: 'Command transport limit' }).expect(201)).body.project;
+    projects.add(project.id);
+    const socket = await connect(url, account.accessToken);
+    expect((await join(socket, project.id)).ok).toBe(true);
+    for (let index = 0; index < 10; index += 1) expect(await command(socket, {})).toMatchObject({ ok: false, error: { code: 'INVALID_COMMAND' } });
+    expect(await command(socket, {})).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } });
+  });
   function nextPresence(socket: Socket, matches: (roster: unknown[]) => boolean = () => true): Promise<unknown[]> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { socket.off('project:presence', listener); reject(new Error('Presence event timed out')); }, 2_000);
       const listener = (roster: unknown) => { if (Array.isArray(roster) && matches(roster)) { clearTimeout(timeout); socket.off('project:presence', listener); resolve(roster); } };
       socket.on('project:presence', listener);
+    });
+  }
+  function nextResourceUpdated(socket: Socket): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => { socket.off('project:resource-updated', listener); reject(new Error('Resource update timed out')); }, 2_000);
+      const listener = (update: unknown) => { clearTimeout(timeout); socket.off('project:resource-updated', listener); resolve(update); };
+      socket.on('project:resource-updated', listener);
     });
   }
   async function executeCommand(socket: Socket, owner: { user: { id: string; email: string } }, joined: CollaborationSnapshot, commandId = randomUUID(), name = 'RealtimeClass') {
@@ -265,6 +286,18 @@ describe('Realtime collaboration authentication', () => {
     projects.add(project.id); await prisma.project.update({ where: { id: project.id }, data: { ownerId: null } });
     const response = await join(await connect(url, account.accessToken), project.id);
     expect(response).toMatchObject({ ok: false, error: { code: 'PROJECT_NOT_FOUND' } });
+  });
+
+  it('returns a safe schema-incompatible join acknowledgement without document version leakage', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'Unsupported schema' }).expect(201)).body.project;
+    projects.add(project.id);
+    await prisma.project.update({ where: { id: project.id }, data: { documentSchemaVersion: 999 } });
+
+    const response = await join(await connect(url, owner.accessToken), project.id);
+    expect(response).toEqual({ ok: false, error: { code: 'SCHEMA_INCOMPATIBLE', message: 'The project document is incompatible.' }, action: 'RESYNC' });
+    expect(JSON.stringify(response)).not.toContain('999');
+    expect(JSON.stringify(response)).not.toMatch(/stack|prisma|sql|jwt|token/i);
   });
 
   it('rejects a correctly signed expired token before connection', async () => {
@@ -523,6 +556,144 @@ describe('Realtime collaboration authentication', () => {
     coordinator.setBeforeCasHookForTest(null);
     expect(result).toMatchObject({ ok: true, status: 'APPLIED', data: { storageVersion: 2, resultingRevision: 1 } });
     expect(changed).toBe(true);
+  });
+
+  it('serializes PATCH, emits its exact durable snapshot to current participants, and preserves revision and realtime version', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'Metadata event' }).expect(201)).body.project; projects.add(project.id);
+    const editorEmail = `rt-${randomUUID()}@example.com`; emails.add(editorEmail);
+    const editor = (await request(app.getHttpServer()).post('/auth/register').send({ email: editorEmail, password: 'password-with-eight-characters' })).body;
+    await prisma.projectMembership.create({ data: { projectId: project.id, userId: editor.user.id } });
+    const ownerSocket = await connect(url, owner.accessToken); const editorSocket = await connect(url, editor.accessToken);
+    const ownerJoin = await join(ownerSocket, project.id); const editorJoin = await join(editorSocket, project.id);
+    expect(ownerJoin.ok).toBe(true); expect(editorJoin.ok).toBe(true);
+    if (!ownerJoin.ok || !editorJoin.ok) throw new Error('Join rejected');
+    const ownerUpdate = nextResourceUpdated(ownerSocket); const editorUpdate = nextResourceUpdated(editorSocket);
+    const patch = await request(app.getHttpServer()).patch(`/projects/${project.id}`).set('Authorization', `Bearer ${owner.accessToken}`).send({ baseStorageVersion: 0, name: 'Renamed metadata' }).expect(200);
+    const [ownerEvent, editorEvent] = await Promise.all([ownerUpdate, editorUpdate]);
+    expect(ownerEvent).toEqual(editorEvent);
+    expect(ownerEvent).toMatchObject({ projectId: project.id, sessionId: ownerJoin.data.sessionId, documentDigest: expect.any(String), resource: patch.body });
+    expect(patch.body).toMatchObject({ storageVersion: 1, project: { revision: 0, metadata: { name: 'Renamed metadata' } } });
+    expect(app.get(CollaborationSessionManager).get(project.id)).toMatchObject({ sessionId: ownerJoin.data.sessionId, realtimeVersion: 0 });
+    const persisted = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+    expect(persisted).toMatchObject({ storageVersion: 1, revision: 0, name: 'Renamed metadata' });
+  });
+
+  it('orders PATCH before a queued command so the command persists after the metadata-only storage change', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'PATCH before command' }).expect(201)).body.project; projects.add(project.id);
+    const socket = await connect(url, owner.accessToken); const joined = await join(socket, project.id);
+    expect(joined.ok).toBe(true); if (!joined.ok) throw new Error(joined.error.code);
+    const enteredPatch = deferred<void>(); const releasePatch = deferred<void>();
+    const projectService = app.get(ProjectsService);
+    projectService.setBeforeMetadataSaveHookForTest(async () => { enteredPatch.resolve(); await releasePatch.promise; });
+    const pendingPatch = request(app.getHttpServer()).patch(`/projects/${project.id}`).set('Authorization', `Bearer ${owner.accessToken}`).send({ baseStorageVersion: 0, description: 'metadata first' }).then((response) => response);
+    await enteredPatch.promise;
+    const pendingCommand = command(socket, { projectId: project.id, sessionId: joined.data.sessionId, commandId: randomUUID(), baseRealtimeVersion: 0, baseRevision: 0, command: { type: 'CreateClass', name: 'AfterPatch' } });
+    releasePatch.resolve();
+    await expect(pendingPatch).resolves.toMatchObject({ status: 200, body: { storageVersion: 1, project: { revision: 0, metadata: { description: 'metadata first' } } } });
+    await expect(pendingCommand).resolves.toMatchObject({ ok: true, status: 'APPLIED', data: { resultingRealtimeVersion: 1, resultingRevision: 1, storageVersion: 2 } });
+    projectService.setBeforeMetadataSaveHookForTest(null);
+  });
+
+  it('filters resource updates when access is lost before emission', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'Protected metadata' }).expect(201)).body.project; projects.add(project.id);
+    const editorEmail = `rt-${randomUUID()}@example.com`; emails.add(editorEmail);
+    const editor = (await request(app.getHttpServer()).post('/auth/register').send({ email: editorEmail, password: 'password-with-eight-characters' })).body;
+    await prisma.projectMembership.create({ data: { projectId: project.id, userId: editor.user.id } });
+    const ownerSocket = await connect(url, owner.accessToken); const editorSocket = await connect(url, editor.accessToken);
+    await join(ownerSocket, project.id); await join(editorSocket, project.id);
+    const received: unknown[] = []; editorSocket.on('project:resource-updated', (event) => received.push(event));
+    await prisma.projectMembership.deleteMany({ where: { projectId: project.id, userId: editor.user.id } });
+    await request(app.getHttpServer()).patch(`/projects/${project.id}`).set('Authorization', `Bearer ${owner.accessToken}`).send({ baseStorageVersion: 0, name: 'No editor delivery' }).expect(200);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(received).toEqual([]);
+    expect(editorSocket.connected).toBe(false);
+  });
+
+  it('orders a realtime command before a competing HTTP document replacement and preserves the PUT CAS conflict', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'Command before PUT' }).expect(201)).body.project; projects.add(project.id);
+    const socket = await connect(url, owner.accessToken); const joined = await join(socket, project.id);
+    expect(joined.ok).toBe(true); if (!joined.ok) throw new Error(joined.error.code);
+    const enteredCommandCas = deferred<void>(); const releaseCommandCas = deferred<void>();
+    const commands = app.get(ProjectCommandCoordinator);
+    commands.setBeforeCasHookForTest(async () => { enteredCommandCas.resolve(); await releaseCommandCas.promise; });
+    const pendingCommand = command(socket, { projectId: project.id, sessionId: joined.data.sessionId, commandId: randomUUID(), baseRealtimeVersion: 0, baseRevision: 0, command: { type: 'CreateClass', name: 'CommandWins' } });
+    await enteredCommandCas.promise;
+    const pendingPut = request(app.getHttpServer()).put(`/projects/${project.id}/document`).set('Authorization', `Bearer ${owner.accessToken}`).send({ baseStorageVersion: 0, document: replacementDocument('ReplacementLoses') }).then((response) => response);
+    releaseCommandCas.resolve();
+    await expect(pendingCommand).resolves.toMatchObject({ ok: true, status: 'APPLIED', data: { resultingRevision: 1, storageVersion: 1 } });
+    await expect(pendingPut).resolves.toMatchObject({ status: 409, body: { error: { code: 'PROJECT_REVISION_CONFLICT' } } });
+    commands.setBeforeCasHookForTest(null);
+    expect(app.get(CollaborationSessionManager).get(project.id)?.sessionId).toBe(joined.data.sessionId);
+  });
+
+  it('orders an HTTP document replacement before a queued realtime command, invalidates its epoch, and requires resync', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'PUT before command' }).expect(201)).body.project; projects.add(project.id);
+    const socket = await connect(url, owner.accessToken); const joined = await join(socket, project.id);
+    expect(joined.ok).toBe(true); if (!joined.ok) throw new Error(joined.error.code);
+    const enteredPut = deferred<void>(); const releasePut = deferred<void>();
+    const projectService = app.get(ProjectsService);
+    projectService.setBeforeDocumentSaveHookForTest(async () => { enteredPut.resolve(); await releasePut.promise; });
+    const pendingPut = request(app.getHttpServer()).put(`/projects/${project.id}/document`).set('Authorization', `Bearer ${owner.accessToken}`).send({ baseStorageVersion: 0, document: replacementDocument('ReplacementWins') }).then((response) => response);
+    await enteredPut.promise;
+    const pendingCommand = command(socket, { projectId: project.id, sessionId: joined.data.sessionId, commandId: randomUUID(), baseRealtimeVersion: 0, baseRevision: 0, command: { type: 'CreateClass', name: 'StaleCommand' } });
+    releasePut.resolve();
+    await expect(pendingPut).resolves.toMatchObject({ status: 200, body: { storageVersion: 1, project: { revision: 1, model: { classes: [expect.objectContaining({ name: 'ReplacementWins' })] } } } });
+    await expect(pendingCommand).resolves.toMatchObject({ ok: false, error: { code: 'STALE_SESSION' }, action: 'RESYNC' });
+    projectService.setBeforeDocumentSaveHookForTest(null);
+    expect(app.get(CollaborationSessionManager).get(project.id)).toBeUndefined();
+    const recovered = await resync(socket);
+    expect(recovered.ok).toBe(true); if (!recovered.ok) throw new Error(recovered.error.code);
+    expect(recovered.data.sessionId).not.toBe(joined.data.sessionId);
+    expect(recovered.data.resource).toMatchObject({ storageVersion: 1, project: { revision: 1, model: { classes: [expect.objectContaining({ name: 'ReplacementWins' })] } } });
+  });
+
+  it('orders a realtime command before DELETE and preserves the owner CAS conflict', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'Command before DELETE' }).expect(201)).body.project; projects.add(project.id);
+    const socket = await connect(url, owner.accessToken); const joined = await join(socket, project.id);
+    expect(joined.ok).toBe(true); if (!joined.ok) throw new Error(joined.error.code);
+    const enteredCommandCas = deferred<void>(); const releaseCommandCas = deferred<void>();
+    const commands = app.get(ProjectCommandCoordinator);
+    commands.setBeforeCasHookForTest(async () => { enteredCommandCas.resolve(); await releaseCommandCas.promise; });
+    const pendingCommand = command(socket, { projectId: project.id, sessionId: joined.data.sessionId, commandId: randomUUID(), baseRealtimeVersion: 0, baseRevision: 0, command: { type: 'CreateClass', name: 'CommandWins' } });
+    await enteredCommandCas.promise;
+    const pendingDelete = request(app.getHttpServer()).delete(`/projects/${project.id}`).set('Authorization', `Bearer ${owner.accessToken}`).query({ baseStorageVersion: 0 }).then((response) => response);
+    releaseCommandCas.resolve();
+    await expect(pendingCommand).resolves.toMatchObject({ ok: true, status: 'APPLIED', data: { resultingRevision: 1, storageVersion: 1 } });
+    await expect(pendingDelete).resolves.toMatchObject({ status: 409, body: { error: { code: 'PROJECT_REVISION_CONFLICT' } } });
+    commands.setBeforeCasHookForTest(null);
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toMatchObject({ revision: 1, storageVersion: 1 });
+    expect(app.get(CollaborationSessionManager).get(project.id)?.sessionId).toBe(joined.data.sessionId);
+  });
+
+  it('orders DELETE before a queued command, cleans terminal collaboration state, and conceals the project', async () => {
+    const { account: owner, url } = await start();
+    const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'DELETE before command' }).expect(201)).body.project; projects.add(project.id);
+    const socket = await connect(url, owner.accessToken); const joined = await join(socket, project.id);
+    expect(joined.ok).toBe(true); if (!joined.ok) throw new Error(joined.error.code);
+    const enteredDelete = deferred<void>(); const releaseDelete = deferred<void>();
+    const projectService = app.get(ProjectsService);
+    projectService.setBeforeDeleteHookForTest(async () => { enteredDelete.resolve(); await releaseDelete.promise; });
+    const disconnected = new Promise<void>((resolve) => socket.once('disconnect', () => resolve()));
+    const pendingDelete = request(app.getHttpServer()).delete(`/projects/${project.id}`).set('Authorization', `Bearer ${owner.accessToken}`).query({ baseStorageVersion: 0 }).then((response) => response);
+    await enteredDelete.promise;
+    const socketId = socket.id; if (!socketId) throw new Error('Connected socket is missing an id.');
+    const pendingCommand = app.get(ProjectCommandCoordinator).execute({ socketId, user: owner.user, expiresAt: Date.now() + 60_000, activeProjectId: project.id, activeSessionId: joined.data.sessionId, envelope: { projectId: project.id, sessionId: joined.data.sessionId, commandId: randomUUID(), baseRealtimeVersion: 0, baseRevision: 0, command: { type: 'CreateClass', name: 'DeletedProject' } } });
+    releaseDelete.resolve();
+    await expect(pendingDelete).resolves.toMatchObject({ status: 204 });
+    await disconnected;
+    await expect(pendingCommand).resolves.toMatchObject({ ok: false, error: { code: 'PROJECT_NOT_FOUND' }, action: 'LEAVE' });
+    projectService.setBeforeDeleteHookForTest(null);
+    expect(app.get(CollaborationSessionManager).get(project.id)).toBeUndefined();
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toBeNull();
+    await request(app.getHttpServer()).get(`/projects/${project.id}`).set('Authorization', `Bearer ${owner.accessToken}`).expect(404).expect(({ body }) => expect(body).toMatchObject({ error: { code: 'PROJECT_NOT_FOUND' } }));
+    const laterSocket = await connect(url, owner.accessToken);
+    await expect(join(laterSocket, project.id)).resolves.toMatchObject({ ok: false, error: { code: 'PROJECT_NOT_FOUND' } });
   });
 
   it('invalidates the epoch rather than retrying a canonical CAS conflict', async () => {

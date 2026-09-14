@@ -20,11 +20,12 @@ import { CollaborationClient } from '../../lib/collaboration/collaboration-clien
 import { CollaborationSessionBridge } from '../../lib/collaboration/collaboration-session-bridge';
 import { RealtimeCommandGate } from '../../lib/collaboration/realtime-command-gate';
 import { isProjectCommandApplied } from '../../lib/collaboration/project-command-applied';
+import { isProjectResourceUpdated } from '../../lib/collaboration/project-resource-updated';
 import { isPresenceRoster, PresenceRoster } from '../../lib/collaboration/presence-roster';
 import { LocalCursorPresence } from '../../lib/collaboration/local-cursor-presence';
 import { LocalPresenceState } from '../../lib/collaboration/local-presence-state';
 import { validEditingElementId } from '../../lib/collaboration/local-editing-presence';
-import type { CollaborationConnectionState, CollaborationParticipant } from '../../lib/collaboration/contracts';
+import type { CollaborationParticipant } from '../../lib/collaboration/contracts';
 
 export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NODE_ENV === 'test' }: { projectId?: string; allowDemoForTests?: boolean }) {
   const searchParams = useSearchParams();
@@ -55,7 +56,7 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
   const collaboration = useRef<CollaborationClient | null>(null);
   const localCursor = useRef<LocalCursorPresence | null>(null);
   const localPresence = useRef<LocalPresenceState | null>(null);
-  const [collaborationState, setCollaborationState] = useState<CollaborationConnectionState>('disconnected');
+  const setCollaborationLifecycle = useEditorStore((state) => state.setCollaborationLifecycle);
   const [participants, setParticipants] = useState<CollaborationParticipant[]>([]);
   const publishEditing = useCallback((elementId: string | null) => { const presenceState = localPresence.current; if (!presenceState) return; presenceState.setEditingElementId(validEditingElementId(elementId)); collaboration.current?.publishPresence(presenceState.snapshot()); }, []);
   const publishActivity = useCallback((activity: 'dragging' | null) => { const presenceState = localPresence.current; if (!presenceState) return; presenceState.setActivity(activity); collaboration.current?.publishPresence(presenceState.snapshot()); }, []);
@@ -91,12 +92,13 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
   useEffect(() => {
     if (!selectedProjectId || sessionProjectId !== selectedProjectId) return;
     const session = getAuthSession();
-    if (!session) { setParticipants([]); setCollaborationState('auth-required'); return; }
+    if (!session) { setParticipants([]); setCollaborationLifecycle('auth-required'); return; }
     const client = collaboration.current = new CollaborationClient();
     const roster = new PresenceRoster();
     const bridge = new CollaborationSessionBridge(client, useEditorStore.getState().installAuthoritativeDocument, (projectId, nextParticipants) => setParticipants(roster.replace(projectId, nextParticipants)));
     let commandGate: RealtimeCommandGate | null = null;
     let collaborationJoined = false;
+    let disposed = false;
     const exitCollaboration = () => {
       commandGate?.clear(); commandGate = null; setRealtimeCommandGate(null);
       localCursor.current?.dispose(); localCursor.current = null; localPresence.current = null;
@@ -105,18 +107,21 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
       roster.clear(); setParticipants([]);
     };
     const unsubscribeConnect = client.subscribe('connect', () => {
-      setCollaborationState('joining');
-      void bridge.join(selectedProjectId).then(({ ack, applied }) => { if (applied) { collaborationJoined = true; commandGate?.clear(); commandGate = new RealtimeCommandGate(() => bridge.session, client, setRealtimeCommandPending, setRealtimeCommandError, (result) => bridge.receiveApplied(result), undefined, async () => { setCollaborationState('resyncing'); const recovered = await bridge.recover(); if (recovered) setCollaborationState('connected'); return recovered; }); setRealtimeCommandGate(commandGate); localCursor.current?.dispose(); localPresence.current = new LocalPresenceState(); localCursor.current = new LocalCursorPresence((cursor) => { localPresence.current?.setCursor(cursor); const presence = localPresence.current?.snapshot(); if (presence) client.publishPresence(presence); }); setCollaborationState('connected'); } else if (!ack.ok) setCollaborationState(ack.action === 'REAUTHENTICATE' ? 'auth-required' : 'error'); });
+      if (disposed) return;
+      setCollaborationLifecycle('joining');
+      void bridge.join(selectedProjectId).then(({ ack, applied }) => { if (disposed) return; if (applied) { collaborationJoined = true; commandGate?.clear(); commandGate = new RealtimeCommandGate(() => bridge.session, client, setRealtimeCommandPending, setRealtimeCommandError, (result) => bridge.receiveApplied(result), undefined, async () => { if (disposed) return false; setCollaborationLifecycle('resyncing'); const recovered = await bridge.recover(); if (!disposed && recovered) setCollaborationLifecycle('connected'); return recovered; }); setRealtimeCommandGate(commandGate); localCursor.current?.dispose(); localPresence.current = new LocalPresenceState(); localCursor.current = new LocalCursorPresence((cursor) => { localPresence.current?.setCursor(cursor); const presence = localPresence.current?.snapshot(); if (presence) client.publishPresence(presence); }); setCollaborationLifecycle('connected'); } else if (!ack.ok) setCollaborationLifecycle(ack.action === 'REAUTHENTICATE' ? 'auth-required' : 'error'); });
     });
     const unsubscribeApplied = client.subscribe('project:command-applied', (value) => { if (isProjectCommandApplied(value)) bridge.receiveApplied(value); });
+    const unsubscribeResourceUpdated = client.subscribe('project:resource-updated', (value) => { if (disposed || !isProjectResourceUpdated(value)) return; void bridge.receiveResourceUpdated(value).then(async (result) => { if (disposed || result !== 'RECOVERING') return; setCollaborationLifecycle('resyncing'); if (!disposed && await bridge.recover() && !disposed) setCollaborationLifecycle('connected'); }); });
     const unsubscribePresence = client.subscribe('project:presence', (value) => { if (isPresenceRoster(value)) { const projectId = bridge.session?.projectId ?? selectedProjectId; if (bridge.receivePresence(projectId, value) === 'APPLIED') { const nextParticipants = roster.update(projectId, value); if (nextParticipants) setParticipants(nextParticipants); } } });
-    const unsubscribeDisconnect = client.subscribe('disconnect', () => { exitCollaboration(); setCollaborationState('disconnected'); });
-    const unsubscribeExpiry = client.subscribe('auth:expired', () => { exitCollaboration(); setCollaborationState('auth-required'); });
+    const unsubscribeDisconnect = client.subscribe('disconnect', () => { if (disposed) return; exitCollaboration(); setCollaborationLifecycle('disconnected'); });
+    const unsubscribeExpiry = client.subscribe('auth:expired', () => { if (disposed) return; exitCollaboration(); setCollaborationLifecycle('auth-required'); });
     const onVisibilityChange = () => { if (document.visibilityState === 'hidden') localCursor.current?.clear(); };
     document.addEventListener('visibilitychange', onVisibilityChange);
+    setCollaborationLifecycle('connecting');
     client.connect(session.accessToken);
-    return () => { document.removeEventListener('visibilitychange', onVisibilityChange); exitCollaboration(); unsubscribeConnect(); unsubscribePresence(); unsubscribeApplied(); unsubscribeDisconnect(); unsubscribeExpiry(); client.disconnect(); if (collaboration.current === client) collaboration.current = null; };
-  }, [selectedProjectId, sessionProjectId, replaceProjectSession, rebaseHistoryToCurrentDocument, setRealtimeCommandError, setRealtimeCommandGate, setRealtimeCommandPending]);
+    return () => { disposed = true; document.removeEventListener('visibilitychange', onVisibilityChange); exitCollaboration(); unsubscribeConnect(); unsubscribePresence(); unsubscribeApplied(); unsubscribeResourceUpdated(); unsubscribeDisconnect(); unsubscribeExpiry(); client.disconnect(); if (collaboration.current === client) collaboration.current = null; };
+  }, [selectedProjectId, sessionProjectId, replaceProjectSession, rebaseHistoryToCurrentDocument, setCollaborationLifecycle, setRealtimeCommandError, setRealtimeCommandGate, setRealtimeCommandPending]);
 
   if (!selectedProjectId && !allowDemoForTests) {
     return <Box component="main" sx={{ height: '100dvh', display: 'grid', placeItems: 'center' }}><Stack spacing={2} alignItems="center"><Alert severity="info">Select a persisted project before opening the editor.</Alert><Button href="/">Go to projects</Button></Stack></Box>;
@@ -156,7 +161,7 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
           </>
         )}
       </Box>
-      <EditorStatusBar compact={compact} collaborationState={collaborationState} />
+      <EditorStatusBar compact={compact} />
     </Box>
   );
 }

@@ -4,7 +4,7 @@ import type { ProjectCommandApplied } from './project-command-applied.js';
 
 export type CollaborationAccess = 'OWNER' | 'EDITOR';
 export type CollaborationAction = 'NONE' | 'RESYNC' | 'REAUTHENTICATE' | 'LEAVE';
-export type CollaborationErrorCode = 'AUTHENTICATION_REQUIRED' | 'AUTH_EXPIRED' | 'PROJECT_NOT_FOUND' | 'PROJECT_NOT_JOINED' | 'INVALID_COMMAND' | 'PAYLOAD_TOO_LARGE' | 'RATE_LIMITED' | 'STALE_SESSION' | 'STALE_REALTIME_VERSION' | 'STALE_DOCUMENT_REVISION' | 'DOMAIN_COMMAND_REJECTED' | 'SEMANTIC_VALIDATION_FAILED' | 'CAS_CONFLICT' | 'INTERNAL_STATE_UNCERTAIN' | 'INTERNAL_ERROR';
+export type CollaborationErrorCode = 'AUTHENTICATION_REQUIRED' | 'AUTH_EXPIRED' | 'PROJECT_NOT_FOUND' | 'PROJECT_NOT_JOINED' | 'INVALID_COMMAND' | 'PAYLOAD_TOO_LARGE' | 'RATE_LIMITED' | 'STALE_SESSION' | 'STALE_REALTIME_VERSION' | 'STALE_DOCUMENT_REVISION' | 'DOMAIN_COMMAND_REJECTED' | 'SEMANTIC_VALIDATION_FAILED' | 'CAS_CONFLICT' | 'SCHEMA_INCOMPATIBLE' | 'INTERNAL_STATE_UNCERTAIN' | 'INTERNAL_ERROR';
 
 export interface CollaborationError {
   ok: false;
@@ -33,6 +33,13 @@ export interface CollaborationSnapshot {
   accessLevel: CollaborationAccess;
   documentDigest: string | null;
   participants: ParticipantPresence[];
+}
+
+export interface ProjectResourceUpdated {
+  projectId: string;
+  sessionId: string;
+  resource: ProjectResource;
+  documentDigest: string;
 }
 
 export type CollaborationAck<T> = { ok: true; data: T } | CollaborationError;

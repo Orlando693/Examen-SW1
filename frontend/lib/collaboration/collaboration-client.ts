@@ -12,7 +12,7 @@ interface CollaborationSocket {
 }
 
 type SocketFactory = (url: string, options: { auth: { token: string }; transports: string[] }) => CollaborationSocket;
-type CollaborationEvent = 'connect' | 'disconnect' | 'auth:expired' | 'project:presence' | 'project:revoked' | 'project:command-applied';
+type CollaborationEvent = 'connect' | 'disconnect' | 'auth:expired' | 'project:presence' | 'project:revoked' | 'project:command-applied' | 'project:resource-updated';
 type EventListener = (...args: unknown[]) => void;
 
 const createSocket: SocketFactory = (url, options) => io(url, options) as unknown as CollaborationSocket;

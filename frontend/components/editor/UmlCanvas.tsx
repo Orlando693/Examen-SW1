@@ -162,8 +162,8 @@ function CanvasInner({ flow, compact, canMount, participants, currentUserId, onL
     if (!canMount || !containerSize || !isReactFlowReady || flow.nodes.length === 0) {
       return;
     }
-    // Logical layout changes, including authoritative remote commands, must not recenter a user's viewport.
-    const fitKey = `${projectId ?? 'unpersisted'}:${compact}:${containerSize.width}:${containerSize.height}`;
+    // A project receives one presentation-only initial fit. Resizes and authoritative updates preserve the user's viewport.
+    const fitKey = projectId ?? 'unpersisted';
     if (lastFitKeyRef.current === fitKey) {
       return;
     }

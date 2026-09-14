@@ -25,6 +25,8 @@ export class PresenceRegistry {
     if (project.size === 0) this.sockets.delete(projectId);
   }
 
+  clear(projectId: string): void { this.sockets.delete(projectId); }
+
   roster(projectId: string, participants: Participant[]): ParticipantPresence[] {
     const states = this.sockets.get(projectId) ?? new Map<string, SocketPresence>();
     return participants.map((participant) => {

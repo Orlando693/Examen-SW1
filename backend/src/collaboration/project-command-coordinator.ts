@@ -8,14 +8,14 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { digestCommandIntent, sha256Canonical } from './canonical-digest.js';
 import { CollaborationSessionManager, type ProjectSession } from './collaboration-session.manager.js';
-import type { CollaborationAction, CollaborationErrorCode, ProjectCommandAck } from './contracts.js';
+import type { CollaborationErrorCode, ProjectCommandAck } from './contracts.js';
+import { collaborationFailure, mapCollaborationException } from './collaboration-error-mapper.js';
 import { createProjectCommandApplied } from './project-command-applied.js';
 import { ProjectMutationCoordinator } from './project-mutation-coordinator.js';
 import { decodeRealtimeCommandEnvelope, type RealtimeCommandEnvelope } from './realtime-command-decoder.js';
 import { normalizeRealtimeCommand } from './realtime-command-normalizer.js';
+import { COLLABORATION_LIMITS } from './collaboration-limits.js';
 
-const DEDUPE_CAPACITY = 512;
-const DEDUPE_TTL_MS = 10 * 60_000;
 
 export interface ExecuteProjectCommandInput {
   socketId: string;
@@ -44,48 +44,47 @@ export class ProjectCommandCoordinator {
 
   async execute(input: ExecuteProjectCommandInput): Promise<ProjectCommandAck> {
     const decoded = decodeRealtimeCommandEnvelope(input.envelope);
-    if (!decoded.ok) return this.failure('INVALID_COMMAND', 'Invalid command.', 'NONE');
-    return this.coordinator.run(decoded.data.projectId, () => this.executeQueued(input, decoded.data));
+    if (!decoded.ok) return this.failure('INVALID_COMMAND');
+    try { return await this.coordinator.run(decoded.data.projectId, () => this.executeQueued(input, decoded.data)); }
+    catch (error) { return mapCollaborationException(error, input.expiresAt); }
   }
 
   private async executeQueued(input: ExecuteProjectCommandInput, envelope: RealtimeCommandEnvelope): Promise<ProjectCommandAck> {
     try {
       await this.authenticator.revalidate(input.user, input.expiresAt);
       await this.projects.get(input.user, envelope.projectId);
-    } catch {
-      return this.failure(Date.now() >= input.expiresAt ? 'AUTH_EXPIRED' : 'PROJECT_NOT_FOUND', Date.now() >= input.expiresAt ? 'Authentication expired.' : 'The project was not found.', Date.now() >= input.expiresAt ? 'REAUTHENTICATE' : 'LEAVE');
-    }
-    if (input.activeProjectId !== envelope.projectId) return this.failure('PROJECT_NOT_JOINED', 'Project is not joined.', 'LEAVE');
+    } catch (error) { return mapCollaborationException(error, input.expiresAt); }
+    if (input.activeProjectId !== envelope.projectId) return this.failure('PROJECT_NOT_JOINED');
     const session = this.sessions.get(envelope.projectId);
-    if (!session || session.poisoned || !session.socketIds.has(input.socketId) || input.activeSessionId !== session.sessionId || envelope.sessionId !== session.sessionId) return this.failure('STALE_SESSION', 'Session is stale.', 'RESYNC');
+    if (!session || session.poisoned || !session.socketIds.has(input.socketId) || input.activeSessionId !== session.sessionId || envelope.sessionId !== session.sessionId) return this.failure('STALE_SESSION');
 
     const intentDigest = digestCommandIntent({ ...envelope, actorUserId: input.user.id });
     this.pruneDedupe(session);
     const duplicate = session.dedupe.get(envelope.commandId);
     if (duplicate) {
-      if (duplicate.actorUserId !== input.user.id || duplicate.intentDigest !== intentDigest) return this.failure('INVALID_COMMAND', 'Invalid command.', 'NONE');
+      if (duplicate.actorUserId !== input.user.id || duplicate.intentDigest !== intentDigest) return this.failure('INVALID_COMMAND');
       return { ok: true, status: 'DUPLICATE', data: duplicate.result };
     }
-    if (envelope.baseRealtimeVersion !== session.realtimeVersion) return this.failure('STALE_REALTIME_VERSION', 'Realtime version is stale.', 'RESYNC');
+    if (envelope.baseRealtimeVersion !== session.realtimeVersion) return this.failure('STALE_REALTIME_VERSION');
 
     let resource: ProjectResource;
     try { resource = await this.projects.get(input.user, envelope.projectId); }
-    catch { return this.failure('PROJECT_NOT_FOUND', 'The project was not found.', 'LEAVE'); }
-    if (envelope.baseRevision !== resource.project.revision) return this.failure('STALE_DOCUMENT_REVISION', 'Document revision is stale.', 'RESYNC');
+    catch (error) { return mapCollaborationException(error, input.expiresAt); }
+    if (envelope.baseRevision !== resource.project.revision) return this.failure('STALE_DOCUMENT_REVISION');
 
-    const normalized = normalizeRealtimeCommand(envelope.command, resource, { appliedAt: new Date().toISOString(), generatedIds: Array.from({ length: 1_001 }, () => randomUUID()) });
-    if (!normalized.ok) return this.failure('INVALID_COMMAND', 'Invalid command.', 'NONE');
+    const normalized = normalizeRealtimeCommand(envelope.command, resource, { appliedAt: new Date().toISOString(), generatedIds: Array.from({ length: COLLABORATION_LIMITS.layoutUpdateCapacity + 1 }, () => randomUUID()) });
+    if (!normalized.ok) return this.failure('INVALID_COMMAND');
     const executed = new UmlCommandBus().execute(resource.project, normalized.data.command, { now: normalized.data.appliedAt });
-    if (!executed.ok) return this.failure(executed.reason === 'VALIDATION_FAILED' ? 'SEMANTIC_VALIDATION_FAILED' : 'DOMAIN_COMMAND_REJECTED', 'Command was rejected.', 'NONE');
-    if (validateProjectDocument(executed.document).hasErrors) return this.failure('SEMANTIC_VALIDATION_FAILED', 'Command was rejected.', 'NONE');
+    if (!executed.ok) return this.failure(executed.reason === 'VALIDATION_FAILED' ? 'SEMANTIC_VALIDATION_FAILED' : 'DOMAIN_COMMAND_REJECTED');
+    if (validateProjectDocument(executed.document).hasErrors) return this.failure('SEMANTIC_VALIDATION_FAILED');
 
     const candidate = { ...resource, project: executed.document };
     const persisted = await this.persistWithOneMetadataRetry(input, envelope, resource, candidate, session);
     if (persisted === undefined) {
       this.sessions.invalidate(envelope.projectId, session.sessionId);
-      return this.failure('PROJECT_NOT_FOUND', 'The project was not found.', 'LEAVE');
+      return this.failure('PROJECT_NOT_FOUND');
     }
-    if (!persisted) return this.failure('CAS_CONFLICT', 'Project state changed.', 'RESYNC');
+    if (!persisted) return this.failure('CAS_CONFLICT');
 
     // CAS returning the row is the durable commit point. Never try to undo it.
     try {
@@ -97,7 +96,7 @@ export class ProjectCommandCoordinator {
       return { ok: true, status: 'APPLIED', data: result };
     } catch {
       this.sessions.invalidate(envelope.projectId, session.sessionId);
-      return this.failure('INTERNAL_STATE_UNCERTAIN', 'Project state must be resynchronized.', 'RESYNC');
+      return this.failure('INTERNAL_STATE_UNCERTAIN');
     }
   }
 
@@ -123,10 +122,10 @@ export class ProjectCommandCoordinator {
   }
 
   private pruneDedupe(session: ProjectSession): void {
-    const cutoff = Date.now() - DEDUPE_TTL_MS;
+    const cutoff = Date.now() - COLLABORATION_LIMITS.dedupeTtlMs;
     for (const [key, entry] of session.dedupe) if (entry.createdAt < cutoff) session.dedupe.delete(key);
-    while (session.dedupe.size > DEDUPE_CAPACITY) session.dedupe.delete(session.dedupe.keys().next().value!);
+    while (session.dedupe.size > COLLABORATION_LIMITS.dedupeCapacity) session.dedupe.delete(session.dedupe.keys().next().value!);
   }
 
-  private failure(code: CollaborationErrorCode, message: string, action: CollaborationAction): ProjectCommandAck { return { ok: false, error: { code, message }, action }; }
+  private failure(code: CollaborationErrorCode): ProjectCommandAck { return collaborationFailure(code); }
 }

@@ -28,7 +28,15 @@ export interface ProjectSummary {
 
 @Injectable()
 export class ProjectsService {
+  private beforeDocumentSaveHook: (() => void | Promise<void>) | null = null;
+  private beforeMetadataSaveHook: (() => void | Promise<void>) | null = null;
+  private beforeDeleteHook: (() => void | Promise<void>) | null = null;
+
   constructor(@Inject(ProjectsRepository) private readonly repository: ProjectsRepository) {}
+
+  setBeforeDocumentSaveHookForTest(hook: (() => void | Promise<void>) | null): void { this.beforeDocumentSaveHook = hook; }
+  setBeforeMetadataSaveHookForTest(hook: (() => void | Promise<void>) | null): void { this.beforeMetadataSaveHook = hook; }
+  setBeforeDeleteHookForTest(hook: (() => void | Promise<void>) | null): void { this.beforeDeleteHook = hook; }
 
   async create(user: SafeUser, input: CreateProjectDto): Promise<ProjectResource> {
     const document = createProjectDocument({ name: input.name, ...(input.description === undefined || input.description === null ? {} : { description: input.description }), ownerId: user.id });
@@ -46,6 +54,7 @@ export class ProjectsService {
   }
 
   async saveDocument(user: SafeUser, id: string, input: SaveProjectDocumentDto): Promise<ProjectResource> {
+    await this.beforeDocumentSaveHook?.();
     const row = await this.requireAccessibleRow(user.id, id);
     const candidate = this.decodeCandidate(row, input.document);
     const validation = validateProjectDocument(candidate);
@@ -68,12 +77,18 @@ export class ProjectsService {
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.description === undefined ? {} : { description: input.description }),
     };
-    const updated = await this.repository.updateIfOwnerVersion(id, user.id, input.baseStorageVersion, data);
-    if (!updated) await this.throwOwnerMutationFailure(user.id, id);
-    return this.get(user, id);
+    await this.beforeMetadataSaveHook?.();
+    const updated = await this.repository.updateAndReturnIfOwnerVersion(id, user.id, input.baseStorageVersion, data);
+    if (!updated) {
+      await this.throwOwnerMutationFailure(user.id, id);
+      throw new Error('Unreachable metadata mutation failure.');
+    }
+    // The returned CAS row, not a later reload, is the durable metadata snapshot.
+    return this.resource(updated);
   }
 
   async delete(user: SafeUser, id: string, baseStorageVersion: number): Promise<void> {
+    await this.beforeDeleteHook?.();
     const deleted = await this.repository.deleteIfOwnerVersion(id, user.id, baseStorageVersion);
     if (!deleted) await this.throwOwnerMutationFailure(user.id, id);
   }

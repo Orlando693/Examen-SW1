@@ -50,6 +50,14 @@ export class ProjectsRepository {
     return result.count === 1;
   }
 
+  async updateAndReturnIfOwnerVersion(id: string, userId: string, storageVersion: number, data: Prisma.ProjectUpdateManyMutationInput): Promise<Project | null> {
+    const rows = await this.prisma.project.updateManyAndReturn({
+      where: { id, ownerId: userId, storageVersion },
+      data: { ...data, storageVersion: { increment: 1 } },
+    });
+    return rows[0] ?? null;
+  }
+
   async deleteIfOwnerVersion(id: string, userId: string, storageVersion: number): Promise<boolean> {
     const result = await this.prisma.project.deleteMany({ where: { id, ownerId: userId, storageVersion } });
     return result.count === 1;

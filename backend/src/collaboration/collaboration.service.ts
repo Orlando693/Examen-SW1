@@ -32,6 +32,7 @@ export class CollaborationService {
   }
 
   leave(projectId: string, socketId: string): void { this.presence.remove(projectId, socketId); this.sessions.leave(projectId, socketId); }
+  terminate(projectId: string): void { this.presence.clear(projectId); this.sessions.terminate(projectId); }
 
   async revalidate(projectId: string, user: SafeUser): Promise<void> { await this.projects.get(user, projectId); }
 

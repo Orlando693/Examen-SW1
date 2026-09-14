@@ -2,6 +2,9 @@ import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ProjectMutationCoordinator } from './project-mutation-coordinator.js';
 import type { ProjectCommandApplied } from './project-command-applied.js';
+import { readCollaborationLimits } from './collaboration-limits.js';
+
+export class CollaborationCapacityError extends Error {}
 
 export interface DedupeEntry {
   actorUserId: string;
@@ -25,12 +28,13 @@ export interface ProjectSession {
 export class CollaborationSessionManager implements OnModuleDestroy {
   private readonly sessions = new Map<string, ProjectSession>();
   private generation = 0;
-  private readonly ttlMs = Number(process.env.COLLABORATION_RECONNECT_TTL_MS ?? 5_000);
+  private readonly limits = readCollaborationLimits();
   constructor(@Inject(ProjectMutationCoordinator) private readonly coordinator: ProjectMutationCoordinator) {}
 
   getOrCreate(projectId: string): ProjectSession {
     const existing = this.sessions.get(projectId);
     if (existing) return existing;
+    if (this.sessions.size >= this.limits.sessionCapacity) throw new CollaborationCapacityError();
     const session: ProjectSession = { projectId, generation: ++this.generation, sessionId: randomUUID(), realtimeVersion: 0, socketIds: new Set(), evictionTimer: null, dedupe: new Map(), poisoned: false };
     this.sessions.set(projectId, session);
     return session;
@@ -52,13 +56,23 @@ export class CollaborationSessionManager implements OnModuleDestroy {
     session.evictionTimer = setTimeout(() => {
       const current = this.sessions.get(projectId);
       if (current?.generation === generation && current.socketIds.size === 0 && this.coordinator.isIdle(projectId)) this.sessions.delete(projectId);
-    }, this.ttlMs);
+    }, this.limits.reconnectTtlMs);
   }
 
   get(projectId: string): ProjectSession | undefined { return this.sessions.get(projectId); }
   invalidate(projectId: string, sessionId: string): void {
     const session = this.sessions.get(projectId);
     if (!session || session.sessionId !== sessionId) return;
+    session.poisoned = true;
+    this.sessions.delete(projectId);
+  }
+  terminate(projectId: string): void {
+    const session = this.sessions.get(projectId);
+    if (!session) return;
+    if (session.evictionTimer) clearTimeout(session.evictionTimer);
+    session.evictionTimer = null;
+    session.socketIds.clear();
+    session.dedupe.clear();
     session.poisoned = true;
     this.sessions.delete(projectId);
   }

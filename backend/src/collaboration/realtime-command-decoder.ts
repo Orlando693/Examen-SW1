@@ -1,12 +1,13 @@
 import type { UmlCommand } from '@examen-sw1/uml-core';
+import { COLLABORATION_LIMITS } from './collaboration-limits.js';
 
 type RecordValue = Record<string, unknown>;
 export type RealtimeCommandEnvelope = { projectId: string; sessionId: string; commandId: string; baseRealtimeVersion: number; baseRevision: number; command: UmlCommand };
 export type RealtimeCommandDecodeResult = { ok: true; data: RealtimeCommandEnvelope } | { ok: false; code: 'INVALID_COMMAND' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export const MAX_REALTIME_COMMAND_STRING_LENGTH = 256;
-export const MAX_REALTIME_LAYOUT_UPDATES = 1_000;
+export const MAX_REALTIME_COMMAND_STRING_LENGTH = COLLABORATION_LIMITS.commandStringLength;
+export const MAX_REALTIME_LAYOUT_UPDATES = COLLABORATION_LIMITS.layoutUpdateCapacity;
 const VISIBILITIES = new Set(['public', 'private', 'protected', 'package']);
 const PRIMITIVES = new Set(['string', 'number', 'boolean', 'date', 'datetime', 'void']);
 const ASSOCIATIONS = new Set(['association', 'aggregation', 'composition']);

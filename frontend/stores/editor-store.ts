@@ -17,6 +17,7 @@ import { createAutoLayoutCommand } from '../lib/editor/layout/auto-layout';
 import { projectApi, type ProjectApiError } from '../lib/projects/project-api';
 import type { EditorSelection } from '../lib/editor/projection/project-document-to-flow';
 import type { RealtimeCommandGate } from '../lib/collaboration/realtime-command-gate';
+import type { CollaborationConnectionState } from '../lib/collaboration/contracts';
 
 export type EditorTool = 'select' | 'class' | 'enum' | 'association' | 'aggregation' | 'composition' | 'generalization';
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -57,6 +58,8 @@ interface EditorStore {
   operationalError: string | null;
   realtimeCommandGate: RealtimeCommandGate | null;
   realtimeCommandPending: boolean;
+  collaborationState: CollaborationConnectionState;
+  collaborationRequired: boolean;
   setSelection: (selection: EditorSelection) => void;
   setActiveTool: (tool: EditorTool) => void;
   toggleSidebar: () => void;
@@ -92,6 +95,7 @@ interface EditorStore {
   setRealtimeCommandGate: (gate: RealtimeCommandGate | null) => void;
   setRealtimeCommandPending: (pending: boolean) => void;
   setRealtimeCommandError: (message: string) => void;
+  setCollaborationLifecycle: (state: CollaborationConnectionState, required?: boolean) => void;
 }
 
 const initialDocument = createDemoProjectDocument();
@@ -122,13 +126,20 @@ function syncFromHistory(history: UmlHistory) {
   };
 }
 
-function executeAndSync(history: UmlHistory, command: UmlCommand, gate: RealtimeCommandGate | null) {
+function executeAndSync(history: UmlHistory, command: UmlCommand, gate: RealtimeCommandGate | null, collaborationRequired: boolean, collaborationState: CollaborationConnectionState) {
   if (gate) {
     const submission = gate.submitRealtimeCommand(command);
     const result: CommandResult = submission.accepted
       ? { ok: true, command, document: history.document, diagnostics: [] }
       : { ok: false, command, document: history.document, reason: 'INVALID_COMMAND', message: submission.message, diagnostics: [] };
     return { result, sync: result.ok ? { lastCommandError: null } : { lastCommandError: result.message } };
+  }
+  if (collaborationRequired) {
+    const message = collaborationState === 'auth-required'
+      ? 'Sign in again to continue editing this shared project.'
+      : 'Shared editing is unavailable until the authoritative connection is restored.';
+    const result: CommandResult = { ok: false, command, document: history.document, reason: 'INVALID_COMMAND', message, diagnostics: [] };
+    return { result, sync: { lastCommandError: message } };
   }
   const result = history.execute(command);
   return {
@@ -179,6 +190,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   operationalError: null,
   realtimeCommandGate: null,
   realtimeCommandPending: false,
+  collaborationState: 'disconnected',
+  collaborationRequired: false,
   setSelection: (selection) => set((state) => (sameSelection(state.selection, selection) ? state : { selection })),
   setActiveTool: (activeTool) => set((state) => (state.activeTool === activeTool && state.relationshipDraft === null ? state : { activeTool, relationshipDraft: null, lastCommandError: null })),
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
@@ -186,65 +199,66 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setRealtimeCommandGate: (realtimeCommandGate) => set((state) => state.realtimeCommandGate === realtimeCommandGate ? state : { realtimeCommandGate }),
   setRealtimeCommandPending: (realtimeCommandPending) => set((state) => state.realtimeCommandPending === realtimeCommandPending ? state : { realtimeCommandPending }),
   setRealtimeCommandError: (message) => set({ lastCommandError: message }),
+  setCollaborationLifecycle: (collaborationState, required = true) => set((state) => state.collaborationState === collaborationState && state.collaborationRequired === required ? state : { collaborationState, collaborationRequired: required }),
   createClass: () => {
     const id = createUuid();
-    const { result, sync } = executeAndSync(get().history, { type: 'CreateClass', classId: id, name: 'NewClass' }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'CreateClass', classId: id, name: 'NewClass' }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, selection: result.ok ? { type: 'class', id } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   renameClass: (classId, name) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RenameClass', classId, name }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'RenameClass', classId, name }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteClass: (classId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'DeleteClass', classId }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'DeleteClass', classId }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, selection: result.ok ? null : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   addAttribute: (classId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'AddAttribute', classId, attributeId: createUuid(), name: 'newAttribute', attributeType: stringType() }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'AddAttribute', classId, attributeId: createUuid(), name: 'newAttribute', attributeType: stringType() }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateAttribute: (classId, attributeId, name, attributeType) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateAttribute', classId, attributeId, name, attributeType }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateAttribute', classId, attributeId, name, attributeType }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   removeAttribute: (classId, attributeId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RemoveAttribute', classId, attributeId }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'RemoveAttribute', classId, attributeId }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   createEnumeration: () => {
     const id = createUuid();
-    const { result, sync } = executeAndSync(get().history, { type: 'CreateEnumeration', enumerationId: id, name: 'NewEnum' }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'CreateEnumeration', enumerationId: id, name: 'NewEnum' }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, selection: result.ok ? { type: 'enumeration', id } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   renameEnumeration: (enumerationId, name) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RenameEnumeration', enumerationId, name }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'RenameEnumeration', enumerationId, name }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteEnumeration: (enumerationId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'DeleteEnumeration', enumerationId }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'DeleteEnumeration', enumerationId }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, selection: result.ok ? null : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   addEnumerationLiteral: (enumerationId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'AddEnumerationLiteral', enumerationId, literalId: createUuid(), name: 'NEW_LITERAL' }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'AddEnumerationLiteral', enumerationId, literalId: createUuid(), name: 'NEW_LITERAL' }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateEnumerationLiteral: (enumerationId, literalId, name) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateEnumerationLiteral', enumerationId, literalId, name }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateEnumerationLiteral', enumerationId, literalId, name }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   removeEnumerationLiteral: (enumerationId, literalId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'RemoveEnumerationLiteral', enumerationId, literalId }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'RemoveEnumerationLiteral', enumerationId, literalId }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -260,7 +274,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return null;
     }
     const command = createRelationshipCommand(draft.kind, draft.sourceClassId, targetClassId);
-    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, relationshipDraft: null, activeTool: 'select', selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -270,27 +284,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return null;
     }
     const command = createRelationshipCommand(kind, sourceClassId, targetClassId, details);
-    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateMultiplicity: (relationshipId, endpoint, multiplicity) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateMultiplicity', relationshipId, endpoint, multiplicity }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateMultiplicity', relationshipId, endpoint, multiplicity }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateRelationship: (relationshipId, details) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateRelationship', relationshipId, ...details }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'UpdateRelationship', relationshipId, ...details }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   deleteRelationship: (relationshipId) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'DeleteRelationship', relationshipId }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'DeleteRelationship', relationshipId }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, selection: result.ok ? null : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   moveNode: (elementId, position) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'MoveNode', elementId, position }, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, { type: 'MoveNode', elementId, position }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
@@ -301,19 +315,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (get().currentDocument !== document || get().projectId !== projectId) {
       return { ok: false, command, document, reason: 'INVALID_COMMAND', message: 'Auto layout result belongs to a previous project session.', diagnostics: [] };
     }
-    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate);
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   undo: () => {
-    if (get().realtimeCommandGate) return;
+    if (get().collaborationRequired || get().realtimeCommandGate) return;
     const result = get().history.undo();
     if (result.ok) {
       set({ ...syncFromHistory(get().history), saveState: saveStateFor(get().history.document, get().savedPersistentSnapshot), lastCommandError: null });
     }
   },
   redo: () => {
-    if (get().realtimeCommandGate) return;
+    if (get().collaborationRequired || get().realtimeCommandGate) return;
     const result = get().history.redo();
     if (result.ok) {
       set({ ...syncFromHistory(get().history), saveState: saveStateFor(get().history.document, get().savedPersistentSnapshot), lastCommandError: null });
@@ -339,6 +353,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       savedPersistentSnapshot: persistibleSnapshot(resource.project),
       saveState: 'idle',
       operationalError: null,
+      collaborationState: 'disconnected',
+      collaborationRequired: false,
     });
   },
   installAuthoritativeDocument: (resource) => {
@@ -364,7 +380,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
   save: async () => {
     const state = get();
-    if (state.realtimeCommandGate || !state.projectId || state.storageVersion === null || state.saveState === 'saving') return;
+    if (state.collaborationRequired || state.realtimeCommandGate || !state.projectId || state.storageVersion === null || state.saveState === 'saving') return;
     const projectId = state.projectId;
     const document = state.currentDocument;
     const storageVersion = state.storageVersion;
@@ -412,5 +428,7 @@ export function resetEditorStoreForTests(document = createDemoProjectDocument())
     operationalError: null,
     realtimeCommandGate: null,
     realtimeCommandPending: false,
+    collaborationState: 'disconnected',
+    collaborationRequired: false,
   });
 }

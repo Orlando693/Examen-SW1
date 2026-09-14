@@ -8,7 +8,7 @@ function participant(userId: string, cursor: { x: number; y: number } | null, on
 describe('RemoteCursorsOverlay', () => {
   it('renders an online remote flow-space cursor once per user', () => {
     render(<RemoteCursorsOverlay currentUserId="owner" participants={[participant('editor', { x: 120, y: 80 }), { ...participant('editor', { x: 200, y: 160 }), initials: 'E2' }]} />);
-    const cursor = screen.getByTestId('remote-cursor-editor'); expect(cursor).toHaveStyle({ left: '200px', top: '160px' }); expect(screen.getAllByTestId('remote-cursor-editor')).toHaveLength(1);
+    const cursor = screen.getByTestId('remote-cursor-editor'); expect(cursor).toHaveStyle({ left: '200px', top: '160px', pointerEvents: 'none' }); expect(screen.getAllByTestId('remote-cursor-editor')).toHaveLength(1);
   });
 
   it('does not render current, offline, or cleared cursors', () => {

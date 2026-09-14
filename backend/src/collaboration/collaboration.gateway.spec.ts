@@ -4,6 +4,8 @@ import { CollaborationGateway } from './collaboration.gateway.js';
 import type { CollaborationService } from './collaboration.service.js';
 import type { CollaborationSnapshot } from './contracts.js';
 import { PRESENCE_BURST_CAPACITY, PresenceRateLimiter } from './presence-rate-limiter.js';
+import { CommandRateLimiter } from './command-rate-limiter.js';
+import { COLLABORATION_LIMITS } from './collaboration-limits.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -125,6 +127,20 @@ describe('CollaborationGateway lifecycle generation', () => {
     expect(leaves).toBe(1); expect(state.activeProjectId).toBeNull();
   });
 
+  it('terminally clears a deleted project room and disconnects its clients', async () => {
+    let terminated = 0; let removedBucket = '';
+    const limiter = { remove: (socketId: string) => { removedBucket = socketId; } } as unknown as PresenceRateLimiter;
+    const socket = { id: 'socket-a', connected: true, data: { collaboration: { lifecycleGeneration: 1, activeProjectId: 'project-a', activeSessionId: 'session-a', expirationTimer: null } }, emit: vi.fn(), disconnect: vi.fn() } as unknown as Socket;
+    const gateway = new CollaborationGateway({} as never, { terminate: () => { terminated += 1; } } as unknown as CollaborationService, limiter);
+    const left: string[] = [];
+    (gateway as unknown as { server: { in: (room: string) => { fetchSockets: () => Promise<Socket[]>; socketsLeave: (room: string) => void } } }).server = { in: () => ({ fetchSockets: async () => [socket], socketsLeave: (room: string) => left.push(room) }) };
+    await gateway.terminateProject('project-a');
+    expect(terminated).toBe(1); expect(removedBucket).toBe('socket-a'); expect(left).toEqual(['project:project-a']);
+    expect(socket.data.collaboration).toMatchObject({ lifecycleGeneration: 2, activeProjectId: null, activeSessionId: null });
+    expect(socket.emit).toHaveBeenCalledWith('project:revoked', expect.objectContaining({ error: expect.objectContaining({ code: 'PROJECT_NOT_FOUND' }) }));
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+  });
+
   it('rejects a NaN cursor x without replacing the last valid presence', async () => {
     const updates: Array<{ cursor: { x: number; y: number } | null }> = [];
     const service = { updatePresence: async (_projectId: string, _socketId: string, _user: unknown, input: { cursor: { x: number; y: number } | null }) => { updates.push({ cursor: input.cursor }); return []; } } as unknown as CollaborationService;
@@ -238,5 +254,16 @@ describe('CollaborationGateway lifecycle generation', () => {
     const socket = { id: 'socket-1', connected: false, data: {} } as unknown as Socket;
     gateway.handleDisconnect(socket);
     expect(limiter.allow('socket-1', 0)).toBe(true);
+  });
+
+  it('limits command attempts per socket and clears command rate state on disconnect', async () => {
+    const commandLimiter = new CommandRateLimiter();
+    const commands = { execute: async () => ({ ok: false, error: { code: 'INVALID_COMMAND', message: 'The request is invalid.' }, action: 'NONE' }) } as never;
+    const gateway = new CollaborationGateway({} as never, { leave: () => undefined } as never, new PresenceRateLimiter(), commands, commandLimiter);
+    const socket = { id: 'socket-a', connected: false, data: { collaboration: { user: { id: 'user-a', email: 'user@example.com' }, expiresAt: Date.now() + 60_000, activeProjectId: null, activeSessionId: null } } } as unknown as Socket;
+    for (let index = 0; index < COLLABORATION_LIMITS.commandBurstCapacity; index += 1) expect(await gateway.command(socket, {})).toMatchObject({ ok: false, error: { code: 'INVALID_COMMAND' } });
+    expect(await gateway.command(socket, {})).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } });
+    gateway.handleDisconnect(socket);
+    expect(commandLimiter.size).toBe(0);
   });
 });

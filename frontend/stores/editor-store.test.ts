@@ -257,6 +257,23 @@ describe('editor store', () => {
     expect(useEditorStore.getState().currentDocument.model.classes[0]?.name).toBe('Authoritative customer');
   });
 
+  it('never echoes an authoritative document installation through the realtime command gate', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const submitted: unknown[] = [];
+    const gate = new RealtimeCommandGate(
+      () => ({ projectId: 'project-a', sessionId: 'session-a', realtimeVersion: 0, revision: 0, storageVersion: 0, documentDigest: 'digest' }),
+      { submitRealtimeCommand: (envelope) => { submitted.push(envelope); return new Promise(() => undefined); } },
+    );
+    useEditorStore.getState().setRealtimeCommandGate(gate);
+    const resource = projectResource('project-a', 1);
+    resource.project.model.classes[0]!.name = 'Remote change';
+
+    act(() => useEditorStore.getState().installAuthoritativeDocument(resource));
+
+    expect(useEditorStore.getState().currentDocument.model.classes[0]?.name).toBe('Remote change');
+    expect(submitted).toEqual([]);
+  });
+
   it('rebases empty history for every authoritative installation and collaboration exit', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     act(() => useEditorStore.getState().renameClass('class-customer', 'Pre-collaboration'));
@@ -403,5 +420,28 @@ describe('editor store', () => {
 
     expect(useEditorStore.getState().currentDocument).toBe(document);
     expect(projectApiMock.saveDocument).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['CreateClass', () => useEditorStore.getState().createClass()],
+    ['RenameClass', () => useEditorStore.getState().renameClass('class-customer', 'Client')],
+    ['AddAttribute', () => useEditorStore.getState().addAttribute('class-customer')],
+    ['CreateEnumeration', () => useEditorStore.getState().createEnumeration()],
+    ['CreateAssociation', () => useEditorStore.getState().createRelationship('association', 'class-customer', 'class-order')],
+    ['UpdateRelationship', () => useEditorStore.getState().updateRelationship('rel-customer-orders', { name: 'orders' })],
+    ['MoveNode', () => useEditorStore.getState().moveNode('class-customer', { x: 400, y: 500 })],
+    ['ApplyLayout', () => useEditorStore.getState().applyAutoLayout()],
+  ])('blocks %s without an offline mutation queue while collaboration is disconnected', async (_command, invoke) => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const before = useEditorStore.getState();
+    act(() => useEditorStore.getState().setCollaborationLifecycle('disconnected'));
+
+    await act(async () => { await invoke(); });
+
+    expect(useEditorStore.getState().currentDocument).toBe(before.currentDocument);
+    expect(useEditorStore.getState().history).toBe(before.history);
+    expect(useEditorStore.getState().undoCount).toBe(0);
+    expect(useEditorStore.getState().redoCount).toBe(0);
+    expect(useEditorStore.getState().lastCommandError).toMatch(/authoritative connection/);
   });
 });

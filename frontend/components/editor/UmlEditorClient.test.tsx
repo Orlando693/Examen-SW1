@@ -532,6 +532,26 @@ describe('UmlEditorClient', () => {
     expect(useEditorStore.getState().redoCount).toBe(1);
   });
 
+  it('uses the central disconnected lifecycle to block mutations and replace Save with accessible status', async () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    render(<UmlEditorClient />);
+    const beforeDocument = useEditorStore.getState().currentDocument;
+    act(() => useEditorStore.getState().setCollaborationLifecycle('disconnected'));
+
+    expect(screen.getByRole('button', { name: 'Collaboration persistence: Disconnected' })).toBeDisabled();
+    expect(screen.getByTestId('collaboration-status')).toHaveTextContent('Disconnected. Shared mutations are blocked.');
+    expect(screen.getByText('Clase')).toBeDisabled();
+    expect(screen.getByText('Relation')).toBeDisabled();
+    expect(screen.getByText('Auto Layout')).toBeDisabled();
+    expect(screen.getByText('Undo')).toBeDisabled();
+    expect(screen.getByText('Redo')).toBeDisabled();
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    fireEvent.doubleClick(screen.getByTestId('flow-node-class-customer'));
+    await waitFor(() => expect(useEditorStore.getState().currentDocument).toBe(beforeDocument));
+    expect(projectApiMock.saveDocument).not.toHaveBeenCalled();
+  });
+
   it('uses compact drawers instead of fixed side columns on small viewports', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     const originalMatchMedia = window.matchMedia;
@@ -779,7 +799,7 @@ describe('UmlEditorClient', () => {
     expect(storeUpdates).toBe(0);
   });
 
-  it('keeps DiagramLayout unchanged when the canvas receives a real resize', async () => {
+  it('keeps the user viewport and DiagramLayout unchanged when the canvas receives a real resize', async () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     render(<UmlEditorClient />);
     await waitFor(() => expect(fitViewMock).toHaveBeenCalledTimes(1));
@@ -796,9 +816,10 @@ describe('UmlEditorClient', () => {
       });
       resizeObserverCallbacks.at(-1)?.([{ contentRect: { width: 760, height: 540 } as DOMRectReadOnly } as ResizeObserverEntry], {} as ResizeObserver);
     });
-    await waitFor(() => expect(fitViewMock).toHaveBeenCalledTimes(1));
+    await act(async () => { await new Promise((resolve) => window.requestAnimationFrame(resolve)); });
 
     expect(useEditorStore.getState().currentDocument.layout).toEqual(beforeLayout);
+    expect(fitViewMock).not.toHaveBeenCalled();
   });
 
   it('keeps the domain snapshot unchanged when React Flow reports dimensions and selection', async () => {

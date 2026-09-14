@@ -36,6 +36,15 @@ describe('PresenceRegistry', () => {
     expect(rosterA).toMatchObject([{ userId: 'user-a', online: true }]); expect(rosterB).toMatchObject([{ userId: 'user-b', online: true }]);
   });
 
+  it('removes every socket presence for a terminal project deletion', () => {
+    const registry = new PresenceRegistry();
+    const presence: PresenceInput = { cursor: null, selectionIds: [], editingElementId: null, activity: null };
+    registry.update('project-a', 'socket-a', 'user-a', presence);
+    registry.update('project-a', 'socket-b', 'user-b', presence);
+    registry.clear('project-a');
+    expect(registry.roster('project-a', [{ userId: 'user-a', email: 'a@example.com', accessLevel: 'OWNER' }])).toMatchObject([{ online: false }]);
+  });
+
   it('projects the most recently active socket cursor with a server timestamp', () => {
     vi.useFakeTimers(); const registry = new PresenceRegistry();
     const participants = [{ userId: 'user-1', email: 'user@example.com', accessLevel: 'OWNER' as const }];

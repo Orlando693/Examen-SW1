@@ -23,6 +23,10 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
   const removeEnumerationLiteral = useEditorStore((state) => state.removeEnumerationLiteral);
   const updateRelationship = useEditorStore((state) => state.updateRelationship);
   const deleteRelationship = useEditorStore((state) => state.deleteRelationship);
+  const collaborationRequired = useEditorStore((state) => state.collaborationRequired);
+  const collaborationState = useEditorStore((state) => state.collaborationState);
+  const realtimeCommandPending = useEditorStore((state) => state.realtimeCommandPending);
+  const mutationsBlocked = collaborationRequired && (collaborationState !== 'connected' || realtimeCommandPending);
   const [draftName, setDraftName] = useState('');
 
   const selectedClass = selection?.type === 'class' ? document.model.classes.find((umlClass) => umlClass.id === selection.id) : undefined;
@@ -46,17 +50,17 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
           <SectionTitle>General</SectionTitle>
           <TextField label="Nombre" size="small" fullWidth defaultValue={selectedClass.name} onChange={(event) => setDraftName(event.target.value)} />
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Button variant="contained" onClick={() => renameClass(selectedClass.id, draftName || selectedClass.name)}>Renombrar</Button>
-            <Button color="error" onClick={() => deleteClass(selectedClass.id)}>Eliminar</Button>
+            <Button variant="contained" onClick={() => renameClass(selectedClass.id, draftName || selectedClass.name)} disabled={mutationsBlocked}>Renombrar</Button>
+            <Button color="error" onClick={() => deleteClass(selectedClass.id)} disabled={mutationsBlocked}>Eliminar</Button>
           </Stack>
           <Divider sx={{ borderColor: 'rgba(15,76,129,0.12)' }} />
           <SectionTitle>Attributes</SectionTitle>
-          <Button variant="outlined" onClick={() => addAttribute(selectedClass.id)} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>Agregar atributo</Button>
+           <Button variant="outlined" onClick={() => addAttribute(selectedClass.id)} disabled={mutationsBlocked} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>Agregar atributo</Button>
           {selectedClass.attributes.map((attribute) => (
             <Paper key={attribute.id} variant="outlined" sx={{ p: 1.25, borderColor: 'rgba(15,76,129,0.14)', bgcolor: '#fbfdff' }}>
               <Stack spacing={1}>
                 <Typography variant="caption" color="text.secondary">Atributo</Typography>
-                <TextField label="Nombre atributo" slotProps={{ htmlInput: { 'aria-label': `attribute-${attribute.id}` } }} fullWidth size="small" defaultValue={attribute.name} onBlur={(event) => updateAttribute(selectedClass.id, attribute.id, event.target.value)} />
+                <TextField label="Nombre atributo" slotProps={{ htmlInput: { 'aria-label': `attribute-${attribute.id}` } }} fullWidth size="small" disabled={mutationsBlocked} defaultValue={attribute.name} onBlur={(event) => updateAttribute(selectedClass.id, attribute.id, event.target.value)} />
                 <TextField
                   select
                   SelectProps={{ native: true }}
@@ -64,6 +68,7 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
                   label="Tipo"
                   fullWidth
                   size="small"
+                  disabled={mutationsBlocked}
                   value={typeToSelectValue(attribute.type)}
                   onChange={(event) => updateAttribute(selectedClass.id, attribute.id, undefined, selectValueToType(event.target.value))}
                 >
@@ -72,7 +77,7 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
                   {document.model.enumerations.map((enumeration) => <option key={`enumeration:${enumeration.id}`} value={`enumeration:${enumeration.id}`}>{enumeration.name}</option>)}
                 </TextField>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button color="error" onClick={() => removeAttribute(selectedClass.id, attribute.id)}>Eliminar atributo</Button>
+                  <Button color="error" onClick={() => removeAttribute(selectedClass.id, attribute.id)} disabled={mutationsBlocked}>Eliminar atributo</Button>
                 </Box>
               </Stack>
             </Paper>
@@ -87,16 +92,16 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
           <SectionTitle>General</SectionTitle>
           <TextField label="Nombre" size="small" fullWidth defaultValue={selectedEnum.name} onChange={(event) => setDraftName(event.target.value)} />
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Button variant="contained" onClick={() => renameEnumeration(selectedEnum.id, draftName || selectedEnum.name)}>Renombrar</Button>
-            <Button color="error" onClick={() => deleteEnumeration(selectedEnum.id)}>Eliminar</Button>
+            <Button variant="contained" onClick={() => renameEnumeration(selectedEnum.id, draftName || selectedEnum.name)} disabled={mutationsBlocked}>Renombrar</Button>
+            <Button color="error" onClick={() => deleteEnumeration(selectedEnum.id)} disabled={mutationsBlocked}>Eliminar</Button>
           </Stack>
           <Divider sx={{ borderColor: 'rgba(15,76,129,0.12)' }} />
           <SectionTitle>Literals</SectionTitle>
-          <Button variant="outlined" onClick={() => addEnumerationLiteral(selectedEnum.id)} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>Agregar literal</Button>
+           <Button variant="outlined" onClick={() => addEnumerationLiteral(selectedEnum.id)} disabled={mutationsBlocked} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>Agregar literal</Button>
           {selectedEnum.literals.map((literal) => (
             <Stack key={literal.id} direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-              <TextField slotProps={{ htmlInput: { 'aria-label': `literal-${literal.id}` } }} size="small" fullWidth defaultValue={literal.name} onBlur={(event) => updateEnumerationLiteral(selectedEnum.id, literal.id, event.target.value)} />
-              <Button color="error" onClick={() => removeEnumerationLiteral(selectedEnum.id, literal.id)}>Quitar</Button>
+              <TextField slotProps={{ htmlInput: { 'aria-label': `literal-${literal.id}` } }} size="small" fullWidth disabled={mutationsBlocked} defaultValue={literal.name} onBlur={(event) => updateEnumerationLiteral(selectedEnum.id, literal.id, event.target.value)} />
+              <Button color="error" onClick={() => removeEnumerationLiteral(selectedEnum.id, literal.id)} disabled={mutationsBlocked}>Quitar</Button>
             </Stack>
           ))}
           <DiagnosticSummary diagnostics={selectedDiagnostics} />
@@ -114,11 +119,11 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
             <>
               <Divider sx={{ borderColor: 'rgba(15,76,129,0.12)' }} />
               <SectionTitle>Multiplicity</SectionTitle>
-              <RelationshipEditor relationship={selectedRelationship} updateRelationship={updateRelationship} />
+               <RelationshipEditor relationship={selectedRelationship} updateRelationship={updateRelationship} disabled={mutationsBlocked} />
             </>
           )}
-          {selectedRelationship.kind === 'generalization' && <RelationshipEditor relationship={selectedRelationship} updateRelationship={updateRelationship} />}
-          <Button color="error" onClick={() => deleteRelationship(selectedRelationship.id)}>Eliminar relacion</Button>
+           {selectedRelationship.kind === 'generalization' && <RelationshipEditor relationship={selectedRelationship} updateRelationship={updateRelationship} disabled={mutationsBlocked} />}
+           <Button color="error" onClick={() => deleteRelationship(selectedRelationship.id)} disabled={mutationsBlocked}>Eliminar relacion</Button>
           <DiagnosticSummary diagnostics={selectedDiagnostics} />
         </Stack>
       )}
@@ -126,7 +131,7 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
   );
 }
 
-function RelationshipEditor({ relationship, updateRelationship }: { relationship: { id: string; kind: string; name?: string; source: { multiplicity?: Multiplicity }; target: { multiplicity?: Multiplicity } }; updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null }) => unknown }) {
+function RelationshipEditor({ relationship, updateRelationship, disabled }: { relationship: { id: string; kind: string; name?: string; source: { multiplicity?: Multiplicity }; target: { multiplicity?: Multiplicity } }; updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null }) => unknown; disabled: boolean }) {
   const [name, setName] = useState(relationship.name ?? '');
   const [sourceMultiplicity, setSourceMultiplicity] = useState(multiplicityPreset(relationship.source.multiplicity));
   const [targetMultiplicity, setTargetMultiplicity] = useState(multiplicityPreset(relationship.target.multiplicity));
@@ -138,12 +143,12 @@ function RelationshipEditor({ relationship, updateRelationship }: { relationship
   }, [relationship.id, relationship.name, relationship.source.multiplicity, relationship.target.multiplicity]);
 
   return <Stack spacing={1}>
-    <TextField label="Nombre de relación" size="small" fullWidth value={name} onChange={(event) => setName(event.target.value)} helperText="Deje vacío para quitarlo." />
+    <TextField label="Nombre de relación" size="small" fullWidth disabled={disabled} value={name} onChange={(event) => setName(event.target.value)} helperText="Deje vacío para quitarlo." />
     {relationship.kind !== 'generalization' && <>
-      <MultiplicitySelect label="Multiplicidad origen" value={sourceMultiplicity} onChange={setSourceMultiplicity} />
-      <MultiplicitySelect label="Multiplicidad destino" value={targetMultiplicity} onChange={setTargetMultiplicity} />
+      <MultiplicitySelect label="Multiplicidad origen" value={sourceMultiplicity} onChange={setSourceMultiplicity} disabled={disabled} />
+      <MultiplicitySelect label="Multiplicidad destino" value={targetMultiplicity} onChange={setTargetMultiplicity} disabled={disabled} />
     </>}
-    <Button variant="outlined" onClick={() => updateRelationship(relationship.id, {
+    <Button variant="outlined" disabled={disabled} onClick={() => updateRelationship(relationship.id, {
       name: name.trim() === '' ? null : name.trim(),
       ...(relationship.kind === 'generalization' ? {} : {
         sourceMultiplicity: parseMultiplicityPreset(sourceMultiplicity),
@@ -153,8 +158,8 @@ function RelationshipEditor({ relationship, updateRelationship }: { relationship
   </Stack>;
 }
 
-function MultiplicitySelect({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <TextField select SelectProps={{ native: true }} label={label} size="small" fullWidth value={value} onChange={(event) => onChange(event.target.value)}>
+function MultiplicitySelect({ label, value, onChange, disabled }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  return <TextField select SelectProps={{ native: true }} label={label} size="small" fullWidth disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
     <option value="">Sin multiplicidad</option>
     <option value="0..1">0..1</option>
     <option value="1">1</option>

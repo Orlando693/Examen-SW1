@@ -4,15 +4,14 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module.js';
 import { configureApplication, validateEnvironment } from './app.config.js';
+import { COLLABORATION_LIMITS } from './collaboration/collaboration-limits.js';
 
 const DEFAULT_BACKEND_PORT = 3001;
-const PROJECT_PAYLOAD_LIMIT_BYTES = 1_048_576;
-
 async function bootstrap() {
   validateEnvironment();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ bodyLimit: PROJECT_PAYLOAD_LIMIT_BYTES }),
+    new FastifyAdapter({ bodyLimit: COLLABORATION_LIMITS.payloadBytes }),
   );
 
   configureApplication(app);
