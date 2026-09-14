@@ -181,8 +181,8 @@ if (!testDatabaseUrl) {
       const membership = await prisma.projectMembership.create({ data: { projectId: created.project.id, userId: editor.id } });
       expect(membership.createdAt).toBeInstanceOf(Date);
       await expect(prisma.projectMembership.create({ data: { projectId: created.project.id, userId: editor.id } })).rejects.toMatchObject({ code: 'P2002' });
-      await expect(prisma.user.delete({ where: { id: editor.id } })).rejects.toThrow(/RESTRICT/);
-      await expect(prisma.user.delete({ where: { id: owner.id } })).rejects.toThrow(/RESTRICT/);
+      await expect(prisma.user.delete({ where: { id: editor.id } })).rejects.toMatchObject({ code: 'P2003' });
+      await expect(prisma.user.delete({ where: { id: owner.id } })).rejects.toMatchObject({ code: 'P2003' });
       await prisma.project.delete({ where: { id: created.project.id } });
       projectIds.delete(created.project.id);
       expect(await prisma.projectMembership.count({ where: { projectId: created.project.id } })).toBe(0);

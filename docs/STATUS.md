@@ -31,7 +31,7 @@ CU-06 — UML -> modelo relacional y backend Spring generado. No iniciado; no ex
 
 ## OpenSpec activo
 
-Ninguno. El cambio CU-05 fue archivado como `2026-09-13-cu-05-realtime-collaboration-presence`.
+Fix correctivo `fix-clean-clone-validation`; no reabre CU-05 ni inicia CU-06.
 
 ## Problemas abiertos
 
@@ -42,6 +42,8 @@ Ninguno. El cambio CU-05 fue archivado como `2026-09-13-cu-05-realtime-collabora
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 
 ## Verificación actual
+
+- Fix clean-clone reproducibility: `npm run typecheck` genera primero las declaraciones de `@examen-sw1/uml-core` y PASS aun eliminando previamente solo `packages/uml-core/dist`. Las dos eliminaciones de usuarios referenciados en `projects-api.integration.spec.ts` verifican Prisma `P2003`, no el texto del proveedor. Los escenarios completos de `UmlEditorClient` usan timeout local de 15 s por renders MUI/jsdom comprobados de hasta ~8.5 s; el timeout global frontend sigue en 5 s. Dos corridas focales fueron 39/39 y la verificacion raiz fue 367/367 (frontend 172, backend 159, UML core 36), typecheck/lint/build y Prisma generate/validate/migraciones DEV/TEST PASS. Schema y migraciones sin cambios.
 
 - CU-05 Incremento 3 Block C manual UX PASS: estado inicial sincronizado; Saving -> Saved despues de mutacion; propagacion remota sin Save/F5; Save manual bloqueado/status-only; Undo/Redo y Ctrl+Z/Ctrl+Y/Ctrl+Shift+Z bloqueados; Offline -> Disconnected con mutaciones durables bloqueadas y pan/zoom/seleccion disponibles; reconnect restauro autoridad y permitio mutar de nuevo. Consolas OWNER y EDITOR sin errores. Blockers: 0.
 - CU-05 aceptacion manual Chrome final: OWNER/EDITOR aislados; join/roster, cursor, seleccion de nodo y relacion, edicion/actividad, create/rename/attribute/move/ApplyLayout, Save status, Undo/keyboard, viewport, offline/reconnect/post-reconnect, expiracion real de 60 minutos y protected mutations PASS. La confirmacion final cubre creacion de relacion/multiplicidad, arbitraje de dos pestanas, reapertura, ocultamiento UNRELATED y switch denial sin perder la sesion valida. Consola sin errores, convergencia PASS y blockers 0; Tasks 4.5/4.6 completas.
@@ -131,4 +133,4 @@ Ninguno. El cambio CU-05 fue archivado como `2026-09-13-cu-05-realtime-collabora
 
 ## Próxima acción
 
-Preparar y solicitar aprobacion del plan de CU-06. No iniciar implementacion ni crear cambio OpenSpec hasta recibir esa aprobacion.
+Archivar el fix `fix-clean-clone-validation` tras su verificacion final. CU-06 permanece no iniciado; despues preparar y solicitar aprobacion de su plan.

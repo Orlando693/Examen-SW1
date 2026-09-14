@@ -66,7 +66,7 @@ vi.mock('../../lib/editor/layout/auto-layout', () => ({
   })),
 }));
 
-describe('UmlEditorClient', () => {
+describe('UmlEditorClient', { timeout: 15_000 }, () => {
   const originalResizeObserver = globalThis.ResizeObserver;
   let resizeObserverCallbacks: ResizeObserverCallback[];
   const relationshipTools = [
