@@ -6,14 +6,14 @@ Ninguno. CU-06 - UML -> modelo relacional y backend Spring generado. No iniciado
 
 ## OpenSpec activo
 
-Fix `fix-clean-clone-validation` activo. CU-05 sigue archivado como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`.
+Ninguno. El fix fue archivado como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation`; CU-05 sigue archivado como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`.
 
 ## Trabajo terminado
 
 - CU-05 esta COMPLETADO, VERIFIED y MANUALLY ACCEPTED. Sus 58 tareas estan completas; la aceptacion Chrome cubrio relacion/multiplicidad, dos pestanas, reapertura, ocultamiento UNRELATED y switch denial, ademas de los criterios ya registrados.
 - La verificacion fresca CU-05 paso: 367 pruebas (frontend 172, backend 159, UML core 36), typecheck, lint, builds, Prisma generate/validate/migration test, OpenSpec strict y `git diff --check`.
 - El commit de implementacion es `941ca31` (`feat: complete CU-05 realtime collaboration and presence`).
-- Fix clean-clone completo pendiente de commit/archive: typecheck raiz genera las declaraciones UML core desde `dist` ausente; FK Prisma se verifica por `P2003`; `UmlEditorClient` tiene timeout local de 15 s para renders MUI/jsdom pesados. Validacion raiz 367/367, typecheck/lint/build y Prisma generate/validate/migraciones DEV/TEST PASS; schema/migrations sin cambios.
+- Fix clean-clone COMPLETADO y archivado: typecheck raiz genera las declaraciones UML core desde `dist` ausente; FK Prisma se verifica por `P2003`; `UmlEditorClient` tiene timeout local de 15 s para renders MUI/jsdom pesados. Validacion raiz 367/367, typecheck/lint/build y Prisma generate/validate/migraciones DEV/TEST PASS; schema/migrations sin cambios. Commit de implementacion `81ec1ff`.
 
 ## Limitaciones vigentes
 
@@ -22,4 +22,4 @@ Fix `fix-clean-clone-validation` activo. CU-05 sigue archivado como `openspec/ch
 
 ## Siguiente accion exacta
 
-Verificar y archivar `fix-clean-clone-validation`, commitear y push. Despues preparar el plan de CU-06 y solicitar aprobacion; no iniciar CU-06 antes de esa aprobacion.
+Preparar el plan de CU-06 y solicitar aprobacion; no iniciar CU-06 ni crear su OpenSpec antes de esa aprobacion.

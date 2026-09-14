@@ -31,7 +31,7 @@ CU-06 — UML -> modelo relacional y backend Spring generado. No iniciado; no ex
 
 ## OpenSpec activo
 
-Fix correctivo `fix-clean-clone-validation`; no reabre CU-05 ni inicia CU-06.
+Ninguno. El fix correctivo fue archivado como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation`; no reabre CU-05 ni inicia CU-06.
 
 ## Problemas abiertos
 
@@ -133,4 +133,4 @@ Fix correctivo `fix-clean-clone-validation`; no reabre CU-05 ni inicia CU-06.
 
 ## Próxima acción
 
-Archivar el fix `fix-clean-clone-validation` tras su verificacion final. CU-06 permanece no iniciado; despues preparar y solicitar aprobacion de su plan.
+Preparar y solicitar aprobacion del plan de CU-06. No iniciar implementacion ni crear cambio OpenSpec de CU-06 antes de esa aprobacion.
