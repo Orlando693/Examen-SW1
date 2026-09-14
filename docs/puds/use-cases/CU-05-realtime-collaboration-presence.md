@@ -56,4 +56,4 @@ Browser acceptance preparation for Increment 3 is documented in `docs/puds/use-c
 
 ## Result
 
-CU-05 is implementation-complete, manually accepted, and ready for final verification, archive, commit, and push.
+CU-05 is complete, verified, manually accepted, and archived as `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`. The implementation closure commit is `941ca31` (`feat: complete CU-05 realtime collaboration and presence`); the archive documentation commit follows this update.

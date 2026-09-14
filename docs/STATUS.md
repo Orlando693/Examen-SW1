@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-04 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. CU-05 esta implementation-complete, manualmente aceptado y verificado; sus 58 tareas estan completas y el cambio esta listo para archive.
+CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los tres CUs del Ciclo 2 estan cerrados; CU-06 no se ha iniciado.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-04 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. CU-05 esta implem
 
 ## Ciclo actual
 
-Ciclo 2 — Elaboracion, usuarios y colaboracion.
+Ciclo 3 — Construccion y generacion de aplicaciones. Pendiente de iniciar.
 
 ## Caso de uso activo
 
-CU-05 — Colaboracion realtime y presencia. Los tres incrementos y las 58 tareas OpenSpec estan completas. La aceptacion Chrome final cubre los criterios de 4.5/4.6; verificaciones automatizadas, Prisma, seguridad y OpenSpec strict estan verdes. Pendiente solo archive, documentacion de cierre, commit y push autorizados.
+CU-06 — UML -> modelo relacional y backend Spring generado. No iniciado; no existe un cambio OpenSpec activo para este CU.
 
 ## Casos de uso completados
 
@@ -27,10 +27,11 @@ CU-05 — Colaboracion realtime y presencia. Los tres incrementos y las 58 tarea
 - CU-02 — Workspace/editor UML manual. COMPLETADO, verificado, aceptado, archivado, commiteado y pusheado. OpenSpec archivado como `openspec/changes/archive/2026-09-07-cu-02-manual-uml-workspace`. Commit `67e5dee` pusheado.
 - CU-03 — Persistencia y gestion de proyectos. COMPLETADO y archivado.
 - CU-04 — Autenticacion, ownership e invitaciones. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-12-cu-04-auth-ownership-invitations`.
+- CU-05 — Colaboracion realtime y presencia. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`. Implementacion cerrada en commit `941ca31`.
 
 ## OpenSpec activo
 
-`cu-05-realtime-collaboration-presence` en `openspec/changes/cu-05-realtime-collaboration-presence`.
+Ninguno. El cambio CU-05 fue archivado como `2026-09-13-cu-05-realtime-collaboration-presence`.
 
 ## Problemas abiertos
 
@@ -130,4 +131,4 @@ CU-05 — Colaboracion realtime y presencia. Los tres incrementos y las 58 tarea
 
 ## Próxima acción
 
-Archivar `cu-05-realtime-collaboration-presence`, actualizar cierre y handoff para CU-06 sin iniciar su implementacion, commitear y push.
+Preparar y solicitar aprobacion del plan de CU-06. No iniciar implementacion ni crear cambio OpenSpec hasta recibir esa aprobacion.
