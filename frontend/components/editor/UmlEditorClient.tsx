@@ -115,12 +115,13 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
     const unsubscribeResourceUpdated = client.subscribe('project:resource-updated', (value) => { if (disposed || !isProjectResourceUpdated(value)) return; void bridge.receiveResourceUpdated(value).then(async (result) => { if (disposed || result !== 'RECOVERING') return; setCollaborationLifecycle('resyncing'); if (!disposed && await bridge.recover() && !disposed) setCollaborationLifecycle('connected'); }); });
     const unsubscribePresence = client.subscribe('project:presence', (value) => { if (isPresenceRoster(value)) { const projectId = bridge.session?.projectId ?? selectedProjectId; if (bridge.receivePresence(projectId, value) === 'APPLIED') { const nextParticipants = roster.update(projectId, value); if (nextParticipants) setParticipants(nextParticipants); } } });
     const unsubscribeDisconnect = client.subscribe('disconnect', () => { if (disposed) return; exitCollaboration(); setCollaborationLifecycle('disconnected'); });
+    const unsubscribeConnectError = client.subscribe('connect_error', () => { if (disposed) return; exitCollaboration(); setCollaborationLifecycle('error'); });
     const unsubscribeExpiry = client.subscribe('auth:expired', () => { if (disposed) return; exitCollaboration(); setCollaborationLifecycle('auth-required'); });
     const onVisibilityChange = () => { if (document.visibilityState === 'hidden') localCursor.current?.clear(); };
     document.addEventListener('visibilitychange', onVisibilityChange);
     setCollaborationLifecycle('connecting');
     client.connect(session.accessToken);
-    return () => { disposed = true; document.removeEventListener('visibilitychange', onVisibilityChange); exitCollaboration(); unsubscribeConnect(); unsubscribePresence(); unsubscribeApplied(); unsubscribeResourceUpdated(); unsubscribeDisconnect(); unsubscribeExpiry(); client.disconnect(); if (collaboration.current === client) collaboration.current = null; };
+    return () => { disposed = true; document.removeEventListener('visibilitychange', onVisibilityChange); exitCollaboration(); unsubscribeConnect(); unsubscribePresence(); unsubscribeApplied(); unsubscribeResourceUpdated(); unsubscribeDisconnect(); unsubscribeConnectError(); unsubscribeExpiry(); client.disconnect(); if (collaboration.current === client) collaboration.current = null; };
   }, [selectedProjectId, sessionProjectId, replaceProjectSession, rebaseHistoryToCurrentDocument, setCollaborationLifecycle, setRealtimeCommandError, setRealtimeCommandGate, setRealtimeCommandPending]);
 
   if (!selectedProjectId && !allowDemoForTests) {

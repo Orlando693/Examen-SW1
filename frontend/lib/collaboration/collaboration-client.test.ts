@@ -1,26 +1,43 @@
 import { describe, expect, it } from 'vitest';
-import { CollaborationClient } from './collaboration-client';
+import { COLLABORATION_NAMESPACE, CollaborationClient } from './collaboration-client';
 
-type Listener = (...args: never[]) => void;
+type Listener = (...args: unknown[]) => void;
 
 class MockSocket {
   readonly listeners = new Map<string, Set<Listener>>();
   readonly emitted: { event: string; args: unknown[] }[] = [];
   disconnects = 0;
+  connects = 0;
   connected = true;
   on(event: string, listener: Listener): this { const listeners = this.listeners.get(event) ?? new Set<Listener>(); listeners.add(listener); this.listeners.set(event, listeners); return this; }
   off(event: string, listener: Listener): this { this.listeners.get(event)?.delete(listener); return this; }
   emit(event: string, ...args: unknown[]): this { this.emitted.push({ event, args }); return this; }
+  connect(): this { this.connects += 1; return this; }
   disconnect(): this { this.disconnects += 1; return this; }
   acknowledge<T>(event: string, ack: T): void { const emitted = this.emitted.find((entry) => entry.event === event); (emitted?.args.at(-1) as ((value: T) => void) | undefined)?.(ack); }
 }
 
-function setup() { const sockets: MockSocket[] = []; const calls: { url: string; options: unknown }[] = []; const client = new CollaborationClient((url, options) => { calls.push({ url, options }); const socket = new MockSocket(); sockets.push(socket); return socket; }, 'http://realtime.test'); return { client, sockets, calls }; }
+function socketFactoryFixture() { const sockets: MockSocket[] = []; const calls: { url: string; options: unknown }[] = []; const socketFactory = (url: string, options: unknown) => { calls.push({ url, options }); const socket = new MockSocket(); sockets.push(socket); return socket; }; return { socketFactory, sockets, calls }; }
+function setup() { const { socketFactory, sockets, calls } = socketFactoryFixture(); const client = new CollaborationClient(socketFactory, 'http://realtime.test'); return { client, sockets, calls }; }
 
 describe('CollaborationClient', () => {
   it('uses namespace auth transport without a token query parameter', () => {
     const { client, sockets, calls } = setup(); client.connect('access-token');
-    expect(sockets).toHaveLength(1); expect(calls).toEqual([{ url: 'http://realtime.test/collaboration', options: { auth: { token: 'access-token' }, transports: ['websocket'] } }]); expect(calls[0]?.url).not.toContain('?');
+    expect(sockets).toHaveLength(1); expect(calls).toEqual([{ url: 'http://realtime.test/collaboration', options: { auth: { token: 'access-token' }, transports: ['websocket'], autoConnect: false } }]); expect(sockets[0]!.connects).toBe(1); expect(calls[0]?.url).not.toContain('?');
+  });
+
+  it('maps the base environment URL to exactly one collaboration namespace', () => {
+    const originalUrl = process.env.NEXT_PUBLIC_REALTIME_URL;
+    process.env.NEXT_PUBLIC_REALTIME_URL = 'http://localhost:3001';
+    try {
+      const { socketFactory, calls } = socketFactoryFixture();
+      new CollaborationClient(socketFactory).connect('access-token');
+      expect(COLLABORATION_NAMESPACE).toBe('/collaboration');
+      expect(calls[0]?.url).toBe('http://localhost:3001/collaboration');
+      expect(calls[0]?.url).not.toContain('/collaboration/collaboration');
+    } finally {
+      if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_REALTIME_URL; else process.env.NEXT_PUBLIC_REALTIME_URL = originalUrl;
+    }
   });
 
   it('joins, leaves, and tracks the active project using gateway events', async () => {
@@ -57,5 +74,14 @@ describe('CollaborationClient', () => {
     expect(sockets[0]!.disconnects).toBe(1); expect(sockets[0]!.listeners.get('auth:expired')?.size).toBe(0); expect(sockets[1]!.listeners.get('auth:expired')?.size).toBe(1);
     for (const listener of sockets[1]!.listeners.get('auth:expired') ?? []) listener(); expect(calls).toBe(1);
     client.disconnect(); client.disconnect(); expect(sockets[1]!.disconnects).toBe(1); expect(client.activeProjectId).toBeNull(); expect(sockets[1]!.listeners.get('auth:expired')?.size).toBe(0);
+  });
+
+  it('forwards connect errors only while the socket is active', () => {
+    const { client, sockets } = setup(); const errors: unknown[] = [];
+    client.subscribe('connect_error', (error) => errors.push(error)); client.connect('token');
+    for (const listener of sockets[0]!.listeners.get('connect_error') ?? []) listener({ message: 'transport failed' });
+    expect(errors).toEqual([{ message: 'transport failed' }]);
+    client.disconnect();
+    expect(sockets[0]!.listeners.get('connect_error')?.size).toBe(0);
   });
 });

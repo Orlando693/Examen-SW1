@@ -2,17 +2,19 @@ import { io } from 'socket.io-client';
 import type { CollaborationAck, CollaborationSnapshot, PresenceInput, ProjectCommandAck, RealtimeCommandEnvelope } from './contracts';
 
 const DEFAULT_REALTIME_URL = 'http://localhost:3001';
+export const COLLABORATION_NAMESPACE = '/collaboration';
 
 interface CollaborationSocket {
   on(event: string, listener: (...args: unknown[]) => void): CollaborationSocket;
   off(event: string, listener: (...args: unknown[]) => void): CollaborationSocket;
   emit(event: string, ...args: unknown[]): CollaborationSocket;
+  connect(): CollaborationSocket;
   disconnect(): CollaborationSocket;
   connected: boolean;
 }
 
-type SocketFactory = (url: string, options: { auth: { token: string }; transports: string[] }) => CollaborationSocket;
-type CollaborationEvent = 'connect' | 'disconnect' | 'auth:expired' | 'project:presence' | 'project:revoked' | 'project:command-applied' | 'project:resource-updated';
+type SocketFactory = (url: string, options: { auth: { token: string }; transports: string[]; autoConnect: false }) => CollaborationSocket;
+type CollaborationEvent = 'connect' | 'connect_error' | 'disconnect' | 'auth:expired' | 'project:presence' | 'project:revoked' | 'project:command-applied' | 'project:resource-updated';
 type EventListener = (...args: unknown[]) => void;
 
 const createSocket: SocketFactory = (url, options) => io(url, options) as unknown as CollaborationSocket;
@@ -23,14 +25,14 @@ export class CollaborationClient {
   private readonly listeners = new Map<CollaborationEvent, Set<EventListener>>();
   private readonly lifecycleListeners = new Map<CollaborationEvent, EventListener>();
 
-  constructor(private readonly socketFactory: SocketFactory = createSocket, private readonly realtimeUrl = process.env.NEXT_PUBLIC_REALTIME_URL ?? DEFAULT_REALTIME_URL) {}
+  constructor(private readonly socketFactory: SocketFactory = createSocket, private readonly realtimeBaseUrl = process.env.NEXT_PUBLIC_REALTIME_URL ?? DEFAULT_REALTIME_URL) {}
 
   get activeProjectId(): string | null { return this.projectId; }
 
   connect(accessToken: string): void {
     this.disconnect();
-    const socket = this.socket = this.socketFactory(`${this.realtimeUrl}/collaboration`, { auth: { token: accessToken }, transports: ['websocket'] });
-    for (const event of ['connect', 'disconnect', 'auth:expired'] as const) {
+    const socket = this.socket = this.socketFactory(`${this.realtimeBaseUrl.replace(/\/$/, '')}${COLLABORATION_NAMESPACE}`, { auth: { token: accessToken }, transports: ['websocket'], autoConnect: false });
+    for (const event of ['connect', 'connect_error', 'disconnect', 'auth:expired'] as const) {
       const listener: EventListener = (...args) => { if (event === 'disconnect') this.projectId = null; this.notify(event, ...args); };
       this.lifecycleListeners.set(event, listener); socket.on(event, listener);
     }
@@ -38,6 +40,7 @@ export class CollaborationClient {
       if (this.lifecycleListeners.has(event)) continue;
       for (const listener of listeners) socket.on(event, listener);
     }
+    socket.connect();
   }
 
   async joinProject(projectId: string): Promise<CollaborationAck<CollaborationSnapshot>> {

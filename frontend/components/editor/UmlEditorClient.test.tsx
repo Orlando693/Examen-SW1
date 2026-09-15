@@ -9,12 +9,36 @@ import { projectDocumentToFlow } from '../../lib/editor/projection/project-docum
 import { UmlClassNode } from './nodes/UmlClassNode';
 import { UmlEnumNode } from './nodes/UmlEnumNode';
 import { RealtimeCommandGate } from '../../lib/collaboration/realtime-command-gate';
+import { clearAuthSession, setAuthSession } from '../../lib/auth/auth-session';
 
 const fitViewMock = vi.hoisted(() => vi.fn());
 const reactFlowLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }));
-const projectApiMock = vi.hoisted(() => ({ saveDocument: vi.fn() }));
+const projectApiMock = vi.hoisted(() => ({ get: vi.fn(), saveDocument: vi.fn() }));
+const socketIoMock = vi.hoisted(() => {
+  type Listener = (...args: unknown[]) => void;
+  type Socket = { connected: boolean; listeners: Map<string, Set<Listener>>; emitted: Array<{ event: string; args: unknown[] }>; connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
+  const sockets: Socket[] = [];
+  return {
+    sockets,
+    reset: () => { sockets.length = 0; },
+    io: vi.fn(() => {
+      const socket: Socket = { connected: false, listeners: new Map(), emitted: [], connect: vi.fn(), disconnect: vi.fn() };
+      sockets.push(socket);
+      const socketApi = {
+        get connected() { return socket.connected; },
+        on: (event: string, listener: Listener) => { const listeners = socket.listeners.get(event) ?? new Set<Listener>(); listeners.add(listener); socket.listeners.set(event, listeners); return socketApi; },
+        off: (event: string, listener: Listener) => { socket.listeners.get(event)?.delete(listener); return socketApi; },
+        emit: (event: string, ...args: unknown[]) => { socket.emitted.push({ event, args }); return socketApi; },
+        connect: socket.connect,
+        disconnect: socket.disconnect,
+      };
+      return socketApi;
+    }),
+  };
+});
 
 vi.mock('../../lib/projects/project-api', () => ({ projectApi: projectApiMock }));
+vi.mock('socket.io-client', () => ({ io: socketIoMock.io }));
 
 vi.mock('@xyflow/react', async () => {
   const React = await import('react');
@@ -78,10 +102,13 @@ describe('UmlEditorClient', { timeout: 15_000 }, () => {
 
   beforeEach(() => {
     fitViewMock.mockClear();
+    projectApiMock.get.mockReset();
     projectApiMock.saveDocument.mockReset();
     reactFlowLifecycle.mounts = 0;
     reactFlowLifecycle.unmounts = 0;
     resizeObserverCallbacks = [];
+    socketIoMock.reset();
+    clearAuthSession();
     globalThis.ResizeObserver = class ResizeObserver {
       private readonly callback: ResizeObserverCallback;
 
@@ -107,6 +134,7 @@ describe('UmlEditorClient', { timeout: 15_000 }, () => {
 
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver;
+    clearAuthSession();
   });
 
   function createRelationshipWithDialog(kind: string, sourceId: string, targetId: string) {
@@ -161,6 +189,44 @@ describe('UmlEditorClient', { timeout: 15_000 }, () => {
     render(<UmlEditorClient allowDemoForTests />);
 
     expect(screen.queryByText('LOCAL DEMO')).not.toBeInTheDocument();
+  });
+
+  it('starts one active realtime transport and leaves Connecting when its handshake fails', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    projectApiMock.get.mockResolvedValue({ project, storageVersion: 0 });
+    setAuthSession({ accessToken: 'safe-test-token', user: { id: 'user-a', email: 'owner@example.com' } });
+
+    render(<UmlEditorClient projectId={project.id} />);
+
+    await waitFor(() => expect(socketIoMock.sockets).toHaveLength(1));
+    const socket = socketIoMock.sockets[0]!;
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+    expect(socket.emitted).toEqual([]);
+    act(() => { for (const listener of socket.listeners.get('connect_error') ?? []) listener(new Error('secret transport detail')); });
+    expect(useEditorStore.getState().collaborationState).toBe('error');
+    expect(screen.getByTestId('collaboration-status')).toHaveTextContent('Collaboration connection failed. Shared mutations are blocked.');
+    expect(screen.queryByText('secret transport detail')).not.toBeInTheDocument();
+  });
+
+  it('disposes an old editor generation before starting one replacement transport', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-811111111111';
+    projectApiMock.get.mockResolvedValue({ project, storageVersion: 0 });
+    setAuthSession({ accessToken: 'safe-test-token', user: { id: 'user-a', email: 'owner@example.com' } });
+
+    const first = render(<UmlEditorClient projectId={project.id} />);
+
+    await waitFor(() => expect(socketIoMock.sockets).toHaveLength(1));
+    expect(socketIoMock.sockets[0]!.connect).toHaveBeenCalledTimes(1);
+    first.unmount();
+    expect(socketIoMock.sockets[0]!.disconnect).toHaveBeenCalledTimes(1);
+    expect(socketIoMock.sockets[0]!.listeners.get('connect')?.size ?? 0).toBe(0);
+
+    render(<UmlEditorClient projectId={project.id} />);
+    await waitFor(() => expect(socketIoMock.sockets).toHaveLength(2));
+    expect(socketIoMock.sockets[1]!.connect).toHaveBeenCalledTimes(1);
+    expect(socketIoMock.sockets[1]!.listeners.get('connect')?.size).toBe(1);
   });
 
   it('renders a readable desktop toolbox with complete labels and no horizontal scrolling mode', () => {

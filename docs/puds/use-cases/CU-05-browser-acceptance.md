@@ -22,7 +22,7 @@ Abra PowerShell en `C:\Orlando693\Examen-SW1` y ejecute lo siguiente. El secreto
 $env:BACKEND_PORT = '3001'
 $env:FRONTEND_ORIGIN = 'http://localhost:3000'
 $env:NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001'
-$env:NEXT_PUBLIC_REALTIME_URL = 'http://localhost:3001/collaboration'
+$env:NEXT_PUBLIC_REALTIME_URL = 'http://localhost:3001'
 $env:DATABASE_URL = 'postgresql://examen_sw1@localhost:5432/examen_sw1?schema=public'
 $env:JWT_SECRET = -join ((33..126) | Get-Random -Count 48 | ForEach-Object { [char]$_ })
 npm ci
@@ -56,6 +56,8 @@ La revocacion de una invitacion pendiente no elimina una membresia EDITOR ya ace
 El usuario suministro la aceptacion final de Chrome: OWNER/EDITOR aislados; join, roster, cursor, seleccion de nodo y relacion, edicion, actividad, crear, renombrar, atributo, mover, `ApplyLayout`, estado de Save, Undo y atajos de teclado, viewport, offline, reconnect, mutacion posterior al reconnect, expiracion real de 60 minutos y mutaciones protegidas: PASS. La confirmacion final tambien cubre creacion de relacion y actualizacion de multiplicidad, arbitraje de dos pestanas del mismo EDITOR con transicion offline al cerrar la ultima, reapertura tras colaboracion durable, ocultamiento de UNRELATED y denegacion de cambio a proyecto no autorizado sin perder la suscripcion valida. Consola sin errores, convergencia PASS y blockers 0.
 
 La evidencia cubre B1-B6 y B8, incluidos los criterios manuales de 4.5 y 4.6. B7 se mantiene como evidencia de integracion y protocolo manual separado, porque la eliminacion del proyecto ya se cubre de forma determinista sin requerir una afirmacion adicional para los criterios de cierre.
+
+El fix correctivo de conexion realtime en navegador fue aceptado manualmente en Chrome: el editor no quedo permanentemente en `Connecting`, no mostro `Invalid namespace`, la conexion efectiva uso solo `/collaboration` y nunca `/collaboration/collaboration`. Socket.IO conecto con el proyecto autorizado y `auth/me` respondio 200. La causa confirmada fue un bundle previo de Next/Turbopack compilado con el valor antiguo que incluia el namespace. Tras detener los procesos, eliminar solo `frontend/.next`, establecer `NEXT_PUBLIC_REALTIME_URL=http://localhost:3001` y arrancar `npm run dev` desde esa misma terminal, la conexion funciono. Blocker manual: resuelto.
 
 ## Plantilla de evidencia
 
