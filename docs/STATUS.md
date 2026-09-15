@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los tres CUs del Ciclo 2 estan cerrados; CU-06 no se ha iniciado.
+CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los fixes clean-clone y browser realtime connection estan CLOSED/ARCHIVED. Los tres CUs del Ciclo 2 estan cerrados; CU-06 no se ha iniciado. Entorno laptop: READY.
 
 ## Planificación vigente
 
@@ -31,7 +31,7 @@ CU-06 — UML -> modelo relacional y backend Spring generado. No iniciado; no ex
 
 ## OpenSpec activo
 
-Ninguno. El fix correctivo fue archivado como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation`; no reabre CU-05 ni inicia CU-06.
+Ninguno. Los fixes correctivos estan archivados como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation` y `openspec/changes/archive/2026-09-15-fix-browser-realtime-connection`; no reabren CU-05 ni inician CU-06.
 
 ## Problemas abiertos
 
@@ -42,6 +42,8 @@ Ninguno. El fix correctivo fue archivado como `openspec/changes/archive/2026-09-
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 
 ## Verificación actual
+
+- Fix browser realtime connection CLOSED/ARCHIVED: aceptacion manual Chrome PASS; `NEXT_PUBLIC_REALTIME_URL` es exclusivamente `http://localhost:3001` y el cliente agrega `/collaboration` una vez. La causa raiz fue un bundle Next/Turbopack previo compilado con el valor que ya contenia el namespace. Verificacion fresca PASS: 371/371 pruebas (frontend 176, backend 159, UML core 36), typecheck, lint, build, Prisma generate/validate, migraciones DEV/TEST no destructivas, OpenSpec strict y main specs strict. `ProjectLandingClient` no tuvo timeout; schema y migraciones sin cambios; blockers 0.
 
 - Fix clean-clone reproducibility: `npm run typecheck` genera primero las declaraciones de `@examen-sw1/uml-core` y PASS aun eliminando previamente solo `packages/uml-core/dist`. Las dos eliminaciones de usuarios referenciados en `projects-api.integration.spec.ts` verifican Prisma `P2003`, no el texto del proveedor. Los escenarios completos de `UmlEditorClient` usan timeout local de 15 s por renders MUI/jsdom comprobados de hasta ~8.5 s; el timeout global frontend sigue en 5 s. Dos corridas focales fueron 39/39 y la verificacion raiz fue 367/367 (frontend 172, backend 159, UML core 36), typecheck/lint/build y Prisma generate/validate/migraciones DEV/TEST PASS. Schema y migraciones sin cambios.
 
