@@ -12,7 +12,7 @@ export interface SpringGeneratorOptions {
 
 export interface GeneratedFile {
   path: string;
-  content: string;
+  content: string | Uint8Array;
   sha256: string;
 }
 

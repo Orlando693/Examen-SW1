@@ -1,12 +1,22 @@
 package {{packageName}}.application;
 
-import {{packageName}}.api.dto.{{className}}Response;
+import {{packageName}}.api.dto.*;
 import {{packageName}}.domain.{{className}};
 import org.springframework.stereotype.Component;
 
 @Component
 public class {{className}}Mapper {
     public {{className}}Response toResponse({{className}} entity) {
-        throw new UnsupportedOperationException("Mapping implementation is generated in the CRUD increment.");
+        return new {{className}}Response(
+{{#each fields}}            entity.get{{accessorName}}(){{#unless @last}},{{/unless}}
+{{/each}}        );
     }
+    public {{className}} create(Create{{className}}Request request) {
+        var entity = new {{className}}();
+{{#each createFields}}        entity.set{{accessorName}}(request.{{name}}());
+{{/each}}        return entity;
+    }
+    public void update({{className}} entity, Update{{className}}Request request) {
+{{#each updateFields}}        if (request.{{name}}() != null) entity.set{{accessorName}}(request.{{name}}());
+{{/each}}    }
 }

@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RelationalModel } from '@examen-sw1/relational-core';
-import { generateSpringProject, writeGeneratedFiles } from '../src/index.js';
+import { generateSpringProject, verifyGeneratedProject, writeGeneratedFiles } from '../src/index.js';
+import { knownCanonicalFixture, knownFixtureMetadata } from './known-canonical-fixture.js';
+import { mapCanonicalUmlModel } from '@examen-sw1/relational-core';
 
 const column = (table: string, name: string, javaType: 'Long' | 'String' = 'Long', options: Partial<{ generated: boolean; nullable: boolean; enumId: string }> = {}) => ({ id: `column:${table}:${name}`, name, sqlType: javaType === 'Long' ? 'BIGINT' as const : 'VARCHAR(255)' as const, javaType, nullable: options.nullable ?? false, generated: options.generated ?? false, ...(options.enumId ? { enumId: options.enumId } : {}) });
 const accountId = column('table:account', 'id', 'Long', { generated: true });
@@ -28,7 +30,10 @@ const generated = async () => {
   expect(output.result).toBeDefined();
   return output;
 };
-const file = (output: Awaited<ReturnType<typeof generated>>, path: string) => output.files.find((item) => item.path === path)?.content ?? '';
+const file = (output: Awaited<ReturnType<typeof generated>>, path: string) => {
+  const content = output.files.find((item) => item.path === path)?.content;
+  return typeof content === 'string' ? content : '';
+};
 
 describe('generateSpringProject', () => {
   it('uses a stable default and supports a safe configured package', async () => {
@@ -50,14 +55,28 @@ describe('generateSpringProject', () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
-  it('is deterministic and includes Gradle configuration and non-fake wrapper assets', async () => {
+  it('is deterministic and includes Gradle configuration and the official wrapper asset', async () => {
     const first = await generated(); const second = await generated();
     expect(first.result?.manifest).toEqual(second.result?.manifest);
     expect(first.files.map((item) => item.path)).toEqual([...first.files.map((item) => item.path)].sort((left, right) => left < right ? -1 : left > right ? 1 : 0));
     expect(file(first, 'build.gradle')).toContain("springdoc-openapi-starter-webmvc-ui");
     expect(file(first, 'gradle/wrapper/gradle-wrapper.properties')).toContain('gradle-9.2.0-bin.zip');
-    expect(first.files.some((item) => item.path.endsWith('.jar'))).toBe(false);
+    expect(first.files.find((item) => item.path.endsWith('.jar'))?.sha256).toBe('423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9');
   });
+
+  it('maps the known canonical fixture before generation with semantic relational assertions', () => {
+    const mapped = mapCanonicalUmlModel(knownCanonicalFixture, knownFixtureMetadata);
+    expect(mapped.success).toBe(true);
+    if (!mapped.success) return;
+    expect(mapped.model.enums).toHaveLength(1);
+    expect(mapped.model.tables.some((table) => table.kind === 'JOIN')).toBe(true);
+    expect(mapped.model.relations.map((relation) => relation.kind)).toEqual(expect.arrayContaining(['INHERITANCE', 'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_MANY', 'COMPOSITION']));
+    expect(mapped.model.tables.find((table) => table.name === 'customer')?.primaryKey.columnIds).toHaveLength(1);
+  });
+
+  it('generates the known fixture twice and builds it with its isolated Gradle Wrapper harness', async () => {
+    await expect(verifyGeneratedProject(knownCanonicalFixture, knownFixtureMetadata)).resolves.toBeUndefined();
+  }, 240_000);
 
   it('renders primitive columns, enums, joined inheritance, relationships, and API layers from the relational model', async () => {
     const output = await generated();
@@ -71,6 +90,6 @@ describe('generateSpringProject', () => {
     expect(file(output, 'src/main/java/com/generated/app/api/AccountController.java')).toContain('@RequestMapping("/api/account")');
     expect(file(output, 'src/main/java/com/generated/app/errors/RestExceptionHandler.java')).toContain('VALIDATION_ERROR');
     expect(file(output, 'src/main/resources/application.yml')).toContain('jdbc:postgresql');
-    expect(output.files.every((item) => !/nestjs|prisma|frontend/i.test(item.content))).toBe(true);
+    expect(output.files.every((item) => typeof item.content !== 'string' || !/nestjs|prisma|frontend/i.test(item.content))).toBe(true);
   });
 });

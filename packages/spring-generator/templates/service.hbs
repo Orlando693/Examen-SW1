@@ -1,22 +1,56 @@
 package {{packageName}}.application;
 
 import {{packageName}}.api.dto.*;
+import {{packageName}}.domain.{{className}};
 import {{packageName}}.persistence.{{className}}Repository;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class {{className}}Service {
     private final {{className}}Repository repository;
     private final {{className}}Mapper mapper;
+    public {{className}}Service({{className}}Repository repository, {{className}}Mapper mapper) { this.repository = repository; this.mapper = mapper; }
 
-    public {{className}}Service({{className}}Repository repository, {{className}}Mapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
+    @Transactional public {{className}}Response create(Create{{className}}Request request) { return mapper.toResponse(repository.save(mapper.create(request))); }
+    @Transactional(readOnly = true) public {{className}}Response get({{id.javaType}} id) { return mapper.toResponse(find(id)); }
+    @Transactional public {{className}}Response update({{id.javaType}} id, Update{{className}}Request request) { var entity = find(id); mapper.update(entity, request); return mapper.toResponse(repository.save(entity)); }
+    @Transactional public void delete({{id.javaType}} id) { repository.delete(find(id)); }
+    public long count() { return repository.count(); }
+
+    @Transactional(readOnly = true)
+    public PageResponse<{{className}}Response> list(int page, int size, String sort, String search, Map<String, String> filters) {
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Pagination is outside its allowed bounds.");
+        var order = sort == null || sort.isBlank() ? Sort.by("{{id.name}}").ascending() : parseSort(sort);
+        var result = repository.findAll(specification(search, filters), PageRequest.of(page, size, order));
+        return new PageResponse<>(result.getContent().stream().map(mapper::toResponse).toList(), result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
-    public {{className}}Response create(Create{{className}}Request request) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
-    public {{className}}Response get({{id.javaType}} id) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
-    public {{className}}Response update({{id.javaType}} id, Update{{className}}Request request) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
-    public void delete({{id.javaType}} id) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
-    public long count() { return repository.count(); }
+    @Transactional(readOnly = true)
+    public Map<String, Object> relationship({{id.javaType}} id, String relationship) {
+        var entity = find(id);
+{{#each relationships}}        if ("{{name}}".equals(relationship)) { var response = new LinkedHashMap<String, Object>(); response.put("relationship", "{{name}}"); response.put("id", entity.get{{targetClassName}}() == null ? null : entity.get{{targetClassName}}().get{{targetIdAccessor}}()); return response; }
+{{/each}}        throw new IllegalArgumentException("Relationship is not allowed.");
+    }
+
+    private {{className}} find({{id.javaType}} id) { return repository.findById(id).orElseThrow({{packageName}}.errors.ResourceNotFoundException::new); }
+    private Sort parseSort(String value) {
+        var pieces = value.split(",", -1); if (pieces.length != 2 || !("asc".equalsIgnoreCase(pieces[1]) || "desc".equalsIgnoreCase(pieces[1]))) throw new IllegalArgumentException("Sort is invalid.");
+        switch (pieces[0]) { {{#each fields}}case "{{name}}": break; {{/each}}default: throw new IllegalArgumentException("Sort field is not allowed."); }
+        return "desc".equalsIgnoreCase(pieces[1]) ? Sort.by(pieces[0]).descending() : Sort.by(pieces[0]).ascending();
+    }
+    private Specification<{{className}}> specification(String search, Map<String, String> filters) {
+        return (root, query, builder) -> { List<Predicate> predicates = new ArrayList<>();
+            if (search != null && !search.isBlank()) { {{#if searchFields.length}}predicates.add(builder.or({{#each searchFields}}builder.like(builder.lower(root.get("{{name}}")), "%" + search.toLowerCase() + "%"){{#unless @last}}, {{/unless}}{{/each}}));{{else}}throw new IllegalArgumentException("Search is not supported for this resource.");{{/if}} }
+            for (var entry : filters.entrySet()) { switch (entry.getKey()) { {{#each filterFields}}case "{{name}}": predicates.add(builder.equal(root.get("{{name}}"), entry.getValue())); break; {{/each}}default: throw new IllegalArgumentException("Filter field is not allowed."); } }
+            return predicates.isEmpty() ? builder.conjunction() : builder.and(predicates.toArray(Predicate[]::new)); };
+    }
 }

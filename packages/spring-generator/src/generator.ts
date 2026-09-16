@@ -7,7 +7,7 @@ import type { GeneratedFile, SpringGenerationResponse, SpringGeneratorDiagnostic
 
 const DEFAULT_PACKAGE = 'com.generated.app';
 const templatesRoot = new URL('../templates/', import.meta.url);
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
 const diagnostic = (code: string, message: string, path: string): SpringGeneratorDiagnostic => ({ severity: 'ERROR', code, message, path });
 const camel = (value: string) => value.replace(/_+([a-zA-Z0-9])/g, (_, character: string) => character.toUpperCase()).replace(/^[A-Z]/, (character) => character.toLowerCase());
@@ -29,9 +29,12 @@ interface EntityContext extends TemplateContext {
   createFields: FieldContext[];
   updateFields: FieldContext[];
   relationships: RelationshipContext[];
+  filterFields: FieldContext[];
+  searchFields: FieldContext[];
 }
 interface FieldContext extends TemplateContext {
   name: string;
+  accessorName: string;
   columnName: string;
   javaType: string;
   sqlType: string;
@@ -41,7 +44,7 @@ interface FieldContext extends TemplateContext {
   enumType?: string;
   validation: string[];
 }
-interface RelationshipContext extends TemplateContext { name: string; annotation: string; targetClassName: string; joinColumn: string; cascade: boolean; }
+interface RelationshipContext extends TemplateContext { name: string; annotation: string; targetClassName: string; targetIdAccessor: string; joinColumn: string; cascade: boolean; }
 
 async function render(name: string, context: TemplateContext): Promise<string> {
   const source = await readFile(new URL(`${name}.hbs`, templatesRoot), 'utf8');
@@ -57,7 +60,7 @@ function tableColumns(table: RelationalTable, model: RelationalModel): FieldCont
 function field(column: RelationalColumn, id: boolean, enumNames: Map<string, string>): FieldContext {
   const isString = column.javaType === 'String' && !column.enumId;
   return {
-    name: camel(column.name), columnName: column.name, javaType: column.javaType, sqlType: column.sqlType,
+    name: camel(column.name), accessorName: pascal(camel(column.name)), columnName: column.name, javaType: column.javaType, sqlType: column.sqlType,
     nullable: column.nullable, generated: column.generated, id, enumType: column.enumId ? enumNames.get(column.enumId) : undefined,
     validation: [...(!column.nullable ? ['NotNull'] : []), ...(isString ? ['Size'] : [])],
   };
@@ -74,20 +77,22 @@ function entityContext(table: RelationalTable, model: RelationalModel, basePacka
     if (!target || !column) throw new Error(`Invalid relational foreign key ${foreignKey.id}`);
     if (relation?.kind === 'INHERITANCE') return [];
     const one = relation?.kind === 'ONE_TO_ONE' || relation?.kind === 'COMPOSITION';
-    return [{ name: camel(column.name.replace(/_id$/, '')), annotation: one ? 'OneToOne' : 'ManyToOne', targetClassName: pascal(target.name), joinColumn: column.name, cascade: foreignKey.onDelete === 'CASCADE' }];
+    const targetId = target.columns.find((item) => target.primaryKey.columnIds.includes(item.id));
+    if (!targetId) throw new Error(`Target table ${target.id} has no scalar primary key.`);
+    return [{ name: camel(column.name.replace(/_id$/, '')), annotation: one ? 'OneToOne' : 'ManyToOne', targetClassName: pascal(target.name), targetIdAccessor: pascal(camel(targetId.name)), joinColumn: column.name, cascade: foreignKey.onDelete === 'CASCADE' }];
   });
   const parentTable = parent ? entityTables.find((item) => item.id === parent.tableIds[1]) : undefined;
   const fields = tableColumns(table, model);
   const id = fields.find((item) => item.id);
   if (!id) throw new Error(`Entity table ${table.id} has no scalar primary key.`);
-  return { packageName: basePackage, className: pascal(table.name), tableName: table.name, root: child, parentClassName: parentTable ? pascal(parentTable.name) : undefined, id, fields, createFields: fields.filter((item) => !item.generated), updateFields: fields.filter((item) => !item.id), relationships };
+  return { packageName: basePackage, className: pascal(table.name), tableName: table.name, root: child, parentClassName: parentTable ? pascal(parentTable.name) : undefined, id, fields, createFields: fields.filter((item) => !item.generated), updateFields: fields.filter((item) => !item.id), relationships, filterFields: fields.filter((item) => !item.id), searchFields: fields.filter((item) => item.javaType === 'String' && !item.enumType) };
 }
 
 function safeFile(path: string): boolean {
   return !isAbsolute(path) && !path.split(/[\\/]+/).some((segment) => segment === '..' || segment === '');
 }
 
-function planFile(files: GeneratedFile[], path: string, content: string, diagnostics: SpringGeneratorDiagnostic[]) {
+function planFile(files: GeneratedFile[], path: string, content: string | Uint8Array, diagnostics: SpringGeneratorDiagnostic[]) {
   const normalized = path.replaceAll('\\', '/');
   if (!safeFile(normalized)) { diagnostics.push(diagnostic('UNSAFE_OUTPUT_PATH', 'Generated file path must remain relative to the selected output root.', path)); return; }
   if (files.some((file) => file.path === normalized)) { diagnostics.push(diagnostic('DUPLICATE_OUTPUT_PATH', 'Generated file paths must be unique after normalization.', normalized)); return; }
@@ -111,7 +116,7 @@ export async function writeGeneratedFiles(outputRoot: string, files: GeneratedFi
     }
     seen.add(normalized);
   }
-  for (const file of files) { const destination = resolve(root, file.path); await mkdir(dirname(destination), { recursive: true }); await writeFile(destination, file.content, 'utf8'); }
+  for (const file of files) { const destination = resolve(root, file.path); await mkdir(dirname(destination), { recursive: true }); await writeFile(destination, file.content); }
   return [];
 }
 
@@ -129,13 +134,17 @@ export async function generateSpringProject(model: RelationalModel, options: Spr
   await addTemplate(files, diagnostics, 'settings.gradle', 'settings', templateContext);
   await addTemplate(files, diagnostics, 'gradlew', 'gradlew', templateContext);
   await addTemplate(files, diagnostics, 'gradlew.bat', 'gradlew-bat', templateContext);
+  // Keep the official Wrapper JAR as bytes: decoding it as text corrupts the asset.
+  planFile(files, 'gradle/wrapper/gradle-wrapper.jar', await readFile(new URL('gradle-wrapper.jar', templatesRoot)), diagnostics);
   await addTemplate(files, diagnostics, 'gradle/wrapper/gradle-wrapper.properties', 'gradle-wrapper-properties', templateContext);
   await addTemplate(files, diagnostics, 'src/main/resources/application.yml', 'application-yml', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/GeneratedApplication.java`, 'application', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/errors/ApiError.java`, 'api-error', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/errors/RestExceptionHandler.java`, 'exception-handler', templateContext);
+  await addTemplate(files, diagnostics, `src/main/java/${basePath}/errors/ResourceNotFoundException.java`, 'resource-not-found', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/JacksonConfig.java`, 'jackson-config', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/OpenApiConfig.java`, 'openapi-config', templateContext);
+  await addTemplate(files, diagnostics, `src/main/java/${basePath}/api/dto/PageResponse.java`, 'page-response', templateContext);
   for (const enumeration of model.enums) await addTemplate(files, diagnostics, `src/main/java/${basePath}/domain/${pascal(enumeration.name)}.java`, 'enum', { ...templateContext, enumName: pascal(enumeration.name), literals: enumeration.literals });
   for (const entity of entities) {
     const root = `src/main/java/${basePath}`;
@@ -147,7 +156,9 @@ export async function generateSpringProject(model: RelationalModel, options: Spr
     await addTemplate(files, diagnostics, `${root}/application/${entity.className}Mapper.java`, 'mapper', entity);
     await addTemplate(files, diagnostics, `${root}/application/${entity.className}Service.java`, 'service', entity);
     await addTemplate(files, diagnostics, `${root}/api/${entity.className}Controller.java`, 'controller', entity);
+    await addTemplate(files, diagnostics, `src/test/java/${basePath}/api/${entity.className}ControllerTest.java`, 'controller-test', entity);
   }
+  await addTemplate(files, diagnostics, 'src/test/resources/application.yml', 'application-test-yml', templateContext);
   files.sort((left, right) => compare(left.path, right.path));
   if (diagnostics.length > 0) return { diagnostics, files: [] };
   if (options.outputRoot) {

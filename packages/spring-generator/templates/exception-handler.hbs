@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.HttpStatus;
 
 @RestControllerAdvice
 public class RestExceptionHandler {
@@ -18,5 +19,10 @@ public class RestExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiError> invalidRequest(IllegalArgumentException exception) {
         return ResponseEntity.badRequest().body(new ApiError(Instant.now(), 400, "INVALID_REQUEST", "Request is invalid.", List.of()));
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ResponseEntity<ApiError> notFound(ResourceNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiError(Instant.now(), 404, "NOT_FOUND", "Resource was not found.", List.of()));
     }
 }

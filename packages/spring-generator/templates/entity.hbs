@@ -1,28 +1,32 @@
 package {{packageName}}.domain;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 {{#if relationships.length}}import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-{{/if}}
-{{#if root}}import jakarta.persistence.Inheritance;
+{{/if}}{{#if root}}import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 {{/if}}
-
 @Entity
 @Table(name = "{{tableName}}")
 {{#if root}}@Inheritance(strategy = InheritanceType.JOINED)
 {{/if}}{{#if parentClassName}}@PrimaryKeyJoinColumn(name = "{{id.columnName}}")
 {{/if}}public class {{className}}{{#if parentClassName}} extends {{parentClassName}}{{/if}} {
-{{#each fields}}
-    {{#if id}}@Id
+{{#each fields}}    {{#if id}}@Id
     {{#if generated}}@GeneratedValue(strategy = GenerationType.IDENTITY)
     {{/if}}{{/if}}{{#if enumType}}@Enumerated(EnumType.STRING)
     {{/if}}@Column(name = "{{columnName}}", nullable = {{nullable}}{{#if id}}, updatable = false{{/if}})
     private {{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} {{name}};
-{{/each}}{{#each relationships}}
-    @{{annotation}}(fetch = FetchType.LAZY{{#if cascade}}, cascade = CascadeType.ALL{{/if}})
+{{/each}}{{#each relationships}}    @{{annotation}}(fetch = FetchType.LAZY{{#if cascade}}, cascade = CascadeType.ALL{{/if}})
     @JoinColumn(name = "{{joinColumn}}")
     {{#if cascade}}@OnDelete(action = OnDeleteAction.CASCADE)
     {{/if}}private {{targetClassName}} {{name}};
+{{/each}}
+{{#each fields}}    public {{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} get{{accessorName}}() { return {{name}}; }
+    public void set{{accessorName}}({{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} value) { this.{{name}} = value; }
+{{/each}}{{#each relationships}}    public {{targetClassName}} get{{targetClassName}}() { return {{name}}; }
+    public void set{{targetClassName}}({{targetClassName}} value) { this.{{name}} = value; }
 {{/each}}
 }

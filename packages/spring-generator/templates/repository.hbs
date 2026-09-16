@@ -2,6 +2,7 @@ package {{packageName}}.persistence;
 
 import {{packageName}}.domain.{{className}};
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface {{className}}Repository extends JpaRepository<{{className}}, {{id.javaType}}> {
+public interface {{className}}Repository extends JpaRepository<{{className}}, {{id.javaType}}>, JpaSpecificationExecutor<{{className}}> {
 }

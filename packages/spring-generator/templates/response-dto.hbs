@@ -1,5 +1,8 @@
 package {{packageName}}.api.dto;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 {{#each fields}}{{#if enumType}}import {{../packageName}}.domain.{{enumType}};
 {{/if}}{{/each}}
 

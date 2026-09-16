@@ -2,7 +2,7 @@
 
 ## Objective
 
-Implement a deterministic pipeline from `CanonicalUmlModel` to an explicit `RelationalModel` and later a compilable Java 21 Spring Boot backend. Incrementos 1 and 2 are implemented; Incremento 3 has not started.
+Implement a deterministic pipeline from `CanonicalUmlModel` to an explicit `RelationalModel` and a compilable Java 21 Spring Boot backend. All three increments are implemented; CU-06 remains active pending final verification and acceptance.
 
 ## Preconditions
 
@@ -89,6 +89,8 @@ Incremento 1 created `packages/relational-core`, a framework-independent npm wor
 - Incremento 2 added `packages/spring-generator`, which depends on `@examen-sw1/relational-core` and exact `handlebars` 4.7.9. Its public API accepts only `RelationalModel`, validates safe base packages and output paths, plans sorted SHA-256-tracked files, and can write only within an explicit output root.
 - Handlebars templates render Gradle/Spring Boot 4.0.0 Java 21 project files, PostgreSQL and springdoc configuration, enums, JPA entities with JOINED inheritance and supported relationships, repositories, DTOs, mappers, services, controllers, validation, and stable API errors. Wrapper scripts and `gradle-wrapper.properties` are generated without a fake wrapper JAR; the real wrapper toolchain harness belongs to Incremento 3.
 - Prisma schema/migrations, CASE frontend, NestJS APIs, realtime behavior, generated-project compilation, and CU-07 artifacts were not changed.
+- Incremento 3 completed generated create/read/update/delete/list/count services and REST controllers with DTO contracts, a maximum page size of 100, allow-listed sort and filter fields, simple case-insensitive string search, FK relationship navigation, and stable validation/not-found errors. The generated production configuration remains PostgreSQL/environment-driven; generated tests use an isolated H2 profile.
+- `known-canonical-fixture.ts` supplies the canonical end-to-end model and external identifier metadata. It covers scalar types, explicit and synthetic identifiers, enum, 1:1, 1:N, N:M, composition, and JOINED inheritance. `verifyGeneratedProject()` maps it, generates two temporary projects, checks equal manifests, verifies Java 21 and the official Gradle 9.2.0 wrapper JAR SHA-256, then runs `gradlew.bat --no-daemon test` and `build`.
 
 ## Automated Evidence
 
@@ -99,6 +101,7 @@ Incremento 1 created `packages/relational-core`, a framework-independent npm wor
 - Java 21 verification PASS: OpenJDK `21.0.12.1` for both `java` and `javac`.
 - Spring generator: 4 semantic tests PASS; package typecheck, lint, and build PASS. Tests cover deterministic manifests and ordering, package/output-path safety, non-fake wrapper assets, relational entity/enums/JOINED/relationship rendering, API layers, validation, configuration, and absence of CASE imports.
 - Fresh root validation passed after PostgreSQL DEV/TEST migration checks: frontend 176, backend 159, UML core 36, relational core 10, and spring generator 4, for 385/385 total with zero skipped or failed tests. Root typecheck, lint, build, `git diff --check`, and OpenSpec strict validations passed.
+- Incremento 3 fresh evidence: generated Gradle Wrapper `test` and `build` PASS with OpenJDK/Javac 21.0.12.1; spring-generator 6 tests PASS. Full root validation passed: frontend 176, backend 159, UML core 36, relational core 10, and spring-generator 6, for 387/387 total. Prisma generate/validate and non-destructive DEV/TEST deploy checks, root typecheck/lint/build, strict OpenSpec change/main specs, and `git diff --check` PASS.
 
 ## Future Acceptance
 
@@ -110,5 +113,5 @@ Incremento 1 created `packages/relational-core`, a framework-independent npm wor
 
 ## Known Limitations And Debt
 
-- The generated project has not yet been compiled or tested with a real Gradle Wrapper. That isolated harness, fixture, and real wrapper JAR are scoped to Incremento 3.
-- Generated advanced CRUD behavior, bounded query controls, relationship navigation verification, derived OpenAPI/Postman/Domain Manifest artifacts, and generated frontend remain out of scope until their assigned increments/CUs.
+- The generated project build harness depends on normal Gradle dependency resolution and is intentionally bounded to 180 seconds per command; resolution failures are reported as harness errors.
+- Derived OpenAPI/Postman/Domain Manifest artifacts and generated frontend remain out of scope for CU-07.

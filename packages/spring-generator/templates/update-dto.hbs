@@ -1,6 +1,9 @@
 package {{packageName}}.api.dto;
 
 import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 {{#each fields}}{{#if enumType}}import {{../packageName}}.domain.{{enumType}};
 {{/if}}{{/each}}
 
