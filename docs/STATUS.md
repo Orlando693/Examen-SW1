@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los fixes clean-clone y browser realtime connection estan CLOSED/ARCHIVED. Los tres CUs del Ciclo 2 estan cerrados; CU-06 no se ha iniciado. Entorno laptop: READY.
+CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los fixes clean-clone y browser realtime connection estan CLOSED/ARCHIVED. CU-06 esta ACTIVE: Incremento 1 implementado y validado; Incrementos 2 y 3 no iniciados. Java 21 aun no verificado.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los fixes clean-c
 
 ## Ciclo actual
 
-Ciclo 3 — Construccion y generacion de aplicaciones. Pendiente de iniciar.
+Ciclo 3 — Construccion y generacion de aplicaciones. CU-06 en propuesta.
 
 ## Caso de uso activo
 
-CU-06 — UML -> modelo relacional y backend Spring generado. No iniciado; no existe un cambio OpenSpec activo para este CU.
+CU-06 — UML -> modelo relacional y backend Spring generado. ACTIVE; Incremento 1 implementado y validado. Incremento 2 NOT STARTED.
 
 ## Casos de uso completados
 
@@ -31,7 +31,7 @@ CU-06 — UML -> modelo relacional y backend Spring generado. No iniciado; no ex
 
 ## OpenSpec activo
 
-Ninguno. Los fixes correctivos estan archivados como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation` y `openspec/changes/archive/2026-09-15-fix-browser-realtime-connection`; no reabren CU-05 ni inician CU-06.
+`cu-06-uml-relational-spring-generator` activo en propuesta. Los fixes correctivos estan archivados como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation` y `openspec/changes/archive/2026-09-15-fix-browser-realtime-connection`; no reabren CU-05.
 
 ## Problemas abiertos
 
@@ -42,6 +42,8 @@ Ninguno. Los fixes correctivos estan archivados como `openspec/changes/archive/2
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 
 ## Verificación actual
+
+- CU-06 Incremento 1: `@examen-sw1/relational-core` implementa RelationalModel y mapper determinista con metadata de identificadores externa al UML, PK sintética/explícita, NUMERIC/BigDecimal, enums `VARCHAR(255)+CHECK`, relations, JOINED, nombres/colisiones e indices FK. Pruebas focales 10 PASS. Validacion fresca completa PASS con PostgreSQL DEV/TEST aislada, JWT efímero y 5 migraciones sin pendientes en ambas DB: frontend 176, backend 159, UML core 36 y relational 10, total 381/381; typecheck/lint/build raiz, OpenSpec strict/main specs strict y `git diff --check` PASS. No Java/Gradle/Handlebars/Spring generator, Prisma schema/migration, realtime, archive ni push CU-06. Incremento 2 NOT STARTED.
 
 - Fix browser realtime connection CLOSED/ARCHIVED: aceptacion manual Chrome PASS; `NEXT_PUBLIC_REALTIME_URL` es exclusivamente `http://localhost:3001` y el cliente agrega `/collaboration` una vez. La causa raiz fue un bundle Next/Turbopack previo compilado con el valor que ya contenia el namespace. Verificacion fresca PASS: 371/371 pruebas (frontend 176, backend 159, UML core 36), typecheck, lint, build, Prisma generate/validate, migraciones DEV/TEST no destructivas, OpenSpec strict y main specs strict. `ProjectLandingClient` no tuvo timeout; schema y migraciones sin cambios; blockers 0.
 
@@ -135,4 +137,4 @@ Ninguno. Los fixes correctivos estan archivados como `openspec/changes/archive/2
 
 ## Próxima acción
 
-Preparar y solicitar aprobacion del plan de CU-06. No iniciar implementacion ni crear cambio OpenSpec de CU-06 antes de esa aprobacion.
+Crear el checkpoint commit exclusivo de Incremento 1. No iniciar Incremento 2 ni CU-07.
