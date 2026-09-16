@@ -1,0 +1,9 @@
+package {{packageName}}.api.dto;
+
+{{#each fields}}{{#if enumType}}import {{../packageName}}.domain.{{enumType}};
+{{/if}}{{/each}}
+
+public record {{className}}Response(
+{{#each fields}}    {{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} {{name}}{{#unless @last}},{{/unless}}
+{{/each}}) {
+}

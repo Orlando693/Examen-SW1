@@ -1,0 +1,7 @@
+package {{packageName}}.persistence;
+
+import {{packageName}}.domain.{{className}};
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface {{className}}Repository extends JpaRepository<{{className}}, {{id.javaType}}> {
+}

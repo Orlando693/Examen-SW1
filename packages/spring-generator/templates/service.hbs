@@ -1,0 +1,22 @@
+package {{packageName}}.application;
+
+import {{packageName}}.api.dto.*;
+import {{packageName}}.persistence.{{className}}Repository;
+import org.springframework.stereotype.Service;
+
+@Service
+public class {{className}}Service {
+    private final {{className}}Repository repository;
+    private final {{className}}Mapper mapper;
+
+    public {{className}}Service({{className}}Repository repository, {{className}}Mapper mapper) {
+        this.repository = repository;
+        this.mapper = mapper;
+    }
+
+    public {{className}}Response create(Create{{className}}Request request) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
+    public {{className}}Response get({{id.javaType}} id) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
+    public {{className}}Response update({{id.javaType}} id, Update{{className}}Request request) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
+    public void delete({{id.javaType}} id) { throw new UnsupportedOperationException("CRUD implementation is generated in the next increment."); }
+    public long count() { return repository.count(); }
+}

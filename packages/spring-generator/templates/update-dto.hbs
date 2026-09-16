@@ -1,0 +1,10 @@
+package {{packageName}}.api.dto;
+
+import jakarta.validation.constraints.*;
+{{#each fields}}{{#if enumType}}import {{../packageName}}.domain.{{enumType}};
+{{/if}}{{/each}}
+
+public record Update{{className}}Request(
+{{#each updateFields}}    {{#each validation}}{{#if (eq this "Size")}}@Size(max = 255) {{/if}}{{/each}}{{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} {{name}}{{#unless @last}},{{/unless}}
+{{/each}}) {
+}

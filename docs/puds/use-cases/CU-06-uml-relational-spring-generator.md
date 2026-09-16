@@ -2,14 +2,14 @@
 
 ## Objective
 
-Implement a deterministic pipeline from `CanonicalUmlModel` to an explicit `RelationalModel` and later a compilable Java 21 Spring Boot backend. Incremento 1 is implemented; Incrementos 2 and 3 have not started.
+Implement a deterministic pipeline from `CanonicalUmlModel` to an explicit `RelationalModel` and later a compilable Java 21 Spring Boot backend. Incrementos 1 and 2 are implemented; Incremento 3 has not started.
 
 ## Preconditions
 
 - CU-00 through CU-05 and the two corrective changes are closed, archived, and pushed.
 - `CanonicalUmlModel`, validation, persistence, commands, history, and realtime collaboration already exist.
 - No OpenSpec change was active before this proposal.
-- Java 21 is not verified: current `java --version` and `javac --version` do not succeed. No Java or Gradle installation is performed during proposal.
+- Java 21 is available as OpenJDK `21.0.12.1`; `java --version` and `javac --version` succeed. No Java or Gradle installation was performed by this CU.
 
 ## Scope
 
@@ -86,7 +86,9 @@ Incremento 1 created `packages/relational-core`, a framework-independent npm wor
 
 - The mapper is deterministic and fail-closed. It implements synthetic/explicit PKs, approved primitive/enum mappings, FK indexes without redundant PK/unique prefixes, 1:1, 1:N, N:M joins, aggregation, composition cascade metadata, and JOINED inheritance.
 - Canonical UML is unchanged; identifier hints are external metadata keyed by class and attribute IDs.
-- Java, Gradle, Handlebars, SpringGenerator, generated Java, Prisma, and realtime behavior were not changed.
+- Incremento 2 added `packages/spring-generator`, which depends on `@examen-sw1/relational-core` and exact `handlebars` 4.7.9. Its public API accepts only `RelationalModel`, validates safe base packages and output paths, plans sorted SHA-256-tracked files, and can write only within an explicit output root.
+- Handlebars templates render Gradle/Spring Boot 4.0.0 Java 21 project files, PostgreSQL and springdoc configuration, enums, JPA entities with JOINED inheritance and supported relationships, repositories, DTOs, mappers, services, controllers, validation, and stable API errors. Wrapper scripts and `gradle-wrapper.properties` are generated without a fake wrapper JAR; the real wrapper toolchain harness belongs to Incremento 3.
+- Prisma schema/migrations, CASE frontend, NestJS APIs, realtime behavior, generated-project compilation, and CU-07 artifacts were not changed.
 
 ## Automated Evidence
 
@@ -94,15 +96,19 @@ Incremento 1 created `packages/relational-core`, a framework-independent npm wor
 - Root typecheck, lint, and build PASS. Root scripts now explicitly build relational-core.
 - Fresh root validation passed: frontend 176, backend 159 (including 36 realtime PostgreSQL/Socket.IO integration tests), UML core 36, and relational core 10: 381/381 total with zero skips or failures. An ephemeral JWT and explicit isolated `TEST_DATABASE_URL` were used only for that process.
 - OpenSpec change strict and main specs strict PASS. `git diff --check` PASS with known Windows line-ending warnings.
+- Java 21 verification PASS: OpenJDK `21.0.12.1` for both `java` and `javac`.
+- Spring generator: 4 semantic tests PASS; package typecheck, lint, and build PASS. Tests cover deterministic manifests and ordering, package/output-path safety, non-fake wrapper assets, relational entity/enums/JOINED/relationship rendering, API layers, validation, configuration, and absence of CASE imports.
+- Fresh root validation passed after PostgreSQL DEV/TEST migration checks: frontend 176, backend 159, UML core 36, relational core 10, and spring generator 4, for 385/385 total with zero skipped or failed tests. Root typecheck, lint, build, `git diff --check`, and OpenSpec strict validations passed.
 
 ## Future Acceptance
 
 - Approved decisions are implemented within this single OpenSpec change.
 - Known valid UML deterministically produces an equivalent relational model on repeated generation.
-- Incremento 2 will add files; Incremento 3 will prove generated Gradle compilation and tests using Java 21.
+- Incremento 2 generator output is deterministic from an equivalent `RelationalModel` and is bounded to the selected output root.
+- Incremento 3 will prove generated Gradle compilation and tests using Java 21.
 - Relevant root checks and OpenSpec strict validation pass, with actual outcomes documented before acceptance.
 
 ## Known Limitations And Debt
 
-- Java 21 is not currently verified. This does not block Increment 1.
-- Java 21 remains unverified and is not required until Incremento 2/3. No Java, Gradle, Handlebars, Spring generator, generated Java, Prisma schema/migration, realtime, or frontend implementation change belongs to this increment.
+- The generated project has not yet been compiled or tested with a real Gradle Wrapper. That isolated harness, fixture, and real wrapper JAR are scoped to Incremento 3.
+- Generated advanced CRUD behavior, bounded query controls, relationship navigation verification, derived OpenAPI/Postman/Domain Manifest artifacts, and generated frontend remain out of scope until their assigned increments/CUs.

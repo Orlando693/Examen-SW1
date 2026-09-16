@@ -11,13 +11,13 @@
 
 ## 2. Increment 2 - Spring Generator Foundation
 
-- [ ] 2.1 Verify Java 21 availability with `java --version` and `javac --version`, record the exact version, and add only the approved `handlebars` dependency and necessary types; verify lockfile integrity and no unrelated dependency upgrade.
-- [ ] 2.2 Create `@examen-sw1/spring-generator`, its deterministic options/contracts, template registry, ordered file planner, safe output-root writer, manifest/hash utility, and package exports; verify path traversal, duplicate normalized paths, and non-deterministic order are rejected.
-- [ ] 2.3 Add Handlebars templates and version-controlled Gradle Wrapper assets for Java 21, Spring Boot 4.x, Gradle, Spring Web MVC, Spring Data JPA, Hibernate, Jakarta Validation, Jackson, PostgreSQL, and springdoc-openapi; verify template rendering and generated build/wrapper file structure without global Gradle.
-- [ ] 2.4 Generate relational enum types, JPA entities, inheritance annotations, associations, repositories, persistence mappings, and PostgreSQL configuration from `RelationalModel`; verify generated source semantically represents keys, constraints, types, enums, and relation ownership.
-- [ ] 2.5 Generate DTO/request/response models, mapping layer, application services, REST controllers, Bean Validation, stable error handling, Jackson time setup, and springdoc configuration; verify representative rendered files and no CASE frontend/NestJS/Prisma imports.
-- [ ] 2.6 Define generated API conventions for create/read/update/delete/list/count and approved relationship navigation while reserving CU-07 derived OpenAPI/Postman/Domain Manifest work; verify generated routes/query contracts are consistent and stable across equivalent inputs.
-- [ ] 2.7 Add generator semantic tests for paths, ordering, template helpers, entities, repositories, DTOs, services, controllers, validation, errors, configuration, Gradle files, wrapper assets, and repeated-output equality; run generator package checks and applicable root checks.
+- [x] 2.1 Verify Java 21 availability with `java --version` and `javac --version`, record the exact version, and add only the approved `handlebars` dependency and necessary types; verify lockfile integrity and no unrelated dependency upgrade.
+- [x] 2.2 Create `@examen-sw1/spring-generator`, its deterministic options/contracts, template registry, ordered file planner, safe output-root writer, manifest/hash utility, and package exports; verify path traversal, duplicate normalized paths, and non-deterministic order are rejected.
+- [x] 2.3 Add Handlebars templates and version-controlled Gradle Wrapper assets for Java 21, Spring Boot 4.x, Gradle, Spring Web MVC, Spring Data JPA, Hibernate, Jakarta Validation, Jackson, PostgreSQL, and springdoc-openapi; verify template rendering and generated build/wrapper file structure without global Gradle.
+- [x] 2.4 Generate relational enum types, JPA entities, inheritance annotations, associations, repositories, persistence mappings, and PostgreSQL configuration from `RelationalModel`; verify generated source semantically represents keys, constraints, types, enums, and relation ownership.
+- [x] 2.5 Generate DTO/request/response models, mapping layer, application services, REST controllers, Bean Validation, stable error handling, Jackson time setup, and springdoc configuration; verify representative rendered files and no CASE frontend/NestJS/Prisma imports.
+- [x] 2.6 Define generated API conventions for create/read/update/delete/list/count and approved relationship navigation while reserving CU-07 derived OpenAPI/Postman/Domain Manifest work; verify generated routes/query contracts are consistent and stable across equivalent inputs.
+- [x] 2.7 Add generator semantic tests for paths, ordering, template helpers, entities, repositories, DTOs, services, controllers, validation, errors, configuration, Gradle files, wrapper assets, and repeated-output equality; run generator package checks and applicable root checks.
 
 ## 3. Increment 3 - Advanced CRUD And Generated-Project Harness
 

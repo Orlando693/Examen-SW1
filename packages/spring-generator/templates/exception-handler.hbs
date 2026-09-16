@@ -1,0 +1,22 @@
+package {{basePackage}}.errors;
+
+import java.time.Instant;
+import java.util.List;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class RestExceptionHandler {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<ApiError> validation(MethodArgumentNotValidException exception) {
+        var fields = exception.getBindingResult().getFieldErrors().stream().map(error -> error.getField()).distinct().sorted().toList();
+        return ResponseEntity.badRequest().body(new ApiError(Instant.now(), 400, "VALIDATION_ERROR", "Request validation failed.", fields));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ApiError> invalidRequest(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(new ApiError(Instant.now(), 400, "INVALID_REQUEST", "Request is invalid.", List.of()));
+    }
+}

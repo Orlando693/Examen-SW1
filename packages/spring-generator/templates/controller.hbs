@@ -1,0 +1,22 @@
+package {{packageName}}.api;
+
+import {{packageName}}.api.dto.*;
+import {{packageName}}.application.{{className}}Service;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/{{tableName}}")
+public class {{className}}Controller {
+    private final {{className}}Service service;
+    public {{className}}Controller({{className}}Service service) { this.service = service; }
+
+    @PostMapping @ResponseStatus(HttpStatus.CREATED)
+    public {{className}}Response create(@Valid @RequestBody Create{{className}}Request request) { return service.create(request); }
+    @GetMapping("/{id}") public {{className}}Response get(@PathVariable {{id.javaType}} id) { return service.get(id); }
+    @PutMapping("/{id}") public {{className}}Response update(@PathVariable {{id.javaType}} id, @Valid @RequestBody Update{{className}}Request request) { return service.update(id, request); }
+    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void delete(@PathVariable {{id.javaType}} id) { service.delete(id); }
+    @GetMapping("/count") public long count() { return service.count(); }
+    @GetMapping("/{id}/relationships/{relationship}") public void relationship(@PathVariable {{id.javaType}} id, @PathVariable String relationship) { throw new UnsupportedOperationException("Relationship navigation is generated in the next increment."); }
+}

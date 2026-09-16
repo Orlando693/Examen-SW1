@@ -1,0 +1,6 @@
+package {{basePackage}}.domain;
+
+public enum {{enumName}} {
+{{#each literals}}    {{this}}{{#unless @last}},{{/unless}}
+{{/each}}
+}

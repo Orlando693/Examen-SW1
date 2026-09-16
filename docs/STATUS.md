@@ -18,7 +18,7 @@ Ciclo 3 — Construccion y generacion de aplicaciones. CU-06 en propuesta.
 
 ## Caso de uso activo
 
-CU-06 — UML -> modelo relacional y backend Spring generado. ACTIVE; Incremento 1 implementado y validado. Incremento 2 NOT STARTED.
+CU-06 — UML -> modelo relacional y backend Spring generado. ACTIVE; Incrementos 1 y 2 implementados y validados. Incremento 3 NOT STARTED.
 
 ## Casos de uso completados
 
@@ -44,6 +44,7 @@ CU-06 — UML -> modelo relacional y backend Spring generado. ACTIVE; Incremento
 ## Verificación actual
 
 - CU-06 Incremento 1: `@examen-sw1/relational-core` implementa RelationalModel y mapper determinista con metadata de identificadores externa al UML, PK sintética/explícita, NUMERIC/BigDecimal, enums `VARCHAR(255)+CHECK`, relations, JOINED, nombres/colisiones e indices FK. Pruebas focales 10 PASS. Validacion fresca completa PASS con PostgreSQL DEV/TEST aislada, JWT efímero y 5 migraciones sin pendientes en ambas DB: frontend 176, backend 159, UML core 36 y relational 10, total 381/381; typecheck/lint/build raiz, OpenSpec strict/main specs strict y `git diff --check` PASS. No Java/Gradle/Handlebars/Spring generator, Prisma schema/migration, realtime, archive ni push CU-06. Incremento 2 NOT STARTED.
+- CU-06 Incremento 2: `@examen-sw1/spring-generator` consume exclusivamente RelationalModel y Handlebars 4.7.9 para generar proyecto Spring estructural determinista, con Gradle Java 21/Spring Boot 4.0.0, entities/JOINED/enums/relations, repositorios, DTOs, mappers, services, controllers, errores y configuracion. Wrapper scripts/properties se generan sin JAR falso; el JAR real y harness son Incremento 3. Validacion fresca PASS: spring-generator 4, frontend 176, backend 159, UML core 36 y relational 10, total 385/385; Prisma DEV/TEST, typecheck/lint/build, OpenSpec strict/main specs strict y `git diff --check` PASS. Incremento 3 NOT STARTED.
 
 - Fix browser realtime connection CLOSED/ARCHIVED: aceptacion manual Chrome PASS; `NEXT_PUBLIC_REALTIME_URL` es exclusivamente `http://localhost:3001` y el cliente agrega `/collaboration` una vez. La causa raiz fue un bundle Next/Turbopack previo compilado con el valor que ya contenia el namespace. Verificacion fresca PASS: 371/371 pruebas (frontend 176, backend 159, UML core 36), typecheck, lint, build, Prisma generate/validate, migraciones DEV/TEST no destructivas, OpenSpec strict y main specs strict. `ProjectLandingClient` no tuvo timeout; schema y migraciones sin cambios; blockers 0.
 
@@ -137,4 +138,4 @@ CU-06 — UML -> modelo relacional y backend Spring generado. ACTIVE; Incremento
 
 ## Próxima acción
 
-Crear el checkpoint commit exclusivo de Incremento 1. No iniciar Incremento 2 ni CU-07.
+Crear el checkpoint commit exclusivo de Incremento 2. No iniciar Incremento 3 ni CU-07.
