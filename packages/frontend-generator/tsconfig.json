@@ -1,0 +1,1 @@
+{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","target":"ES2022","lib":["ES2022","DOM","DOM.Iterable"],"strict":true,"declaration":true,"outDir":"dist","types":["node","vitest"]},"include":["src/**/*.ts","test/**/*.ts","eslint.config.js"],"exclude":["dist","node_modules"]}

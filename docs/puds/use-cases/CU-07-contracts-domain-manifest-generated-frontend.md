@@ -56,7 +56,9 @@ Completed. `@examen-sw1/domain-manifest` accepts only `RelationalModel` and vali
 
 ### Increment 3 - Generated Frontend
 
-Not started. No `frontend-generator` package exists.
+Tasks 3.1 through 3.6 are complete. `@examen-sw1/frontend-generator` uses a Handlebars template registry and deterministic path/hash manifest to materialize an independent Next.js App Router, React, TypeScript, and Material UI application from `DomainManifest` and validated OpenAPI. The known fixture was materialized twice with equal files, hashes, and generation manifests; each generated project completed `npm install`, `npm run test`, and `npm run build`.
+
+The generated UI includes declared CRUD, list/detail, relationship navigation, search, filters, pagination, sorting, responsive navigation, contract-safe failures, and manifest-derived form validation/controls. Browser verification against the generated Spring backend passed for CRUD, relations, query controls, states, and responsive viewports. The harness permits only a verified Chromium/Playwright `ERR_ABORTED` emitted after the same expected DELETE receives HTTP 204; all other request failures remain blocking. Root tests (397), Prisma generate/validate/deploy for DEV and TEST, strict OpenSpec validations, and `git diff --check` passed. CU-07 remains ACTIVE / READY FOR FINAL VERIFY.
 
 ## Automated Evidence
 

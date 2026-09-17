@@ -2,7 +2,7 @@
 
 ## CU activo
 
-CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE; Incrementos 1 y 2 completados y validados. Incremento 3 no iniciado.
+CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE / READY FOR FINAL VERIFY; Incrementos 1, 2 y 3 completos.
 
 ## OpenSpec activo
 
@@ -19,7 +19,8 @@ CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE; Incrementos 
 
 ## Trabajo pendiente
 
-- Esperar aprobacion explicita antes de iniciar Incremento 3, frontend generado.
+- Instalar o habilitar Playwright para ejecutar la tarea 3.7 de navegador real contra el backend Spring generado.
+- Completar la validacion raiz y tarea 3.8 antes de checkpoint.
 - No crear `frontend-generator` ni iniciar CU-08.
 
 ## Limitaciones vigentes
@@ -29,4 +30,4 @@ CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE; Incrementos 
 
 ## Siguiente accion exacta
 
-Revisar y aceptar el checkpoint del Incremento 2; despues solicitar aplicar solo Incremento 3 si se aprueba.
+Obtener autorizacion para agregar Playwright y completar la tarea 3.7 sin iniciar CU-08.

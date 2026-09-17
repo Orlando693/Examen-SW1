@@ -204,6 +204,7 @@ export async function generateSpringProject(model: RelationalModel, options: Spr
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/errors/RestExceptionHandler.java`, 'exception-handler', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/errors/ResourceNotFoundException.java`, 'resource-not-found', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/JacksonConfig.java`, 'jackson-config', templateContext);
+  await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/CorsConfig.java`, 'cors-config', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/OpenApiConfig.java`, 'openapi-config', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/api/dto/PageResponse.java`, 'page-response', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/api/dto/RelationshipResponse.java`, 'relationship-response', templateContext);
