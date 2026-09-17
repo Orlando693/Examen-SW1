@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los fixes clean-clone y browser realtime connection estan CLOSED/ARCHIVED. CU-06 esta ACTIVE: Incremento 1 implementado y validado; Incrementos 2 y 3 no iniciados. Java 21 aun no verificado.
+CU-00 a CU-06 estan COMPLETADOS y archivados. CU-07 esta ACTIVE: Incremento 1 completado y validado; Incrementos 2 y 3 no iniciados.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-05 esta COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED. Los fixes clean-c
 
 ## Ciclo actual
 
-Ciclo 3 — Construccion y generacion de aplicaciones. CU-06 en propuesta.
+Ciclo 3 — Construccion y generacion de aplicaciones. CU-07 activo en Incremento 1 completado.
 
 ## Caso de uso activo
 
-CU-06 — UML -> modelo relacional y backend Spring generado. CLOSED / ARCHIVED as `2026-09-16-cu-06-uml-relational-spring-generator`; CU-07 NOT STARTED.
+CU-07 — Contratos, Domain Manifest y frontend web generado. ACTIVE as `cu-07-contracts-domain-manifest-generated-frontend`; Incremento 1 completado, Incremento 2 no iniciado.
 
 ## Casos de uso completados
 
@@ -28,10 +28,11 @@ CU-06 — UML -> modelo relacional y backend Spring generado. CLOSED / ARCHIVED 
 - CU-03 — Persistencia y gestion de proyectos. COMPLETADO y archivado.
 - CU-04 — Autenticacion, ownership e invitaciones. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-12-cu-04-auth-ownership-invitations`.
 - CU-05 — Colaboracion realtime y presencia. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`. Implementacion cerrada en commit `941ca31`.
+- CU-06 — UML -> modelo relacional y backend Spring generado. COMPLETADO, VERIFIED, ARCHIVED como `openspec/changes/archive/2026-09-16-cu-06-uml-relational-spring-generator`. El backend generado pasa Java 21/Gradle Wrapper test y build; commit de archive `506079f` esta sincronizado con `origin/main`.
 
 ## OpenSpec activo
 
-`cu-06-uml-relational-spring-generator` activo en propuesta. Los fixes correctivos estan archivados como `openspec/changes/archive/2026-09-14-fix-clean-clone-validation` y `openspec/changes/archive/2026-09-15-fix-browser-realtime-connection`; no reabren CU-05.
+`cu-07-contracts-domain-manifest-generated-frontend` activo en implementacion. CU-06 y los fixes correctivos estan archivados; no se reabre ningun CU previo.
 
 ## Problemas abiertos
 
@@ -43,9 +44,10 @@ CU-06 — UML -> modelo relacional y backend Spring generado. CLOSED / ARCHIVED 
 
 ## Verificación actual
 
+- CU-07 Incremento 1 COMPLETADO: `@examen-sw1/generated-api-contracts` materializa el fixture Spring conocido en un root temporal aislado, exige Java 21, inicia el backend real con H2 efimero y extrae/persiste temporalmente `/v3/api-docs`. Valida fail-closed CRUD, DTO request, pagination/sort/search, count, relationship navigation y respuestas 201/204/400/404 documentadas. `spring-generator` genera las anotaciones springdoc de esos errores y expone H2 como runtime-only para el harness, sin modificar reglas relacionales. La Postman Collection v2.1 se deriva exclusivamente del OpenAPI validado, ordena requests de forma determinista, no contiene timestamps/paths absolutos/servidores runtime, y solo se materializa bajo un output root seguro. Sus cinco tests cubren extraccion, persistencia temporal, validacion, fallo por operacion faltante, determinismo, body derivado, path safety y ejecucion CRUD contra el backend real. Validacion fresca PASS: frontend 176, backend 159, generated-api-contracts 5, relational 10, spring-generator 7 y UML core 36, total 393/393; raiz typecheck/lint/build, Prisma generate/validate, migrate deploy DEV/TEST y OpenSpec change/main specs strict PASS. Incremento 2 NO INICIADO.
 - CU-06 Incremento 1: `@examen-sw1/relational-core` implementa RelationalModel y mapper determinista con metadata de identificadores externa al UML, PK sintética/explícita, NUMERIC/BigDecimal, enums `VARCHAR(255)+CHECK`, relations, JOINED, nombres/colisiones e indices FK. Pruebas focales 10 PASS. Validacion fresca completa PASS con PostgreSQL DEV/TEST aislada, JWT efímero y 5 migraciones sin pendientes en ambas DB: frontend 176, backend 159, UML core 36 y relational 10, total 381/381; typecheck/lint/build raiz, OpenSpec strict/main specs strict y `git diff --check` PASS. No Java/Gradle/Handlebars/Spring generator, Prisma schema/migration, realtime, archive ni push CU-06. Incremento 2 NOT STARTED.
 - CU-06 Incremento 2: `@examen-sw1/spring-generator` consume exclusivamente RelationalModel y Handlebars 4.7.9 para generar proyecto Spring estructural determinista, con Gradle Java 21/Spring Boot 4.0.0, entities/JOINED/enums/relations, repositorios, DTOs, mappers, services, controllers, errores y configuracion. Wrapper scripts/properties se generan sin JAR falso; el JAR real y harness son Incremento 3. Validacion fresca PASS: spring-generator 4, frontend 176, backend 159, UML core 36 y relational 10, total 385/385; Prisma DEV/TEST, typecheck/lint/build, OpenSpec strict/main specs strict y `git diff --check` PASS. Incremento 3 NOT STARTED.
-- CU-06 CLOSED/ARCHIVED: navegacion DTO bidireccional N:M, 1:1, 1:N, aggregation y composition se genera exclusivamente desde RelationalModel. Fixture canonical E2E, Java 21/Gradle 9.2.0, determinismo y generated test/build PASS. Archive `2026-09-16-cu-06-uml-relational-spring-generator` sincronizo 9 requirements a main specs. Push pendiente de este commit documental.
+- CU-06 CLOSED/ARCHIVED: navegacion DTO bidireccional N:M, 1:1, 1:N, aggregation y composition se genera exclusivamente desde RelationalModel. Fixture canonical E2E, Java 21/Gradle 9.2.0, determinismo y generated test/build PASS. Archive `2026-09-16-cu-06-uml-relational-spring-generator` sincronizo 9 requirements a main specs y el commit documental `506079f` esta en `origin/main`.
 
 - Fix browser realtime connection CLOSED/ARCHIVED: aceptacion manual Chrome PASS; `NEXT_PUBLIC_REALTIME_URL` es exclusivamente `http://localhost:3001` y el cliente agrega `/collaboration` una vez. La causa raiz fue un bundle Next/Turbopack previo compilado con el valor que ya contenia el namespace. Verificacion fresca PASS: 371/371 pruebas (frontend 176, backend 159, UML core 36), typecheck, lint, build, Prisma generate/validate, migraciones DEV/TEST no destructivas, OpenSpec strict y main specs strict. `ProjectLandingClient` no tuvo timeout; schema y migraciones sin cambios; blockers 0.
 
@@ -139,4 +141,4 @@ CU-06 — UML -> modelo relacional y backend Spring generado. CLOSED / ARCHIVED 
 
 ## Próxima acción
 
-Preparar propuesta de CU-07. No iniciar implementacion sin propuesta/aprobacion.
+Revisar el checkpoint de CU-07 Incremento 1. No iniciar Incremento 2 (Domain Manifest) hasta recibir aprobacion explicita.

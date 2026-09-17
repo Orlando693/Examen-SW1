@@ -4,6 +4,11 @@ import {{packageName}}.api.dto.*;
 import {{packageName}}.application.{{className}}Service;
 import jakarta.validation.Valid;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,11 +17,11 @@ import org.springframework.web.bind.annotation.*;
 public class {{className}}Controller {
     private final {{className}}Service service;
     public {{className}}Controller({{className}}Service service) { this.service = service; }
-    @PostMapping @ResponseStatus(HttpStatus.CREATED) public {{className}}Response create(@Valid @RequestBody Create{{className}}Request request) { return service.create(request); }
-    @GetMapping("/{id}") public {{className}}Response get(@PathVariable {{id.javaType}} id) { return service.get(id); }
-    @PutMapping("/{id}") public {{className}}Response update(@PathVariable {{id.javaType}} id, @Valid @RequestBody Update{{className}}Request request) { return service.update(id, request); }
-    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void delete(@PathVariable {{id.javaType}} id) { service.delete(id); }
-    @GetMapping("/count") public long count() { return service.count(); }
-    @GetMapping public PageResponse<{{className}}Response> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) String sort, @RequestParam(required = false) String search, @RequestParam Map<String, String> query) { query.remove("page"); query.remove("size"); query.remove("sort"); query.remove("search"); return service.list(page, size, sort, search, query); }
-    @GetMapping("/{id}/relationships/{relationship}") public RelationshipResponse relationship(@PathVariable {{id.javaType}} id, @PathVariable String relationship) { return service.relationship(id, relationship); }
+    @PostMapping @ResponseStatus(HttpStatus.CREATED) @Operation(summary = "Create {{className}}") @ApiResponses({@ApiResponse(responseCode = "201", content = @Content(schema = @Schema(implementation = {{className}}Response.class))), @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class)))}) public {{className}}Response create(@Valid @RequestBody Create{{className}}Request request) { return service.create(request); }
+    @GetMapping("/{id}") @Operation(summary = "Get {{className}}") @ApiResponses({@ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = {{className}}Response.class))), @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class)))}) public {{className}}Response get(@PathVariable {{id.javaType}} id) { return service.get(id); }
+    @PutMapping("/{id}") @Operation(summary = "Update {{className}}") @ApiResponses({@ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = {{className}}Response.class))), @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class))), @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class)))}) public {{className}}Response update(@PathVariable {{id.javaType}} id, @Valid @RequestBody Update{{className}}Request request) { return service.update(id, request); }
+    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @Operation(summary = "Delete {{className}}") @ApiResponses({@ApiResponse(responseCode = "204"), @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class)))}) public void delete(@PathVariable {{id.javaType}} id) { service.delete(id); }
+    @GetMapping("/count") @Operation(summary = "Count {{className}}") @ApiResponse(responseCode = "200") public long count() { return service.count(); }
+    @GetMapping @Operation(summary = "List {{className}}") @ApiResponses({@ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = PageResponse.class))), @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class)))}) public PageResponse<{{className}}Response> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) String sort, @RequestParam(required = false) String search, @RequestParam Map<String, String> query) { query.remove("page"); query.remove("size"); query.remove("sort"); query.remove("search"); return service.list(page, size, sort, search, query); }
+    @GetMapping("/{id}/relationships/{relationship}") @Operation(summary = "Navigate {{className}} relationship") @ApiResponses({@ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = RelationshipResponse.class))), @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = {{packageName}}.errors.ApiError.class)))}) public RelationshipResponse relationship(@PathVariable {{id.javaType}} id, @PathVariable String relationship) { return service.relationship(id, relationship); }
 }

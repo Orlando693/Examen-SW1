@@ -60,6 +60,7 @@ describe('generateSpringProject', () => {
     expect(first.result?.manifest).toEqual(second.result?.manifest);
     expect(first.files.map((item) => item.path)).toEqual([...first.files.map((item) => item.path)].sort((left, right) => left < right ? -1 : left > right ? 1 : 0));
     expect(file(first, 'build.gradle')).toContain("springdoc-openapi-starter-webmvc-ui");
+    expect(file(first, 'build.gradle')).toContain("runtimeOnly 'com.h2database:h2'");
     expect(file(first, 'gradle/wrapper/gradle-wrapper.properties')).toContain('gradle-9.2.0-bin.zip');
     expect(first.files.find((item) => item.path.endsWith('.jar'))?.sha256).toBe('423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9');
   });
@@ -89,6 +90,8 @@ describe('generateSpringProject', () => {
     expect(file(output, 'src/main/java/com/generated/app/persistence/InvoiceRepository.java')).toContain('JpaRepository<Invoice, Long>');
     expect(file(output, 'src/main/java/com/generated/app/api/dto/CreateAccountRequest.java')).toContain('@NotNull @Size(max = 255) String name');
     expect(file(output, 'src/main/java/com/generated/app/api/AccountController.java')).toContain('@RequestMapping("/api/account")');
+    expect(file(output, 'src/main/java/com/generated/app/api/AccountController.java')).toContain('@ApiResponse(responseCode = "400"');
+    expect(file(output, 'src/main/java/com/generated/app/api/AccountController.java')).toContain('@ApiResponse(responseCode = "404"');
     expect(file(output, 'src/main/java/com/generated/app/errors/RestExceptionHandler.java')).toContain('VALIDATION_ERROR');
     expect(file(output, 'src/main/resources/application.yml')).toContain('jdbc:postgresql');
     expect(output.files.every((item) => typeof item.content !== 'string' || !/nestjs|prisma|frontend/i.test(item.content))).toBe(true);
