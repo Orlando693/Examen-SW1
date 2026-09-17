@@ -18,9 +18,9 @@
     "dev:backend": "npm run dev --workspace backend",
     "start:frontend": "npm run start --workspace frontend",
     "start:backend": "npm run start --workspace backend",
-    "build": "npm run build --workspace @examen-sw1/uml-core && npm run build --workspace @examen-sw1/relational-core && npm run build --workspace @examen-sw1/spring-generator && npm run build --workspace @examen-sw1/generated-api-contracts && npm run build --workspace backend && npm run build --workspace frontend",
+    "build": "npm run build --workspace @examen-sw1/uml-core && npm run build --workspace @examen-sw1/relational-core && npm run build --workspace @examen-sw1/spring-generator && npm run build --workspace @examen-sw1/generated-api-contracts && npm run build --workspace @examen-sw1/domain-manifest && npm run build --workspace backend && npm run build --workspace frontend",
     "lint": "npm run lint --workspaces",
-    "typecheck": "npm run build --workspace @examen-sw1/uml-core && npm run build --workspace @examen-sw1/relational-core && npm run build --workspace @examen-sw1/spring-generator && npm run build --workspace @examen-sw1/generated-api-contracts && npm run typecheck --workspaces",
+    "typecheck": "npm run build --workspace @examen-sw1/uml-core && npm run build --workspace @examen-sw1/relational-core && npm run build --workspace @examen-sw1/spring-generator && npm run build --workspace @examen-sw1/generated-api-contracts && npm run build --workspace @examen-sw1/domain-manifest && npm run typecheck --workspaces",
     "test": "npm run test --workspaces"
   }
 }

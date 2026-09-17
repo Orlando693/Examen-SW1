@@ -1,0 +1,1 @@
+{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","target":"ES2022","lib":["ES2022"],"strict":true,"declaration":true,"declarationMap":true,"sourceMap":true,"skipLibCheck":true,"outDir":"dist","types":["node","vitest"]},"include":["src/**/*.ts","test/**/*.ts","eslint.config.js","vitest.config.ts"],"exclude":["dist","node_modules"]}

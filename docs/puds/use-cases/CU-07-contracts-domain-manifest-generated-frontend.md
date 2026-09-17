@@ -52,7 +52,7 @@ Postman Collection v2.1 output derives only from validated OpenAPI. It has stabl
 
 ### Increment 2 - Domain Manifest
 
-Not started.
+Completed. `@examen-sw1/domain-manifest` accepts only `RelationalModel` and validated OpenAPI. Its version-1 manifest declares entities, stable aliases, fields/types/nullability/identifier and validation metadata, relations/cardinality/bidirectional navigation, CRUD, pagination, filter, search, and sort capabilities. Canonical serialization orders all collections and contains no timestamps, absolute paths, or generated UUIDs. API validation fails closed when generated CRUD capability or create-DTO field type does not match relational authority. The real fixture chain and manifest mismatch checks pass.
 
 ### Increment 3 - Generated Frontend
 
@@ -63,6 +63,7 @@ Not started. No `frontend-generator` package exists.
 - `@examen-sw1/generated-api-contracts`: 5 tests PASS, including real generated Spring backend extraction, validation, Postman derivation and execution.
 - Generated Spring Gradle Wrapper test/build PASS through the existing fixture harness; spring-generator has 7 tests PASS.
 - Fresh root `npm test` PASS: 393/393 tests (frontend 176, backend 159, generated-api-contracts 5, relational core 10, spring generator 7, UML core 36).
+- Incremento 2 fresh root `npm test` PASS: 394/394 tests (adds domain-manifest 1); root typecheck, lint, build, Prisma DEV/TEST and OpenSpec strict PASS.
 - Fresh root `npm run typecheck`, `npm run lint`, and `npm run build` PASS.
 - Prisma `db:generate`, `db:validate`, `db:migrate:deploy` on DEV, and `db:migrate:test` PASS with five migrations and no pending changes.
 - `openspec validate cu-07-contracts-domain-manifest-generated-frontend --strict` and `openspec validate --specs --strict` PASS.

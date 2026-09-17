@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-06 estan COMPLETADOS y archivados. CU-07 esta ACTIVE: Incremento 1 completado y validado; Incrementos 2 y 3 no iniciados.
+CU-00 a CU-06 estan COMPLETADOS y archivados. CU-07 esta ACTIVE: Incrementos 1 y 2 completados y validados; Incremento 3 no iniciado.
 
 ## Planificación vigente
 
@@ -18,7 +18,7 @@ Ciclo 3 — Construccion y generacion de aplicaciones. CU-07 activo en Increment
 
 ## Caso de uso activo
 
-CU-07 — Contratos, Domain Manifest y frontend web generado. ACTIVE as `cu-07-contracts-domain-manifest-generated-frontend`; Incremento 1 completado, Incremento 2 no iniciado.
+CU-07 — Contratos, Domain Manifest y frontend web generado. ACTIVE as `cu-07-contracts-domain-manifest-generated-frontend`; Incrementos 1 y 2 completados, Incremento 3 no iniciado.
 
 ## Casos de uso completados
 
@@ -44,6 +44,7 @@ CU-07 — Contratos, Domain Manifest y frontend web generado. ACTIVE as `cu-07-c
 
 ## Verificación actual
 
+- CU-07 Incremento 2 COMPLETADO: `@examen-sw1/domain-manifest` genera `DomainManifest` v1 exclusivamente desde `RelationalModel` y OpenAPI validado. Declara entidades, aliases estables, campos/tipos/nulabilidad/validaciones, relaciones/cardinalidad/navegacion, CRUD, pagination, filter/search/sort. La proyeccion verifica DTO create y tipos OpenAPI compatibles con los campos relacionales no generados, y el validador compara la serializacion canonica del manifest contra ambas autoridades para fallar cerrado. No consume UML, no contiene rutas absolutas, timestamps o UUIDs aleatorios, y no inicia frontend-generator. Test real fixture `CanonicalUmlModel -> RelationalModel -> OpenAPI -> DomainManifest` PASS, incluye determinismo y mismatch. Validacion fresca PASS: frontend 176, backend 159, domain-manifest 1, generated-api-contracts 5, relational 10, spring-generator 7 y UML core 36, total 394/394; raiz typecheck/lint/build, Prisma generate/validate/migrate deploy DEV/TEST y OpenSpec strict PASS.
 - CU-07 Incremento 1 COMPLETADO: `@examen-sw1/generated-api-contracts` materializa el fixture Spring conocido en un root temporal aislado, exige Java 21, inicia el backend real con H2 efimero y extrae/persiste temporalmente `/v3/api-docs`. Valida fail-closed CRUD, DTO request, pagination/sort/search, count, relationship navigation y respuestas 201/204/400/404 documentadas. `spring-generator` genera las anotaciones springdoc de esos errores y expone H2 como runtime-only para el harness, sin modificar reglas relacionales. La Postman Collection v2.1 se deriva exclusivamente del OpenAPI validado, ordena requests de forma determinista, no contiene timestamps/paths absolutos/servidores runtime, y solo se materializa bajo un output root seguro. Sus cinco tests cubren extraccion, persistencia temporal, validacion, fallo por operacion faltante, determinismo, body derivado, path safety y ejecucion CRUD contra el backend real. Validacion fresca PASS: frontend 176, backend 159, generated-api-contracts 5, relational 10, spring-generator 7 y UML core 36, total 393/393; raiz typecheck/lint/build, Prisma generate/validate, migrate deploy DEV/TEST y OpenSpec change/main specs strict PASS. Incremento 2 NO INICIADO.
 - CU-06 Incremento 1: `@examen-sw1/relational-core` implementa RelationalModel y mapper determinista con metadata de identificadores externa al UML, PK sintética/explícita, NUMERIC/BigDecimal, enums `VARCHAR(255)+CHECK`, relations, JOINED, nombres/colisiones e indices FK. Pruebas focales 10 PASS. Validacion fresca completa PASS con PostgreSQL DEV/TEST aislada, JWT efímero y 5 migraciones sin pendientes en ambas DB: frontend 176, backend 159, UML core 36 y relational 10, total 381/381; typecheck/lint/build raiz, OpenSpec strict/main specs strict y `git diff --check` PASS. No Java/Gradle/Handlebars/Spring generator, Prisma schema/migration, realtime, archive ni push CU-06. Incremento 2 NOT STARTED.
 - CU-06 Incremento 2: `@examen-sw1/spring-generator` consume exclusivamente RelationalModel y Handlebars 4.7.9 para generar proyecto Spring estructural determinista, con Gradle Java 21/Spring Boot 4.0.0, entities/JOINED/enums/relations, repositorios, DTOs, mappers, services, controllers, errores y configuracion. Wrapper scripts/properties se generan sin JAR falso; el JAR real y harness son Incremento 3. Validacion fresca PASS: spring-generator 4, frontend 176, backend 159, UML core 36 y relational 10, total 385/385; Prisma DEV/TEST, typecheck/lint/build, OpenSpec strict/main specs strict y `git diff --check` PASS. Incremento 3 NOT STARTED.

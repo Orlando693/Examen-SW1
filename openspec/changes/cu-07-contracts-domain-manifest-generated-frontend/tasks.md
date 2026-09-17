@@ -9,12 +9,12 @@
 
 ## 2. Increment 2 - Versioned Domain Manifest
 
-- [ ] 2.1 Create a separate manifest package with versioned serializable contracts, canonical serialization, safe exports, and structured diagnostics; verify workspace participation and deterministic output ordering.
-- [ ] 2.2 Implement structural projection from `RelationalModel` for entities, fields, types, relationships, aliases, validations, searchable fields, sortable fields, and declared CRUD capabilities; verify it does not consume Canonical UML or layout state.
-- [ ] 2.3 Implement transport projection exclusively from validated OpenAPI for operation mappings, request/response schemas, paths, methods, and query controls; verify no endpoint is recreated from relational or UML naming.
-- [ ] 2.4 Implement fail-closed consistency validation across relational and transport authorities; verify entity, field, relation, capability, validation, search, and sort mismatches identify both source references and expose no partial manifest.
-- [ ] 2.5 Add manifest unit, malformed-input, determinism, and known-fixture chain tests; verify byte-equivalent manifests for equivalent inputs and successful contract reconciliation.
-- [ ] 2.6 Run manifest package and relevant root checks with the executable generated-contract harness; record exact outcomes without beginning Increment 3 implementation.
+- [x] 2.1 Create a separate manifest package with versioned serializable contracts, canonical serialization, safe exports, and structured diagnostics; verify workspace participation and deterministic output ordering.
+- [x] 2.2 Implement structural projection from `RelationalModel` for entities, fields, types, relationships, aliases, validations, searchable fields, sortable fields, and declared CRUD capabilities; verify it does not consume Canonical UML or layout state.
+- [x] 2.3 Implement transport projection exclusively from validated OpenAPI for operation mappings, request/response schemas, paths, methods, and query controls; verify no endpoint is recreated from relational or UML naming.
+- [x] 2.4 Implement fail-closed consistency validation across relational and transport authorities; verify entity, field, relation, capability, validation, search, and sort mismatches identify both source references and expose no partial manifest.
+- [x] 2.5 Add manifest unit, malformed-input, determinism, and known-fixture chain tests; verify byte-equivalent manifests for equivalent inputs and successful contract reconciliation.
+- [x] 2.6 Run manifest package and relevant root checks with the executable generated-contract harness; record exact outcomes without beginning Increment 3 implementation.
 
 ## 3. Increment 3 - Generated Next.js Web Frontend
 
