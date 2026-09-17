@@ -14,7 +14,7 @@ CU-08 - Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, Incr
 - Incremento 1 creo `@examen-sw1/assistant-core`: `AssistantCommand` v1 cerrado, decoder fail-closed, contexto UML read-only, resolucion ID/nombre con ambiguedad explicita, preview/apply, confirmacion destructiva, stale revision y contrato de permisos.
 - Las mutaciones UML usan exclusivamente `AssistantCommand -> adapter -> UmlCommand -> UmlCommandBus`; no hay mutacion directa de documento/modelo. `summarize_model` es read-only.
 - `DomainManifest` no tiene execution role: sera solo contexto/contrato read-only en Incremento 2.
-- Evidencia: assistant-core 10 PASS; aggregate 407 PASS; typecheck/lint/build, Prisma DEV/TEST, OpenSpec strict y diff check PASS.
+- Evidencia: assistant-core 11 PASS; aggregate 408 PASS; typecheck/lint/build, Prisma DEV/TEST, OpenSpec strict y diff check PASS.
 
 ## Trabajo pendiente
 

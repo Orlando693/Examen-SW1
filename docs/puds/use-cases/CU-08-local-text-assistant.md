@@ -42,8 +42,8 @@ Permitir operaciones mediante lenguaje natural local, estructurado y validado, s
 
 ## Pruebas automatizadas
 
-- `@examen-sw1/assistant-core`: 10/10 PASS. Cubre schemas, fallos cerrados, contexto, IDs/nombres, ambiguedad, preview sin mutacion, confirmation, permisos, stale state, adapter, Command Bus y provider determinista.
-- Aggregate de workspaces: 407/407 PASS sin skips inesperados: frontend 176, backend 159, assistant-core 10, domain-manifest 1, frontend-generator 3, generated-api-contracts 5, relational-core 10, spring-generator 7 y uml-core 36.
+- `@examen-sw1/assistant-core`: 11/11 PASS. Cubre schemas, fallos cerrados, contexto, IDs/nombres, ambiguedad, preview/cancel sin mutacion, confirmation, permisos, stale state, adapter, Command Bus y provider determinista.
+- Aggregate de workspaces: 408/408 PASS sin skips inesperados: frontend 176, backend 159, assistant-core 11, domain-manifest 1, frontend-generator 3, generated-api-contracts 5, relational-core 10, spring-generator 7 y uml-core 36.
 - Root typecheck, lint y build PASS.
 - Prisma generate/validate, DEV migrate deploy y TEST migrate deploy PASS con cinco migraciones sin pendientes.
 - OpenSpec change strict, main specs strict y `git diff --check` PASS; solo warnings LF/CRLF conocidos.
