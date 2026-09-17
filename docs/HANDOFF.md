@@ -18,7 +18,7 @@ CU-06 - UML -> modelo relacional y backend Spring generado. ACTIVE; Incremento 1
 - Propuesta CU-06 creada: RelationalModel/RelationalMapper separados de `uml-core`, generador Spring Handlebars separado, tres incrementos exactos y harness Gradle/Java 21. No se implemento codigo ni se instalaron dependencias.
 - Incremento 1 implemento `@examen-sw1/relational-core`: contratos relacionales, metadata externa de identifier hints, mapper determinista, diagnosticos fail-closed, nombres SQL, PK/FK/unique/check/indexes, enums, asociaciones, aggregation/composition y JOINED. Validacion fresca PASS: Prisma generate/validate, migrate deploy DEV/TEST (5 sin pendientes), realtime integration 36 PASS, raiz 381/381 (frontend 176, backend 159, core 36, relational 10), typecheck/lint/build, OpenSpec strict y `git diff --check`.
 - Incremento 2 implemento `@examen-sw1/spring-generator` con Handlebars 4.7.9. Recibe solamente RelationalModel, genera archivos ordenados/hash manifest, valida package/path, y produce foundation Gradle/Java 21/Spring Boot 4.0.0, wrapper sin JAR falso, entities/enums/JOINED/relations, layers API/application/persistence y config/errors. Validacion completa PASS: raiz 385/385 (spring-generator 4), Prisma DEV/TEST y quality checks. Incremento 3 sigue NOT STARTED; no harness Gradle real, Java compilation generada, archive ni push.
-- Incremento 3 corregido: navegacion N:M bidireccional con `@ManyToMany`/`@JoinTable` y DTO `RelationshipResponse` se deriva solo de RelationalModel. La fixture E2E agrega aggregation y prueba ausencia de cascade/orphan/OnDelete; composition conserva cascade/orphan/OnDelete. Root fresco PASS: frontend 176, backend 159, UML 36, relational 10 y generator 7; Java 21 Gradle generated `test`/`build`, Prisma DEV/TEST, typecheck/lint/build PASS. Tasks 22/22 complete; CU-06 ACTIVE ready for final verify/archive.
+- CU-06 CLOSED/ARCHIVED: `2026-09-16-cu-06-uml-relational-spring-generator`. Main specs recibieron 9 requirements. Incremento 3 genero navegacion N:M bidireccional desde RelationalModel y coverage E2E de aggregation; root fresco, Java 21 Gradle generated test/build, Prisma DEV/TEST y OpenSpec strict PASS. CU-07 no iniciado.
 
 ## Limitaciones vigentes
 
@@ -28,4 +28,4 @@ CU-06 - UML -> modelo relacional y backend Spring generado. ACTIVE; Incremento 1
 
 ## Siguiente accion exacta
 
-Crear commit correctivo, ejecutar verify/archive y push CU-06. No iniciar CU-07. `frontend/next-env.d.ts` sigue fuera del commit.
+Preparar propuesta CU-07 solo tras la aceptacion correspondiente. `frontend/next-env.d.ts` sigue fuera del commit.
