@@ -3,6 +3,7 @@ import { UmlCommandBus, createProjectDocument, type ProjectDocument } from '@exa
 import {
   RuleBasedAssistantProvider,
   applyPreview,
+  cancelPreview,
   createAssistantModelContext,
   createPreview,
   decodeAssistantCommand,
@@ -87,6 +88,14 @@ describe('preview and command bus application', () => {
       expect(applyPreview(preview.preview, source)).toMatchObject({ ok: false, diagnostics: [{ code: 'CONFIRMATION_REQUIRED' }] });
       expect(applyPreview(preview.preview, source, { confirmed: true }).ok).toBe(true);
     }
+  });
+
+  it('cancels a preview without executing or mutating the source document', () => {
+    const source = document(); const before = structuredClone(source);
+    const preview = createPreview('rename', { version: 1, operation: 'rename_class', class: { id: 'class-user' }, name: 'Member' }, createAssistantModelContext(source));
+    if (!preview.ok) throw new Error('fixture must preview');
+    expect(cancelPreview(preview.preview)).toEqual({ cancelled: true, contextRevision: 4 });
+    expect(source).toEqual(before);
   });
 
   it('fails closed for stale previews, denied permissions, and rejected bus commands', () => {

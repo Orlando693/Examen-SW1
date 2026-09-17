@@ -135,6 +135,9 @@ export function createPreview(originalText: string, command: AssistantCommand, c
   const destructive = isDestructive(resolved.command);
   return { ok: true, preview: { originalText, contextRevision: context.revision, command: resolved.command, affectedIds, summary: resolved.command.operation.replaceAll('_', ' '), destructive, requiresConfirmation: destructive, diagnostics: [], umlCommands } };
 }
+export function cancelPreview(preview: AssistantPreview): { cancelled: true; contextRevision: number } {
+  return { cancelled: true, contextRevision: preview.contextRevision };
+}
 
 export interface AssistantPermissionEvaluator { canApply(document: ProjectDocument, command: ResolvedAssistantCommand): boolean; }
 export const allowAssistantCommands: AssistantPermissionEvaluator = { canApply: () => true };
