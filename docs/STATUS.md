@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 no ha iniciado.
+CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 esta ACTIVE: Incremento 1 completado y verificado; Incrementos 2 y 3 no iniciados.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 no ha iniciado.
 
 ## Ciclo actual
 
-Ciclo 3 — Construccion y generacion de aplicaciones. CU-07 activo en Incremento 1 completado.
+Ciclo 3 — Construccion y generacion de aplicaciones. CU-08 activo con Incremento 1 completado.
 
 ## Caso de uso activo
 
-CU-07 — Contratos, Domain Manifest y frontend web generado. CLOSED / ARCHIVED; Incrementos 1, 2 y 3 completos.
+CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, Incrementos 2 y 3 NOT STARTED.
 
 ## Casos de uso completados
 
@@ -32,7 +32,7 @@ CU-07 — Contratos, Domain Manifest y frontend web generado. CLOSED / ARCHIVED;
 
 ## OpenSpec activo
 
-`cu-07-contracts-domain-manifest-generated-frontend` activo en implementacion. CU-06 y los fixes correctivos estan archivados; no se reabre ningun CU previo.
+`cu-08-local-text-assistant` activo en implementacion. Incremento 1 completo; CU-07 y los CUs previos estan archivados.
 
 ## Problemas abiertos
 
@@ -143,4 +143,4 @@ CU-07 — Contratos, Domain Manifest y frontend web generado. CLOSED / ARCHIVED;
 
 ## Próxima acción
 
-Revisar el checkpoint de CU-07 Incremento 1. No iniciar Incremento 2 (Domain Manifest) hasta recibir aprobacion explicita.
+Revisar el checkpoint de Incremento 1 de `cu-08-local-text-assistant`. No iniciar Incremento 2 sin aprobacion explicita.
