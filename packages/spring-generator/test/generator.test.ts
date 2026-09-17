@@ -70,7 +70,7 @@ describe('generateSpringProject', () => {
     if (!mapped.success) return;
     expect(mapped.model.enums).toHaveLength(1);
     expect(mapped.model.tables.some((table) => table.kind === 'JOIN')).toBe(true);
-    expect(mapped.model.relations.map((relation) => relation.kind)).toEqual(expect.arrayContaining(['INHERITANCE', 'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_MANY', 'COMPOSITION']));
+    expect(mapped.model.relations.map((relation) => relation.kind)).toEqual(expect.arrayContaining(['INHERITANCE', 'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_MANY', 'AGGREGATION', 'COMPOSITION']));
     expect(mapped.model.tables.find((table) => table.name === 'customer')?.primaryKey.columnIds).toHaveLength(1);
   });
 
@@ -84,12 +84,58 @@ describe('generateSpringProject', () => {
     expect(file(output, 'src/main/java/com/generated/app/domain/Account.java')).toContain('@Enumerated(EnumType.STRING)');
     expect(file(output, 'src/main/java/com/generated/app/domain/Profile.java')).toContain('extends Account');
     expect(file(output, 'src/main/java/com/generated/app/domain/Profile.java')).toContain('@PrimaryKeyJoinColumn(name = "id")');
-    expect(file(output, 'src/main/java/com/generated/app/domain/Invoice.java')).toContain('@OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)');
+    expect(file(output, 'src/main/java/com/generated/app/domain/Invoice.java')).toContain('@ManyToOne(fetch = FetchType.LAZY)');
+    expect(file(output, 'src/main/java/com/generated/app/domain/Invoice.java')).toContain('@OnDelete(action = OnDeleteAction.CASCADE)');
     expect(file(output, 'src/main/java/com/generated/app/persistence/InvoiceRepository.java')).toContain('JpaRepository<Invoice, Long>');
     expect(file(output, 'src/main/java/com/generated/app/api/dto/CreateAccountRequest.java')).toContain('@NotNull @Size(max = 255) String name');
     expect(file(output, 'src/main/java/com/generated/app/api/AccountController.java')).toContain('@RequestMapping("/api/account")');
     expect(file(output, 'src/main/java/com/generated/app/errors/RestExceptionHandler.java')).toContain('VALIDATION_ERROR');
     expect(file(output, 'src/main/resources/application.yml')).toContain('jdbc:postgresql');
     expect(output.files.every((item) => typeof item.content !== 'string' || !/nestjs|prisma|frontend/i.test(item.content))).toBe(true);
+  });
+
+  it('derives bidirectional relationship navigation and DTO endpoints solely from the known relational model', async () => {
+    const mapped = mapCanonicalUmlModel(knownCanonicalFixture, knownFixtureMetadata);
+    expect(mapped.success).toBe(true);
+    if (!mapped.success) return;
+    const first = await generateSpringProject(mapped.model);
+    const second = await generateSpringProject(mapped.model);
+    expect(first.result?.manifest).toEqual(second.result?.manifest);
+
+    const order = file(first, 'src/main/java/com/generated/app/domain/PurchaseOrder.java');
+    const product = file(first, 'src/main/java/com/generated/app/domain/Product.java');
+    const customer = file(first, 'src/main/java/com/generated/app/domain/Customer.java');
+    const profile = file(first, 'src/main/java/com/generated/app/domain/Profile.java');
+    const line = file(first, 'src/main/java/com/generated/app/domain/OrderLine.java');
+    expect(product).toContain('@ManyToMany(fetch = FetchType.LAZY)');
+    expect(product).toContain('@JoinTable(name = "product_purchase_order_ordered_products"');
+    expect(product).toContain('Set<PurchaseOrder> purchaseOrders = new LinkedHashSet<>()');
+    expect(order).toContain('@ManyToMany(mappedBy = "purchaseOrders", fetch = FetchType.LAZY)');
+    expect(order).toContain('Set<Product> products = new LinkedHashSet<>()');
+    expect(file(first, 'src/main/java/com/generated/app/application/PurchaseOrderService.java')).toContain('new RelationshipResponse("products", entity.getProducts().stream()');
+    expect(file(first, 'src/main/java/com/generated/app/application/ProductService.java')).toContain('new RelationshipResponse("purchaseOrders", entity.getPurchaseOrders().stream()');
+    expect(file(first, 'src/main/java/com/generated/app/api/PurchaseOrderController.java')).toContain('RelationshipResponse relationship');
+    expect(file(first, 'src/main/java/com/generated/app/api/ProductController.java')).toContain('RelationshipResponse relationship');
+    expect(file(first, 'src/main/java/com/generated/app/api/dto/RelationshipResponse.java')).toContain('List<Object> ids');
+    expect(file(first, 'src/main/java/com/generated/app/persistence/PurchaseOrderRepository.java')).toContain('JpaRepository<PurchaseOrder, Long>');
+    expect(file(first, 'src/main/java/com/generated/app/persistence/ProductRepository.java')).toContain('JpaRepository<Product, Long>');
+    expect(file(first, 'src/main/java/com/generated/app/api/dto/PurchaseOrderResponse.java')).not.toContain('Product');
+
+    expect(customer).toContain('@OneToOne(fetch = FetchType.LAZY)');
+    expect(profile).toContain('@OneToOne(mappedBy = "profile", fetch = FetchType.LAZY)');
+    expect(customer).toContain('@OneToMany(mappedBy = "customer", fetch = FetchType.LAZY)');
+    expect(line).toContain('@ManyToOne(fetch = FetchType.LAZY)');
+    expect(order).toContain('@OneToMany(mappedBy = "purchaseOrder", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)');
+    expect(line).toContain('@OnDelete(action = OnDeleteAction.CASCADE)');
+    expect(product).toContain('@ManyToOne(fetch = FetchType.LAZY)');
+    const aggregation = customer.match(/@OneToMany\(mappedBy = "customer", fetch = FetchType.LAZY\)[\s\S]*?private Set<Product> products/);
+    expect(aggregation?.[0]).toBeDefined();
+    expect(aggregation?.[0]).not.toContain('CascadeType.ALL');
+    expect(aggregation?.[0]).not.toContain('orphanRemoval');
+    const aggregationOwner = product.match(/@ManyToOne\(fetch = FetchType.LAZY\)[\s\S]*?private Customer customer/);
+    expect(aggregationOwner?.[0]).toBeDefined();
+    expect(aggregationOwner?.[0]).not.toContain('CascadeType.ALL');
+    expect(aggregationOwner?.[0]).not.toContain('orphanRemoval');
+    expect(aggregationOwner?.[0]).not.toContain('@OnDelete');
   });
 });

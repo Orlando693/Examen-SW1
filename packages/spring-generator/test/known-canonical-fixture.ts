@@ -22,6 +22,7 @@ export const knownCanonicalFixture: CanonicalUmlModel = {
     { id: id('102'), kind: 'association', name: 'customerOrders', source: { classId: id('10'), multiplicity: { lower: 1, upper: 1 } }, target: { classId: id('40'), multiplicity: { lower: 0, upper: '*' } } },
     { id: id('103'), kind: 'composition', name: 'orderLines', source: { classId: id('40'), multiplicity: { lower: 1, upper: 1 } }, target: { classId: id('50'), multiplicity: { lower: 1, upper: '*' } } },
     { id: id('104'), kind: 'association', name: 'orderedProducts', source: { classId: id('40'), roleName: 'orders', multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('60'), roleName: 'products', multiplicity: { lower: 0, upper: '*' } } },
+    { id: id('105'), kind: 'aggregation', name: 'customerProducts', source: { classId: id('10'), multiplicity: { lower: 0, upper: 1 } }, target: { classId: id('60'), multiplicity: { lower: 0, upper: '*' } } },
   ],
 };
 

@@ -31,6 +31,7 @@ interface EntityContext extends TemplateContext {
   relationships: RelationshipContext[];
   filterFields: FieldContext[];
   searchFields: FieldContext[];
+  hasCollections: boolean;
 }
 interface FieldContext extends TemplateContext {
   name: string;
@@ -44,7 +45,21 @@ interface FieldContext extends TemplateContext {
   enumType?: string;
   validation: string[];
 }
-interface RelationshipContext extends TemplateContext { name: string; annotation: string; targetClassName: string; targetIdAccessor: string; joinColumn: string; cascade: boolean; }
+interface RelationshipContext extends TemplateContext {
+  name: string;
+  accessorName: string;
+  annotation: 'ManyToMany' | 'ManyToOne' | 'OneToMany' | 'OneToOne';
+  targetClassName: string;
+  targetIdAccessor: string;
+  collection: boolean;
+  mappedBy?: string;
+  joinColumn?: string;
+  inverseJoinColumn?: string;
+  joinTableName?: string;
+  cascade: boolean;
+  orphanRemoval: boolean;
+  onDelete: boolean;
+}
 
 async function render(name: string, context: TemplateContext): Promise<string> {
   const source = await readFile(new URL(`${name}.hbs`, templatesRoot), 'utf8');
@@ -66,26 +81,71 @@ function field(column: RelationalColumn, id: boolean, enumNames: Map<string, str
   };
 }
 
-function entityContext(table: RelationalTable, model: RelationalModel, basePackage: string): EntityContext {
+function entityContext(table: RelationalTable, model: RelationalModel, basePackage: string, relationships: RelationshipContext[]): EntityContext {
   const entityTables = model.tables.filter((item) => item.kind === 'ENTITY');
   const parent = model.relations.find((item) => item.kind === 'INHERITANCE' && item.ownerTableId === table.id);
   const child = model.relations.some((item) => item.kind === 'INHERITANCE' && item.tableIds[1] === table.id);
-  const relationships = table.foreignKeys.flatMap((foreignKey) => {
-    const target = entityTables.find((item) => item.id === foreignKey.referencedTableId);
-    const relation = model.relations.find((item) => item.ownerTableId === table.id && item.tableIds.includes(foreignKey.referencedTableId));
-    const column = table.columns.find((item) => item.id === foreignKey.columnIds[0]);
-    if (!target || !column) throw new Error(`Invalid relational foreign key ${foreignKey.id}`);
-    if (relation?.kind === 'INHERITANCE') return [];
-    const one = relation?.kind === 'ONE_TO_ONE' || relation?.kind === 'COMPOSITION';
-    const targetId = target.columns.find((item) => target.primaryKey.columnIds.includes(item.id));
-    if (!targetId) throw new Error(`Target table ${target.id} has no scalar primary key.`);
-    return [{ name: camel(column.name.replace(/_id$/, '')), annotation: one ? 'OneToOne' : 'ManyToOne', targetClassName: pascal(target.name), targetIdAccessor: pascal(camel(targetId.name)), joinColumn: column.name, cascade: foreignKey.onDelete === 'CASCADE' }];
-  });
   const parentTable = parent ? entityTables.find((item) => item.id === parent.tableIds[1]) : undefined;
   const fields = tableColumns(table, model);
   const id = fields.find((item) => item.id);
   if (!id) throw new Error(`Entity table ${table.id} has no scalar primary key.`);
-  return { packageName: basePackage, className: pascal(table.name), tableName: table.name, root: child, parentClassName: parentTable ? pascal(parentTable.name) : undefined, id, fields, createFields: fields.filter((item) => !item.generated), updateFields: fields.filter((item) => !item.id), relationships, filterFields: fields.filter((item) => !item.id), searchFields: fields.filter((item) => item.javaType === 'String' && !item.enumType) };
+  return { packageName: basePackage, className: pascal(table.name), tableName: table.name, root: child, parentClassName: parentTable ? pascal(parentTable.name) : undefined, id, fields, createFields: fields.filter((item) => !item.generated), updateFields: fields.filter((item) => !item.id), relationships, filterFields: fields.filter((item) => !item.id), searchFields: fields.filter((item) => item.javaType === 'String' && !item.enumType), hasCollections: relationships.some((relationship) => relationship.collection) };
+}
+
+function plural(value: string): string { return `${camel(value)}s`; }
+function targetId(table: RelationalTable): RelationalColumn {
+  const column = table.columns.find((item) => table.primaryKey.columnIds.includes(item.id));
+  if (!column) throw new Error(`Target table ${table.id} has no scalar primary key.`);
+  return column;
+}
+function relationshipContext(name: string, annotation: RelationshipContext['annotation'], target: RelationalTable, options: Partial<RelationshipContext> = {}): RelationshipContext {
+  const id = targetId(target);
+  return { name, accessorName: pascal(name), annotation, targetClassName: pascal(target.name), targetIdAccessor: pascal(camel(id.name)), collection: false, cascade: false, orphanRemoval: false, onDelete: false, ...options };
+}
+function addRelationship(contexts: Map<string, RelationshipContext[]>, tableId: string, relationship: RelationshipContext) {
+  const items = contexts.get(tableId);
+  if (!items) throw new Error(`Invalid relationship owner table ${tableId}.`);
+  const duplicate = items.some((item) => item.name === relationship.name);
+  if (duplicate) {
+    const suffix = createHash('sha256').update(`${tableId}:${relationship.name}:${relationship.targetClassName}`).digest('hex').slice(0, 8);
+    relationship.name = `${relationship.name}By${suffix}`;
+    relationship.accessorName = pascal(relationship.name);
+  }
+  items.push(relationship);
+}
+function relationshipContexts(model: RelationalModel): Map<string, RelationshipContext[]> {
+  const entities = model.tables.filter((table) => table.kind === 'ENTITY');
+  const byId = new Map(entities.map((table) => [table.id, table]));
+  const contexts = new Map(entities.map((table) => [table.id, [] as RelationshipContext[]]));
+  for (const relation of model.relations.filter((item) => item.kind !== 'INHERITANCE').sort((left, right) => compare(left.id, right.id))) {
+    if (relation.kind === 'MANY_TO_MANY') {
+      const [leftId, rightId, joinId] = relation.tableIds;
+      const left = byId.get(leftId); const right = byId.get(rightId); const join = model.tables.find((table) => table.id === joinId);
+      if (!left || !right || !join) throw new Error(`Invalid many-to-many relation ${relation.id}.`);
+      const leftForeignKey = join.foreignKeys.find((foreignKey) => foreignKey.referencedTableId === left.id);
+      const rightForeignKey = join.foreignKeys.find((foreignKey) => foreignKey.referencedTableId === right.id);
+      const leftColumn = leftForeignKey && join.columns.find((column) => column.id === leftForeignKey.columnIds[0]);
+      const rightColumn = rightForeignKey && join.columns.find((column) => column.id === rightForeignKey.columnIds[0]);
+      if (!leftColumn || !rightColumn) throw new Error(`Invalid many-to-many join table ${join.id}.`);
+      const ownerName = plural(right.name);
+      addRelationship(contexts, left.id, relationshipContext(ownerName, 'ManyToMany', right, { collection: true, joinTableName: join.name, joinColumn: leftColumn.name, inverseJoinColumn: rightColumn.name }));
+      addRelationship(contexts, right.id, relationshipContext(plural(left.name), 'ManyToMany', left, { collection: true, mappedBy: ownerName }));
+      continue;
+    }
+    const owner = relation.ownerTableId ? byId.get(relation.ownerTableId) : undefined;
+    const target = relation.tableIds.map((id) => byId.get(id)).find((table) => table && table.id !== owner?.id);
+    if (!owner || !target) throw new Error(`Invalid relational relation ${relation.id}.`);
+    const foreignKey = owner.foreignKeys.find((item) => item.referencedTableId === target.id);
+    const column = foreignKey && owner.columns.find((item) => item.id === foreignKey.columnIds[0]);
+    if (!column) throw new Error(`Invalid relational foreign key for ${relation.id}.`);
+    const oneToOne = relation.kind === 'ONE_TO_ONE' || owner.uniqueConstraints.some((constraint) => constraint.columnIds.length === 1 && constraint.columnIds[0] === column.id);
+    const composition = relation.kind === 'COMPOSITION';
+    const ownerName = camel(target.name);
+    addRelationship(contexts, owner.id, relationshipContext(ownerName, oneToOne ? 'OneToOne' : 'ManyToOne', target, { joinColumn: column.name, cascade: composition && oneToOne, orphanRemoval: composition && oneToOne, onDelete: composition }));
+    addRelationship(contexts, target.id, relationshipContext(oneToOne ? plural(owner.name) : plural(owner.name), oneToOne ? 'OneToOne' : 'OneToMany', owner, { collection: !oneToOne, mappedBy: ownerName, cascade: composition, orphanRemoval: composition && !oneToOne }));
+  }
+  for (const values of contexts.values()) values.sort((left, right) => compare(left.name, right.name));
+  return contexts;
 }
 
 function safeFile(path: string): boolean {
@@ -128,7 +188,8 @@ export async function generateSpringProject(model: RelationalModel, options: Spr
   if (diagnostics.length > 0) return { diagnostics, files: [] };
   const files: GeneratedFile[] = [];
   const basePath = javaPath(basePackage);
-  const entities = model.tables.filter((table) => table.kind === 'ENTITY').map((table) => entityContext(table, model, basePackage)).sort((left, right) => compare(left.className, right.className));
+  const navigations = relationshipContexts(model);
+  const entities = model.tables.filter((table) => table.kind === 'ENTITY').map((table) => entityContext(table, model, basePackage, navigations.get(table.id) ?? [])).sort((left, right) => compare(left.className, right.className));
   const templateContext = { basePackage, applicationClassName: 'GeneratedApplication', entities, relations: model.relations.map((relation) => ({ name: relationName(relation), kind: relation.kind })) };
   await addTemplate(files, diagnostics, 'build.gradle', 'build', templateContext);
   await addTemplate(files, diagnostics, 'settings.gradle', 'settings', templateContext);
@@ -145,6 +206,7 @@ export async function generateSpringProject(model: RelationalModel, options: Spr
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/JacksonConfig.java`, 'jackson-config', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/config/OpenApiConfig.java`, 'openapi-config', templateContext);
   await addTemplate(files, diagnostics, `src/main/java/${basePath}/api/dto/PageResponse.java`, 'page-response', templateContext);
+  await addTemplate(files, diagnostics, `src/main/java/${basePath}/api/dto/RelationshipResponse.java`, 'relationship-response', templateContext);
   for (const enumeration of model.enums) await addTemplate(files, diagnostics, `src/main/java/${basePath}/domain/${pascal(enumeration.name)}.java`, 'enum', { ...templateContext, enumName: pascal(enumeration.name), literals: enumeration.literals });
   for (const entity of entities) {
     const root = `src/main/java/${basePath}`;

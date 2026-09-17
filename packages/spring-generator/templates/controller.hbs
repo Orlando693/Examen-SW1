@@ -18,5 +18,5 @@ public class {{className}}Controller {
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void delete(@PathVariable {{id.javaType}} id) { service.delete(id); }
     @GetMapping("/count") public long count() { return service.count(); }
     @GetMapping public PageResponse<{{className}}Response> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) String sort, @RequestParam(required = false) String search, @RequestParam Map<String, String> query) { query.remove("page"); query.remove("size"); query.remove("sort"); query.remove("search"); return service.list(page, size, sort, search, query); }
-    @GetMapping("/{id}/relationships/{relationship}") public Map<String, Object> relationship(@PathVariable {{id.javaType}} id, @PathVariable String relationship) { return service.relationship(id, relationship); }
+    @GetMapping("/{id}/relationships/{relationship}") public RelationshipResponse relationship(@PathVariable {{id.javaType}} id, @PathVariable String relationship) { return service.relationship(id, relationship); }
 }

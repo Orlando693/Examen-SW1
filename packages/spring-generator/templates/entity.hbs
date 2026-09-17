@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-{{#if relationships.length}}import org.hibernate.annotations.OnDelete;
+{{#if hasCollections}}import java.util.LinkedHashSet;
+import java.util.Set;
+{{/if}}{{#if relationships.length}}import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 {{/if}}{{#if root}}import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
@@ -19,14 +21,16 @@ import jakarta.persistence.InheritanceType;
     {{/if}}{{/if}}{{#if enumType}}@Enumerated(EnumType.STRING)
     {{/if}}@Column(name = "{{columnName}}", nullable = {{nullable}}{{#if id}}, updatable = false{{/if}})
     private {{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} {{name}};
-{{/each}}{{#each relationships}}    @{{annotation}}(fetch = FetchType.LAZY{{#if cascade}}, cascade = CascadeType.ALL{{/if}})
-    @JoinColumn(name = "{{joinColumn}}")
-    {{#if cascade}}@OnDelete(action = OnDeleteAction.CASCADE)
-    {{/if}}private {{targetClassName}} {{name}};
+{{/each}}{{#each relationships}}    @{{annotation}}({{#if mappedBy}}mappedBy = "{{mappedBy}}", {{/if}}fetch = FetchType.LAZY{{#if cascade}}, cascade = CascadeType.ALL{{/if}}{{#if orphanRemoval}}, orphanRemoval = true{{/if}})
+    {{#if joinTableName}}@JoinTable(name = "{{joinTableName}}", joinColumns = @JoinColumn(name = "{{joinColumn}}"), inverseJoinColumns = @JoinColumn(name = "{{inverseJoinColumn}}"))
+    {{else}}{{#unless mappedBy}}@JoinColumn(name = "{{joinColumn}}")
+    {{/unless}}{{/if}}
+    {{#if onDelete}}@OnDelete(action = OnDeleteAction.CASCADE)
+    {{/if}}private {{#if collection}}Set<{{targetClassName}}> {{name}} = new LinkedHashSet<>();{{else}}{{targetClassName}} {{name}};{{/if}}
 {{/each}}
 {{#each fields}}    public {{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} get{{accessorName}}() { return {{name}}; }
     public void set{{accessorName}}({{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} value) { this.{{name}} = value; }
-{{/each}}{{#each relationships}}    public {{targetClassName}} get{{targetClassName}}() { return {{name}}; }
-    public void set{{targetClassName}}({{targetClassName}} value) { this.{{name}} = value; }
+{{/each}}{{#each relationships}}    public {{#if collection}}Set<{{targetClassName}}>{{else}}{{targetClassName}}{{/if}} get{{accessorName}}() { return {{name}}; }
+    public void set{{accessorName}}({{#if collection}}Set<{{targetClassName}}>{{else}}{{targetClassName}}{{/if}} value) { this.{{name}} = value; }
 {{/each}}
 }

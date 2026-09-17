@@ -113,5 +113,6 @@ Incremento 1 created `packages/relational-core`, a framework-independent npm wor
 
 ## Known Limitations And Debt
 
-- The generated project build harness depends on normal Gradle dependency resolution and is intentionally bounded to 180 seconds per command; resolution failures are reported as harness errors.
+- Incremento 3 correction added deterministic bidirectional many-to-many JPA navigation and `RelationshipResponse` DTO output, plus generated navigation for 1:1, 1:N, aggregation, and composition. The canonical fixture now exercises aggregation through mapping, generation, temporary materialization, and the real Gradle build. Semantic tests assert aggregation has no cascade, orphan removal, or `OnDelete`, while composition retains its approved cascade behavior.
+- Fresh validation after the correction passed: spring-generator 7 tests including real Java 21 Gradle wrapper `test` and `build`; frontend 176, backend 159, relational core 10, and UML core 36 passed. The generated project build harness depends on normal Gradle dependency resolution and is intentionally bounded to 180 seconds per command; resolution failures are reported as harness errors.
 - Derived OpenAPI/Postman/Domain Manifest artifacts and generated frontend remain out of scope for CU-07.

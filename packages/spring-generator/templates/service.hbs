@@ -5,7 +5,6 @@ import {{packageName}}.domain.{{className}};
 import {{packageName}}.persistence.{{className}}Repository;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.PageRequest;
@@ -35,9 +34,9 @@ public class {{className}}Service {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> relationship({{id.javaType}} id, String relationship) {
+    public RelationshipResponse relationship({{id.javaType}} id, String relationship) {
         var entity = find(id);
-{{#each relationships}}        if ("{{name}}".equals(relationship)) { var response = new LinkedHashMap<String, Object>(); response.put("relationship", "{{name}}"); response.put("id", entity.get{{targetClassName}}() == null ? null : entity.get{{targetClassName}}().get{{targetIdAccessor}}()); return response; }
+{{#each relationships}}        if ("{{name}}".equals(relationship)) { return new RelationshipResponse("{{name}}", {{#if collection}}entity.get{{accessorName}}().stream().map(item -> (Object) item.get{{targetIdAccessor}}()).toList(){{else}}entity.get{{accessorName}}() == null ? List.of() : List.of(entity.get{{accessorName}}().get{{targetIdAccessor}}()){{/if}}); }
 {{/each}}        throw new IllegalArgumentException("Relationship is not allowed.");
     }
 
