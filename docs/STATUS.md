@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-06 estan COMPLETADOS y archivados. CU-07 esta ACTIVE y READY FOR FINAL VERIFY: Incrementos 1, 2 y 3 completos.
+CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 no ha iniciado.
 
 ## Planificación vigente
 
@@ -18,7 +18,7 @@ Ciclo 3 — Construccion y generacion de aplicaciones. CU-07 activo en Increment
 
 ## Caso de uso activo
 
-CU-07 — Contratos, Domain Manifest y frontend web generado. ACTIVE as `cu-07-contracts-domain-manifest-generated-frontend`; Incremento 3 con tareas 3.1 a 3.6 completas.
+CU-07 — Contratos, Domain Manifest y frontend web generado. CLOSED / ARCHIVED; Incrementos 1, 2 y 3 completos.
 
 ## Casos de uso completados
 
@@ -36,7 +36,7 @@ CU-07 — Contratos, Domain Manifest y frontend web generado. ACTIVE as `cu-07-c
 
 ## Problemas abiertos
 
-- Incremento 3 CU-07: Playwright no esta instalado (`npm ls playwright @playwright/test --all` devuelve vacio). Falta evidencia de navegador real para CRUD, relaciones, busqueda, filtros, paginacion, ordenamiento, estados y responsive antes de cerrar el CU.
+- Ninguno.
 - `npm audit` reporta 5 vulnerabilidades transitivas (2 moderadas y 3 altas) despues de agregar Prisma. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
 - Docker no esta instalado/disponible (`docker` no se reconoce); no bloquea el Incremento 1 porque la migracion y la integracion usan PostgreSQL local aislado.
 - Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.

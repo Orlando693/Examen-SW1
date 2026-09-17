@@ -2,7 +2,7 @@
 
 ## CU activo
 
-CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE / READY FOR FINAL VERIFY; Incrementos 1, 2 y 3 completos.
+CU-07 - Contratos, Domain Manifest y frontend web generado. CLOSED / ARCHIVED; Incrementos 1, 2 y 3 completos. CU-08 no iniciado.
 
 ## OpenSpec activo
 
@@ -19,8 +19,7 @@ CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE / READY FOR F
 
 ## Trabajo pendiente
 
-- Instalar o habilitar Playwright para ejecutar la tarea 3.7 de navegador real contra el backend Spring generado.
-- Completar la validacion raiz y tarea 3.8 antes de checkpoint.
+- Preparar la propuesta de CU-08.
 - No crear `frontend-generator` ni iniciar CU-08.
 
 ## Limitaciones vigentes
@@ -30,4 +29,4 @@ CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE / READY FOR F
 
 ## Siguiente accion exacta
 
-Obtener autorizacion para agregar Playwright y completar la tarea 3.7 sin iniciar CU-08.
+Crear la propuesta de CU-08 cuando el usuario lo solicite.
