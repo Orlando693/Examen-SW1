@@ -25,7 +25,6 @@ CU-07 - Contratos, Domain Manifest y frontend web generado. ACTIVE; Incremento 1
 
 - `npm audit --omit=dev` reporta 5 vulnerabilidades transitivas (2 moderadas y 3 altas); sus fixes exigen upgrades mayores no aprobados.
 - La coordinacion realtime es de un solo proceso hasta CU-11.
-- `frontend/next-env.d.ts` conserva un cambio generado por Next fuera de este trabajo de propuesta.
 
 ## Siguiente accion exacta
 
