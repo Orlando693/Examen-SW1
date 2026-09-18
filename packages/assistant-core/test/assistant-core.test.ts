@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { UmlCommandBus, createProjectDocument, type ProjectDocument } from '@examen-sw1/uml-core';
 import {
+  ASSISTANT_COMMAND_JSON_SCHEMA,
   RuleBasedAssistantProvider,
   applyPreview,
   cancelPreview,
@@ -42,6 +43,7 @@ const commands: AssistantCommand[] = [
 describe('AssistantCommand v1 schema', () => {
   it('accepts every supported command operation', () => {
     for (const command of commands) expect(decodeAssistantCommand(command)).toMatchObject({ ok: true });
+    expect(ASSISTANT_COMMAND_JSON_SCHEMA.oneOf.map((shape) => shape.properties.operation.const).sort()).toEqual(commands.map((command) => command.operation).sort());
   });
 
   it('fails closed for unknown, incomplete, unsafe, and extra data', () => {
@@ -85,8 +87,11 @@ describe('preview and command bus application', () => {
       const source = document(); const preview = createPreview('delete', command, createAssistantModelContext(source));
       expect(preview.ok && preview.preview.requiresConfirmation).toBe(true);
       if (!preview.ok) continue;
-      expect(applyPreview(preview.preview, source)).toMatchObject({ ok: false, diagnostics: [{ code: 'CONFIRMATION_REQUIRED' }] });
-      expect(applyPreview(preview.preview, source, { confirmed: true }).ok).toBe(true);
+      const bus = { execute: vi.fn(new UmlCommandBus().execute.bind(new UmlCommandBus())) };
+      expect(applyPreview(preview.preview, source, { commandBus: bus })).toMatchObject({ ok: false, diagnostics: [{ code: 'CONFIRMATION_REQUIRED' }] });
+      expect(bus.execute).not.toHaveBeenCalled();
+      expect(applyPreview(preview.preview, source, { confirmed: true, commandBus: bus }).ok).toBe(true);
+      expect(bus.execute).toHaveBeenCalledTimes(1);
     }
   });
 
@@ -98,12 +103,36 @@ describe('preview and command bus application', () => {
     expect(source).toEqual(before);
   });
 
-  it('fails closed for stale previews, denied permissions, and rejected bus commands', () => {
+  it('revalidates stale, permission, cancellation, target, and semantic failures before the supplied bus', () => {
     const source = document(); const preview = createPreview('rename', { version: 1, operation: 'rename_class', class: { id: 'class-user' }, name: 'Member' }, createAssistantModelContext(source));
     if (!preview.ok) throw new Error('fixture must preview');
-    expect(applyPreview(preview.preview, { ...source, revision: 5 })).toMatchObject({ ok: false, diagnostics: [{ code: 'STALE_PREVIEW' }] });
-    expect(applyPreview(preview.preview, source, { permissionEvaluator: { canApply: () => false } })).toMatchObject({ ok: false, diagnostics: [{ code: 'PERMISSION_DENIED' }] });
-    expect(applyPreview(preview.preview, source, { commandBus: { execute: () => new UmlCommandBus().execute(source, { type: 'RenameClass', classId: 'missing', name: 'Nope' }) } })).toMatchObject({ ok: false });
+    const bus = { execute: vi.fn(new UmlCommandBus().execute.bind(new UmlCommandBus())) };
+    expect(applyPreview(preview.preview, { ...source, revision: 5 }, { commandBus: bus })).toMatchObject({ ok: false, diagnostics: [{ code: 'STALE_PREVIEW' }] });
+    expect(applyPreview(preview.preview, source, { permissionEvaluator: { canApply: () => false }, commandBus: bus })).toMatchObject({ ok: false, diagnostics: [{ code: 'PERMISSION_DENIED' }] });
+    expect(applyPreview(preview.preview, source, { cancelled: true, commandBus: bus })).toMatchObject({ ok: false, diagnostics: [{ code: 'CANCELLED' }] });
+    const targets: Array<[AssistantCommand, ProjectDocument, string]> = [
+      [{ version: 1, operation: 'rename_class', class: { id: 'class-user' }, name: 'Member' }, { ...source, model: { ...source.model, classes: source.model.classes.filter((item) => item.id !== 'class-user') } }, 'TARGET_CLASS_MISSING'],
+      [{ version: 1, operation: 'delete_attribute', class: { id: 'class-user' }, attribute: { id: 'attr-name' } }, { ...source, model: { ...source.model, classes: source.model.classes.map((item) => item.id === 'class-user' ? { ...item, attributes: [] } : item) } }, 'TARGET_ATTRIBUTE_MISSING'],
+      [{ version: 1, operation: 'delete_relation', relation: { id: 'relation-user-order' } }, { ...source, model: { ...source.model, relationships: [] } }, 'TARGET_RELATIONSHIP_MISSING'],
+    ];
+    for (const [command, currentDocument, target] of targets) {
+      const targetPreview = createPreview('target', command, createAssistantModelContext(source));
+      if (targetPreview.ok) expect(applyPreview(targetPreview.preview, currentDocument, { confirmed: true, commandBus: bus })).toMatchObject({ ok: false, diagnostics: [{ code: target }] });
+    }
+    const semanticPreview = createPreview('relation', { version: 1, operation: 'update_relation', relation: { id: 'relation-user-order' }, sourceMultiplicity: { lower: 1, upper: '*' } }, createAssistantModelContext(source));
+    if (!semanticPreview.ok) throw new Error('fixture must preview');
+    const generalization = structuredClone(source); generalization.model.relationships[0] = { id: 'relation-user-order', kind: 'generalization', source: { classId: 'class-user' }, target: { classId: 'class-order' } };
+    expect(applyPreview(semanticPreview.preview, generalization, { commandBus: bus })).toMatchObject({ ok: false });
+    expect(bus.execute).not.toHaveBeenCalled();
+  });
+
+  it('uses no provider and calls the supplied bus exactly once after pre-apply checks succeed', () => {
+    const source = document(); const bus = { execute: vi.fn(new UmlCommandBus().execute.bind(new UmlCommandBus())) }; const provider = { interpret: vi.fn() };
+    const preview = createPreview('rename', { version: 1, operation: 'rename_class', class: { id: 'class-user' }, name: 'Member' }, createAssistantModelContext(source));
+    if (!preview.ok) throw new Error('fixture must preview');
+    expect(applyPreview(preview.preview, source, { commandBus: bus })).toMatchObject({ ok: true });
+    expect(provider.interpret).not.toHaveBeenCalled();
+    expect(bus.execute).toHaveBeenCalledTimes(1);
   });
 
   it('adapts all mutation families to existing UML commands', () => {

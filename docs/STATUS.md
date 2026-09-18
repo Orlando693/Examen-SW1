@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 esta ACTIVE: Incremento 1 completado y verificado; Incrementos 2 y 3 no iniciados.
+CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 esta ACTIVE: Incrementos 1 y 2 completados; Incremento 3 no iniciado.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 esta ACTIVE: Incremento 1 co
 
 ## Ciclo actual
 
-Ciclo 3 — Construccion y generacion de aplicaciones. CU-08 activo con Incremento 1 completado.
+Ciclo 3 — Construccion y generacion de aplicaciones. CU-08 activo con Incrementos 1 y 2 completados; Incremento 3 no iniciado.
 
 ## Caso de uso activo
 
-CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, Incrementos 2 y 3 NOT STARTED.
+CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, Incremento 2 COMPLETE (6/6), Incremento 3 NOT STARTED.
 
 ## Casos de uso completados
 
@@ -32,7 +32,7 @@ CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, In
 
 ## OpenSpec activo
 
-`cu-08-local-text-assistant` activo en implementacion. Incremento 1 completo; CU-07 y los CUs previos estan archivados.
+`cu-08-local-text-assistant` activo en implementacion. Incrementos 1 y 2 estan completos; Incremento 3 (UI, benchmark y E2E) no ha iniciado; CU-07 y los CUs previos estan archivados.
 
 ## Problemas abiertos
 
@@ -42,9 +42,11 @@ CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, In
 - Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
+- CU-08 no incluye CRUD sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada.
 
 ## Verificación actual
 
+- CU-08 Incremento 2 COMPLETADO (6/6): `@examen-sw1/local-llm` entrega runtime local node-llama-cpp con grammar estructurado, timeout, cancelacion, streaming, busy policy y recuperacion, y `assistant-core` revalida permisos, revision, destinos, confirmacion destructiva y semantica inmediatamente antes de aplicar exclusivamente mediante `UmlCommandBus`. La validacion equivalente a raiz fue 429/429 sin fallos ni skips inesperados: frontend 176, backend 159 (incluye realtime PostgreSQL/Socket.IO), assistant-core 12, local-llm 20, UML core 36, relational core 10, spring-generator 7, generated-api-contracts 5, domain-manifest 1 y frontend-generator 3. El `npm test` literal se inicio correctamente, pero no completo por el limite externo de 10 minutos; las suites pendientes se ejecutaron luego individual y secuencialmente con sus scripts normales. `npm run typecheck`, `npm run lint`, `npm run build`, Prisma generate/validate y migrate deploy DEV/TEST, OpenSpec change/main specs strict y `git diff --check` PASS. Incremento 3 permanece NOT STARTED.
 - CU-07 Incremento 2 COMPLETADO: `@examen-sw1/domain-manifest` genera `DomainManifest` v1 exclusivamente desde `RelationalModel` y OpenAPI validado. Declara entidades, aliases estables, campos/tipos/nulabilidad/validaciones, relaciones/cardinalidad/navegacion, CRUD, pagination, filter/search/sort. La proyeccion verifica DTO create y tipos OpenAPI compatibles con los campos relacionales no generados, y el validador compara la serializacion canonica del manifest contra ambas autoridades para fallar cerrado. No consume UML, no contiene rutas absolutas, timestamps o UUIDs aleatorios, y no inicia frontend-generator. Test real fixture `CanonicalUmlModel -> RelationalModel -> OpenAPI -> DomainManifest` PASS, incluye determinismo y mismatch. Validacion fresca PASS: frontend 176, backend 159, domain-manifest 1, generated-api-contracts 5, relational 10, spring-generator 7 y UML core 36, total 394/394; raiz typecheck/lint/build, Prisma generate/validate/migrate deploy DEV/TEST y OpenSpec strict PASS.
 - CU-07 Incremento 1 COMPLETADO: `@examen-sw1/generated-api-contracts` materializa el fixture Spring conocido en un root temporal aislado, exige Java 21, inicia el backend real con H2 efimero y extrae/persiste temporalmente `/v3/api-docs`. Valida fail-closed CRUD, DTO request, pagination/sort/search, count, relationship navigation y respuestas 201/204/400/404 documentadas. `spring-generator` genera las anotaciones springdoc de esos errores y expone H2 como runtime-only para el harness, sin modificar reglas relacionales. La Postman Collection v2.1 se deriva exclusivamente del OpenAPI validado, ordena requests de forma determinista, no contiene timestamps/paths absolutos/servidores runtime, y solo se materializa bajo un output root seguro. Sus cinco tests cubren extraccion, persistencia temporal, validacion, fallo por operacion faltante, determinismo, body derivado, path safety y ejecucion CRUD contra el backend real. Validacion fresca PASS: frontend 176, backend 159, generated-api-contracts 5, relational 10, spring-generator 7 y UML core 36, total 393/393; raiz typecheck/lint/build, Prisma generate/validate, migrate deploy DEV/TEST y OpenSpec change/main specs strict PASS. Incremento 2 NO INICIADO.
 - CU-06 Incremento 1: `@examen-sw1/relational-core` implementa RelationalModel y mapper determinista con metadata de identificadores externa al UML, PK sintética/explícita, NUMERIC/BigDecimal, enums `VARCHAR(255)+CHECK`, relations, JOINED, nombres/colisiones e indices FK. Pruebas focales 10 PASS. Validacion fresca completa PASS con PostgreSQL DEV/TEST aislada, JWT efímero y 5 migraciones sin pendientes en ambas DB: frontend 176, backend 159, UML core 36 y relational 10, total 381/381; typecheck/lint/build raiz, OpenSpec strict/main specs strict y `git diff --check` PASS. No Java/Gradle/Handlebars/Spring generator, Prisma schema/migration, realtime, archive ni push CU-06. Incremento 2 NOT STARTED.
@@ -143,4 +145,4 @@ CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, In
 
 ## Próxima acción
 
-Revisar el checkpoint de Incremento 1 de `cu-08-local-text-assistant`. No iniciar Incremento 2 sin aprobacion explicita.
+Obtener aceptacion del usuario para CU-08 Incremento 2 y mantener el cambio abierto hasta decidir el inicio de Incremento 3. No iniciar Incremento 3, archive, push ni CU-09 sin indicacion explicita.

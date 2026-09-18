@@ -41,6 +41,26 @@ export interface SummarizeModelCommand extends BaseCommand { operation: 'summari
 export interface NeedsClarificationCommand extends BaseCommand { operation: 'needs_clarification'; candidates: Array<{ id: string; name: string; kind: 'class' | 'attribute' | 'relationship' }>; }
 export type AssistantCommand = CreateClassCommand | RenameClassCommand | DeleteClassCommand | AddAttributeCommand | UpdateAttributeCommand | DeleteAttributeCommand | CreateRelationCommand | UpdateRelationCommand | DeleteRelationCommand | SummarizeModelCommand | NeedsClarificationCommand;
 
+const boundedStringSchema = { type: 'string', minLength: 1, maxLength: 256, pattern: '^(?!.*(?:https?:|\\b(?:sql|select|drop|shell)\\b)).+$' } as const;
+const referenceSchema = { type: 'object', additionalProperties: false, oneOf: [{ required: ['id'], properties: { id: boundedStringSchema } }, { required: ['name'], properties: { name: boundedStringSchema } }] } as const;
+const multiplicitySchema = { type: 'object', additionalProperties: false, required: ['lower', 'upper'], properties: { lower: { type: 'integer' }, upper: { anyOf: [{ type: 'integer' }, { const: '*' }] } } } as const;
+
+/** Canonical grammar source for local structured generation. Decoding remains authoritative. */
+export const ASSISTANT_COMMAND_JSON_SCHEMA = {
+  oneOf: [
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'name'], properties: { version: { const: 1 }, operation: { const: 'create_class' }, name: boundedStringSchema, classId: boundedStringSchema } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'class', 'name'], properties: { version: { const: 1 }, operation: { const: 'rename_class' }, class: referenceSchema, name: boundedStringSchema } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'class'], properties: { version: { const: 1 }, operation: { const: 'delete_class' }, class: referenceSchema } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'class', 'name', 'attributeType'], properties: { version: { const: 1 }, operation: { const: 'add_attribute' }, class: referenceSchema, name: boundedStringSchema, attributeId: boundedStringSchema, attributeType: { enum: ['string', 'number', 'boolean', 'date', 'datetime', 'void'] } } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'class', 'attribute'], anyOf: [{ required: ['name'] }, { required: ['attributeType'] }], properties: { version: { const: 1 }, operation: { const: 'update_attribute' }, class: referenceSchema, attribute: referenceSchema, name: boundedStringSchema, attributeType: { enum: ['string', 'number', 'boolean', 'date', 'datetime', 'void'] } } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'class', 'attribute'], properties: { version: { const: 1 }, operation: { const: 'delete_attribute' }, class: referenceSchema, attribute: referenceSchema } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'kind', 'source', 'target'], properties: { version: { const: 1 }, operation: { const: 'create_relation' }, relationId: boundedStringSchema, kind: { enum: ['association', 'aggregation', 'composition', 'generalization'] }, source: referenceSchema, target: referenceSchema, name: boundedStringSchema, sourceMultiplicity: multiplicitySchema, targetMultiplicity: multiplicitySchema } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'relation'], anyOf: [{ required: ['name'] }, { required: ['sourceMultiplicity'] }, { required: ['targetMultiplicity'] }], properties: { version: { const: 1 }, operation: { const: 'update_relation' }, relation: referenceSchema, name: { anyOf: [boundedStringSchema, { type: 'null' }] }, sourceMultiplicity: { anyOf: [multiplicitySchema, { type: 'null' }] }, targetMultiplicity: { anyOf: [multiplicitySchema, { type: 'null' }] } } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation', 'relation'], properties: { version: { const: 1 }, operation: { const: 'delete_relation' }, relation: referenceSchema } },
+    { type: 'object', additionalProperties: false, required: ['version', 'operation'], properties: { version: { const: 1 }, operation: { const: 'summarize_model' } } },
+  ],
+} as const;
+
 export type DecodeResult = { ok: true; command: AssistantCommand } | { ok: false; diagnostics: AssistantDiagnostic[] };
 const primitiveTypes = new Set<PrimitiveTypeName>(['string', 'number', 'boolean', 'date', 'datetime', 'void']);
 const relationKinds = new Set<UmlRelationshipKind>(['association', 'aggregation', 'composition', 'generalization']);
@@ -142,18 +162,48 @@ export function cancelPreview(preview: AssistantPreview): { cancelled: true; con
 export interface AssistantPermissionEvaluator { canApply(document: ProjectDocument, command: ResolvedAssistantCommand): boolean; }
 export const allowAssistantCommands: AssistantPermissionEvaluator = { canApply: () => true };
 export type ApplyResult = { ok: true; result?: CommandResult } | { ok: false; diagnostics: AssistantDiagnostic[] };
-export function applyPreview(preview: AssistantPreview, document: ProjectDocument, options: { confirmed?: boolean; permissionEvaluator?: AssistantPermissionEvaluator; commandBus?: Pick<UmlCommandBus, 'execute'> } = {}): ApplyResult {
+function revalidateTargets(command: ResolvedAssistantCommand, document: ProjectDocument): AssistantDiagnostic[] {
+  const hasClass = (id: string) => document.model.classes.some((item) => item.id === id);
+  const hasRelation = (id: string) => document.model.relationships.some((item) => item.id === id);
+  const classDiagnostic = (id: string): AssistantDiagnostic[] => hasClass(id) ? [] : [{ code: 'TARGET_CLASS_MISSING', message: 'The target class no longer exists.', path: '$.command' }];
+  if (command.operation === 'rename_class' || command.operation === 'delete_class' || command.operation === 'add_attribute') return classDiagnostic(command.classId);
+  if (command.operation === 'update_attribute' || command.operation === 'delete_attribute') {
+    const umlClass = document.model.classes.find((item) => item.id === command.classId);
+    if (umlClass === undefined) return [{ code: 'TARGET_CLASS_MISSING', message: 'The target class no longer exists.', path: '$.command' }];
+    return umlClass.attributes.some((item) => item.id === command.attributeId) ? [] : [{ code: 'TARGET_ATTRIBUTE_MISSING', message: 'The target attribute no longer exists.', path: '$.command' }];
+  }
+  if (command.operation === 'create_relation') return [command.sourceClassId, command.targetClassId].flatMap((id) => classDiagnostic(id));
+  if (command.operation === 'update_relation' || command.operation === 'delete_relation') return hasRelation(command.relationId) ? [] : [{ code: 'TARGET_RELATIONSHIP_MISSING', message: 'The target relationship no longer exists.', path: '$.command' }];
+  return [];
+}
+function preflightUmlCommands(document: ProjectDocument, commands: UmlCommand[]): AssistantDiagnostic[] {
+  let current = document;
+  for (const command of commands) {
+    const result = new UmlCommandBus().execute(current, command);
+    if (!result.ok) return result.diagnostics.length > 0
+      ? result.diagnostics.map((item) => ({ code: item.code, message: item.message, path: item.path }))
+      : [{ code: result.reason, message: result.message, path: '$.command' }];
+    current = result.document;
+  }
+  return [];
+}
+export function applyPreview(preview: AssistantPreview, document: ProjectDocument, options: { cancelled?: boolean; confirmed?: boolean; permissionEvaluator?: AssistantPermissionEvaluator; commandBus?: Pick<UmlCommandBus, 'execute'> } = {}): ApplyResult {
+  if (options.cancelled === true) return { ok: false, diagnostics: [{ code: 'CANCELLED', message: 'The preview was cancelled.', path: '$.cancelled' }] };
   if (preview.contextRevision !== document.revision) return { ok: false, diagnostics: [{ code: 'STALE_PREVIEW', message: 'The model changed after this preview.', path: '$.contextRevision' }] };
   if (preview.requiresConfirmation && options.confirmed !== true) return { ok: false, diagnostics: [{ code: 'CONFIRMATION_REQUIRED', message: 'Destructive action requires confirmation.', path: '$.confirmed' }] };
   const permissions = options.permissionEvaluator ?? allowAssistantCommands;
   if (!permissions.canApply(document, preview.command)) return { ok: false, diagnostics: [{ code: 'PERMISSION_DENIED', message: 'The current user cannot apply this action.', path: '$' }] };
+  const targetDiagnostics = revalidateTargets(preview.command, document);
+  if (targetDiagnostics.length > 0) return { ok: false, diagnostics: targetDiagnostics };
   if (preview.umlCommands.length === 0) return { ok: true };
+  const preflightDiagnostics = preflightUmlCommands(document, preview.umlCommands);
+  if (preflightDiagnostics.length > 0) return { ok: false, diagnostics: preflightDiagnostics };
   const bus = options.commandBus ?? new UmlCommandBus(); let current = document; let result: CommandResult | undefined;
   for (const command of preview.umlCommands) { result = bus.execute(current, command); if (!result.ok) return { ok: false, diagnostics: result.diagnostics.map((item) => ({ code: item.code, message: item.message, path: item.path })) }; current = result.document; }
   return { ok: true, result };
 }
 export function summarizeModel(context: AssistantModelContext): string { return `${context.classes.length} classes, ${context.enumerations.length} enumerations, ${context.relationships.length} relationships`; }
-export interface AssistantProvider { interpret(input: { text: string; context: AssistantModelContext; session?: Readonly<Record<string, string>> }): unknown; }
+export interface AssistantProvider { interpret(input: { text: string; context: AssistantModelContext; session?: Readonly<Record<string, string>> }): unknown | Promise<unknown>; }
 /** A deterministic provider for tests and local fixture-driven flows, never an LLM. */
 export class RuleBasedAssistantProvider implements AssistantProvider {
   interpret(input: { text: string }): unknown {

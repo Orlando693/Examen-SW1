@@ -6,18 +6,24 @@
 - [x] 1.4 Implement `AssistantCommand` to existing `UmlCommand` adaptation and apply only through `UmlCommandBus`; verify create/rename/delete class, attribute, and relationship cases use the bus and preserve the original document.
 - [x] 1.5 Add the shared package to root checks without model binaries or LLM dependencies; verify its focal test, typecheck, lint, and build pass.
 
-## 2. Incremento 2 - Generated Application And Local Runtime (NOT STARTED)
+## 2. Incremento 2 - Local LLM Runtime (ACTIVE / PARTIAL)
 
-- [ ] 2.1 Implement generated-application command resolution exclusively from `DomainManifest`; verify fixture tests cover aliases, CRUD capabilities, fields, types, relationships, invalid declarations, and no arbitrary paths.
-- [ ] 2.2 Implement the generated-application execution adapter through existing authenticated API contracts; verify integration tests preserve authorization failures and never expose tokens to provider input/output.
-- [ ] 2.3 Implement UML intent resolution to existing typed `UmlCommand` values and execution through `UmlCommandBus`; verify UML core tests cover accepted commands, invalid targets, semantic rejection, and unchanged documents on failure.
-- [ ] 2.4 Revalidate authorization and target state immediately before apply; verify tests reject stale previews and destructive commands lacking explicit confirmation.
+- [x] 2.1 Add `@examen-sw1/local-llm` with the node-llama-cpp provider boundary, model-path diagnostics, bounded context/prompt construction, lifecycle state, lazy load/reuse/dispose, and fail-closed decoding through `assistant-core`; verify deterministic local package tests pass without a model binary.
+- [x] 2.2 Verify the authorized local Qwen3 1.7B Q4_K_M GGUF on the target Windows x64 CPU prebuilt; record exact model integrity, successful load, CPU fallback behavior, and opt-in read-only `summarize_model` smoke evidence outside source control.
+- [x] 2.3 Complete the closed JSON-schema grammar for every supported `AssistantCommand` shape and verify valid mutation-shaped output, malformed/unsafe output rejection, and decoder isolation.
+- [x] 2.4 Verify timeout, explicit cancellation, streaming callback, and single-generation busy policy with deterministic runtime tests and real-runtime evidence where safe.
+- [x] 2.5 Complete UML intent resolution to existing typed `UmlCommand` values and execution through `UmlCommandBus`; verify UML core tests cover accepted commands, invalid targets, semantic rejection, and unchanged documents on failure.
+- [x] 2.6 Revalidate authorization and target state immediately before apply; verify tests reject stale previews and destructive commands lacking explicit confirmation.
 
-## 3. Incremento 3 - User Experience And Benchmark (NOT STARTED)
+### Deferred capability outside CU-08
 
-- [ ] 3.1 Add the node-llama-cpp local provider configuration and Qwen3 1.7B quantized model loading boundary without tracking model binaries; verify unavailable runtime produces a safe non-executing state and no remote fallback.
-- [ ] 3.2 Add the text assistant UI with input, safe unavailable state, preview, diagnostics, review/apply/cancel, and destructive confirmation; verify React Testing Library coverage for the interaction states.
-- [ ] 3.3 Integrate the assistant with generated-application and CASE editor contexts without bypassing their existing routes; verify browser acceptance covers valid execution, cancellation, invalid intent, authorization denial, and UML mutation through the command bus.
+Generated-application CRUD resolution and authenticated API execution are OUT OF SCOPE / DEFERRED FROM CU-08. They require a distinct application-data command model, OpenAPI operation resolution, DTO mapping, endpoint selection, authenticated execution, and generated-application authorization semantics. `DomainManifest` remains read-only and cannot supply that execution layer. This capability requires a separately approved future proposal/change.
+
+## 3. Incremento 3 - User Experience, Benchmark, And E2E (NOT STARTED)
+
+- [ ] 3.1 Add the text assistant UI with input, loading/model-unavailable state, streaming presentation, preview, diagnostics, review/apply/cancel, clarification, and destructive confirmation; verify React Testing Library coverage for the interaction states.
+- [ ] 3.2 Add a versioned reproducible benchmark dataset and runner; record quality, safety, latency, resource, and manual-observation evidence without inventing metrics.
+- [ ] 3.3 Integrate the assistant with generated-application and CASE editor contexts without bypassing their existing routes; verify browser E2E covers valid execution, cancellation, invalid intent, authorization denial, and UML mutation through the command bus.
 
 ## 4. Documentation And Verification
 

@@ -1,20 +1,26 @@
 ## Context
 
-See `proposal.md` for motivation and the two delta specifications for behavior. CU-07 supplies a validated deterministic `DomainManifest`; `@examen-sw1/uml-core` already supplies typed commands, semantic validation, and `UmlCommandBus`. Existing manual API and project mutations already establish authorization boundaries.
+See `proposal.md` for motivation and the two delta specifications for behavior. `@examen-sw1/uml-core` already supplies typed commands, semantic validation, and `UmlCommandBus`. Existing project mutations already establish authorization boundaries.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Keep model interpretation separate from deterministic command decoding, validation, preview, and execution.
-- Reuse the generated application's manifest contract and the CASE editor's command bus instead of creating assistant-specific mutation paths.
+- Reuse the CASE editor's command bus instead of creating assistant-specific mutation paths.
 - Allow all automated tests to run without LLM binaries or GPU hardware.
 - Produce evidence suitable for selecting a local Qwen3 1.7B quantization and runtime configuration.
 
 **Non-Goals:**
 - Voice/STT, image input, XMI, cloud inference, autonomous execution, arbitrary tool use, code execution, SQL generation, or a new authorization model.
-- Changing relational mapping, generated API contracts, existing `UmlCommand` semantics, or realtime collaboration behavior.
+- Changing relational mapping, generated API contracts, generated-application instance CRUD, existing `UmlCommand` semantics, or realtime collaboration behavior.
 
 ## Decisions
+
+### Increment sequencing
+
+Incremento 1 contains the deterministic command pipeline. Incremento 2 contains the local `node-llama-cpp` runtime boundary, local GGUF configuration, and opt-in runtime evidence. Incremento 3 contains the assistant UI, benchmark protocol execution, browser E2E, and final acceptance evidence.
+
+This sequencing keeps model loading and its fail-closed provider contract available before any UI exposes it, while preserving UI and benchmark acceptance as later work.
 
 ### Closed command intermediate representation
 
@@ -22,11 +28,11 @@ Define an `AssistantCommand` decoder with a discriminated, bounded schema coveri
 
 This separates fallible natural-language interpretation from deterministic behavior. A free-form action object was rejected because it would expand the attack surface and make fixtures non-deterministic.
 
-### Target-specific validators and adapters
+### UML validation and adaptation
 
-Use one pipeline: provider response -> strict assistant decoder -> target validator/resolver -> preview -> explicit approval -> adapter -> existing executor. `DomainManifest` is read-only context for declared-capability validation and never an execution adapter. UML validation resolves current canonical elements and produces only existing `UmlCommand` variants for `UmlCommandBus`.
+Use one pipeline: provider response -> strict assistant decoder -> UML validator/resolver -> preview -> explicit approval -> adapter -> existing executor. UML validation resolves current canonical elements and produces only existing `UmlCommand` variants for `UmlCommandBus`.
 
-This avoids giving the LLM direct access to persistence or domain internals. A direct Prisma/REST/React Flow integration was rejected because it bypasses established validation, authorization, or canonical mutation routes.
+This avoids giving the LLM direct access to persistence or domain internals. A direct Prisma/REST/React Flow integration was rejected because it bypasses established validation, authorization, or canonical mutation routes. `DomainManifest` remains read-only and has no execution role in CU-08; generated-application CRUD requires a separately designed command and authenticated OpenAPI execution layer.
 
 ### Preview is a durable boundary, not model output
 
