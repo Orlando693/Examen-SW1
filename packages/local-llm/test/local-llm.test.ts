@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ASSISTANT_COMMAND_JSON_SCHEMA, decodeAssistantCommand } from '@examen-sw1/assistant-core';
-import { LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA, LocalLlmAssistantProvider, NodeLlamaRuntime, buildAssistantPrompt, compactContext, projectAssistantCommandJsonSchema, type LocalLlmRuntime } from '../src/index.js';
+import { LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA, LocalLlmAssistantProvider, NodeLlamaRuntime, buildAssistantPrompt, compactContext, projectAssistantCommandJsonSchema, selectLocalLlmContextSize, type LocalLlmRuntime } from '../src/index.js';
 
 const context = { projectId: 'p', revision: 1, classes: [{ id: 'c', name: 'User', attributes: [] }], enumerations: [], relationships: [] };
 class FakeRuntime implements LocalLlmRuntime {
@@ -203,7 +203,7 @@ describe('local grammar projection', () => {
       dispose = vi.fn();
     }
     const loadModel = vi.fn(async () => ({ createContext: async () => ({ getSequence: () => ({}) }) }));
-    const runtime = new NodeLlamaRuntime(async () => ({ getLlama: async () => ({ loadModel, createGrammarForJsonSchema }), LlamaChatSession: Session } as never));
+    const runtime = new NodeLlamaRuntime({}, async () => ({ getLlama: async () => ({ loadModel, createGrammarForJsonSchema }), LlamaChatSession: Session } as never));
     await runtime.load('model.gguf');
     await runtime.generate({ prompt: 'x', signal: new AbortController().signal });
     expect(createGrammarForJsonSchema).toHaveBeenCalledWith(LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA);
@@ -222,7 +222,7 @@ describe('local grammar projection', () => {
       }
       dispose = vi.fn();
     }
-    const runtime = new NodeLlamaRuntime(async () => ({ getLlama: async () => ({ loadModel, createGrammarForJsonSchema: async () => ({ parse: () => undefined }) }), LlamaChatSession: Session } as never));
+    const runtime = new NodeLlamaRuntime({}, async () => ({ getLlama: async () => ({ loadModel, createGrammarForJsonSchema: async () => ({ parse: () => undefined }) }), LlamaChatSession: Session } as never));
     const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath(), timeoutMs: 1_000 });
     expect(await provider.interpret({ text: 'timeout', context, timeoutMs: 10 })).toMatchObject({ ok: false, diagnostics: [{ code: 'GENERATION_TIMEOUT' }] });
     const external = new AbortController(); const cancelling = provider.interpret({ text: 'cancel', context, signal: external.signal }); await vi.waitFor(() => expect(histories).toHaveLength(2)); external.abort();
@@ -240,4 +240,22 @@ describe('local grammar projection', () => {
       await llama.dispose?.();
     }
   }, 30_000);
+
+  it('creates an explicit safe default context without an automatic fallback', async () => {
+    const createContext = vi.fn(async () => ({ getSequence: () => ({}) }));
+    const runtime = new NodeLlamaRuntime({}, async () => ({ getLlama: async () => ({ loadModel: async () => ({ createContext }), createGrammarForJsonSchema: async () => ({ parse: () => undefined }) }), LlamaChatSession: class {} } as never));
+    await runtime.load('model.gguf');
+    expect(createContext).toHaveBeenCalledWith({ contextSize: 2048, failedCreationRemedy: false });
+  });
+
+  it('accepts only explicit supported context overrides and selects from measured capacity', async () => {
+    const createContext = vi.fn(async () => ({ getSequence: () => ({}) }));
+    const runtime = new NodeLlamaRuntime({ contextSize: 4096 }, async () => ({ getLlama: async () => ({ loadModel: async () => ({ createContext }), createGrammarForJsonSchema: async () => ({ parse: () => undefined }) }), LlamaChatSession: class {} } as never));
+    await runtime.load('model.gguf');
+    expect(createContext).toHaveBeenCalledWith({ contextSize: 4096, failedCreationRemedy: false });
+    expect(selectLocalLlmContextSize(1664)).toBe(2048);
+    expect(selectLocalLlmContextSize(1665)).toBe(4096);
+    expect(() => new NodeLlamaRuntime({ contextSize: 1024 })).toThrow('must be one of');
+    expect(() => new NodeLlamaRuntime({ contextSize: Number.NaN })).toThrow('must be one of');
+  });
 });

@@ -68,6 +68,30 @@ export function projectAssistantCommandJsonSchema(schema: JsonSchema = ASSISTANT
 }
 
 export const LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA = projectAssistantCommandJsonSchema();
+export const LOCAL_LLM_GENERATION_OPTIONS = {
+  maxTokens: 128,
+  temperature: 0.7,
+  topP: 0.8,
+  topK: 20,
+  minP: 0,
+  thoughtTokens: 0,
+} as const;
+export const LOCAL_LLM_CONTEXT_SIZES = [2048, 4096] as const;
+export const LOCAL_LLM_CONTEXT_SAFETY_MARGIN_TOKENS = 256;
+export const LOCAL_LLM_DEFAULT_CONTEXT_SIZE = 2048;
+export type LocalLlmContextSize = (typeof LOCAL_LLM_CONTEXT_SIZES)[number];
+
+export function resolveLocalLlmContextSize(contextSize: number | undefined = LOCAL_LLM_DEFAULT_CONTEXT_SIZE): LocalLlmContextSize {
+  if (!Number.isSafeInteger(contextSize) || !LOCAL_LLM_CONTEXT_SIZES.includes(contextSize as LocalLlmContextSize)) {
+    throw new RangeError(`Local LLM context size must be one of: ${LOCAL_LLM_CONTEXT_SIZES.join(', ')}.`);
+  }
+  return contextSize as LocalLlmContextSize;
+}
+
+export function selectLocalLlmContextSize(maxInputTokens: number): LocalLlmContextSize {
+  if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens < 0) throw new RangeError('The maximum input token count must be a non-negative safe integer.');
+  return maxInputTokens + LOCAL_LLM_GENERATION_OPTIONS.maxTokens + LOCAL_LLM_CONTEXT_SAFETY_MARGIN_TOKENS <= LOCAL_LLM_DEFAULT_CONTEXT_SIZE ? LOCAL_LLM_DEFAULT_CONTEXT_SIZE : 4096;
+}
 
 export type LocalLlmLifecycle = 'UNAVAILABLE' | 'LOADING' | 'READY' | 'BUSY' | 'ERROR';
 export type LocalLlmResult = { ok: true; candidate: AssistantCommand; raw: string; } | { ok: false; diagnostics: AssistantDiagnostic[]; };
@@ -83,6 +107,7 @@ export interface LocalLlmInterpretInput {
   signal?: AbortSignal;
   timeoutMs?: number;
   onToken?: (token: string) => void;
+  onPresentationChunk?: (chunk: string) => void;
 }
 type NodeLlamaModule = typeof import('node-llama-cpp');
 const failure = (code: string, message: string): LocalLlmResult => ({ ok: false, diagnostics: [{ code, message, path: '$' }] });
@@ -157,7 +182,7 @@ export class LocalLlmAssistantProvider implements AssistantProvider {
           // Partial output is display-only; only the final response reaches the decoder.
           onToken: (token) => {
             if (controller.signal.aborted || this.active !== controller) return;
-            try { input.onToken?.(token); } catch { /* Observer failures must not affect generation. */ }
+            try { input.onToken?.(token); input.onPresentationChunk?.(token); } catch { /* Observer failures must not affect generation. */ }
           },
         });
       }
@@ -183,13 +208,14 @@ export class LocalLlmAssistantProvider implements AssistantProvider {
 }
 
 export class NodeLlamaRuntime implements LocalLlmRuntime {
-  private llama: { loadModel(input: { modelPath: string }): Promise<{ createContext(): Promise<{ getSequence(): unknown; dispose?(): Promise<void> | void }> ; dispose?(): Promise<void> | void }>; createGrammarForJsonSchema(schema: object): Promise<{ parse(text: string): unknown }>; dispose?(): Promise<void> | void } | undefined;
+  private llama: { loadModel(input: { modelPath: string }): Promise<{ createContext(input: { contextSize: LocalLlmContextSize; failedCreationRemedy: false }): Promise<{ getSequence(): unknown; dispose?(): Promise<void> | void }> ; dispose?(): Promise<void> | void }>; createGrammarForJsonSchema(schema: object): Promise<{ parse(text: string): unknown }>; dispose?(): Promise<void> | void } | undefined;
   private context: { getSequence(): unknown; dispose?(): Promise<void> | void } | undefined;
   private model: { dispose?(): Promise<void> | void } | undefined;
   private module: NodeLlamaModule | undefined;
-  constructor(private readonly moduleLoader: () => Promise<NodeLlamaModule> = () => import('node-llama-cpp')) {}
+  readonly contextSize: LocalLlmContextSize;
+  constructor(options: { contextSize?: number } = {}, private readonly moduleLoader: () => Promise<NodeLlamaModule> = () => import('node-llama-cpp')) { this.contextSize = resolveLocalLlmContextSize(options.contextSize); }
   async load(modelPath: string): Promise<void> {
-    const module = await this.moduleLoader(); const llama = await module.getLlama({ build: 'never' }); const model = await llama.loadModel({ modelPath }); const context = await model.createContext();
+    const module = await this.moduleLoader(); const llama = await module.getLlama({ build: 'never' }); const model = await llama.loadModel({ modelPath }); const context = await model.createContext({ contextSize: this.contextSize, failedCreationRemedy: false });
     this.module = module; this.llama = llama; this.model = model; this.context = context;
   }
   async generate(input: { prompt: string; signal: AbortSignal; onToken?: (token: string) => void }): Promise<string> {
@@ -199,7 +225,8 @@ export class NodeLlamaRuntime implements LocalLlmRuntime {
     // A chat session owns history. Keep the loaded model/context, but isolate every request.
     const session = new this.module.LlamaChatSession({ contextSequence: this.context.getSequence() as never, autoDisposeSequence: true });
     try {
-      return await session.prompt(input.prompt, { grammar: grammar as never, onTextChunk: input.onToken, signal: input.signal, maxTokens: 128, temperature: 0.7, topP: 0.8, topK: 20, minP: 0, budgets: { thoughtTokens: 0 } });
+      const { thoughtTokens, ...generationOptions } = LOCAL_LLM_GENERATION_OPTIONS;
+      return await session.prompt(input.prompt, { grammar: grammar as never, onTextChunk: input.onToken, signal: input.signal, ...generationOptions, budgets: { thoughtTokens } });
     } finally { session.dispose(); }
   }
   async dispose(): Promise<void> { await this.context?.dispose?.(); await this.model?.dispose?.(); await this.llama?.dispose?.(); this.context = undefined; this.model = undefined; this.llama = undefined; this.module = undefined; }

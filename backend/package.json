@@ -17,6 +17,8 @@
     "test:integration": "vitest run test/project-persistence.integration.spec.ts test/projects-api.integration.spec.ts test/auth-api.integration.spec.ts test/invitations-api.integration.spec.ts"
   },
   "dependencies": {
+    "@examen-sw1/assistant-core": "^0.0.0",
+    "@examen-sw1/local-llm": "^0.0.0",
     "@examen-sw1/uml-core": "^0.0.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",

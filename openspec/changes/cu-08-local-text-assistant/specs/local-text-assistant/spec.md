@@ -16,11 +16,18 @@ The system SHALL accept only structurally valid UML-focused `AssistantCommand` v
 - **THEN** the system exposes the same typed assistant command independent of the original wording
 
 ### Requirement: Generated-application CRUD exclusion
-The system SHALL NOT interpret or execute CRUD operations against generated-application instances in CU-08. `DomainManifest` SHALL remain read-only and SHALL NOT supply endpoint selection or an execution adapter.
+The system SHALL integrate the assistant only with the CASE/UML editor in CU-08 and SHALL NOT interpret or execute CRUD operations against generated-application instances. `DomainManifest` SHALL remain read-only and SHALL NOT supply endpoint selection or an execution adapter.
 
 #### Scenario: Generated-application CRUD is requested
 - **WHEN** an input requires application-data commands, OpenAPI operation resolution, or authenticated API execution
 - **THEN** CU-08 does not create an executable action and leaves the capability for a separately designed change
+
+### Requirement: CASE editor interpretation boundary
+The system SHALL obtain local-model interpretations through an authenticated backend adapter that is read-only with respect to UML. The browser SHALL NOT import the local LLM runtime or model binary. The adapter SHALL return only status, streaming presentation text, decoded candidates, clarification, or diagnostics; it SHALL NOT execute UML commands.
+
+#### Scenario: Apply an approved CASE editor preview
+- **WHEN** a user explicitly approves a valid UML preview in the CASE editor
+- **THEN** the editor submits its existing typed `UmlCommand` values through `executeAndSync()` and the established collaboration and `UmlCommandBus` route
 
 ### Requirement: UML command adaptation
 The system SHALL convert a validated UML-targeted assistant command only into supported typed `UmlCommand` values and SHALL apply it only through the existing `UmlCommandBus` route.

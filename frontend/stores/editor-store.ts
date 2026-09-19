@@ -18,6 +18,7 @@ import { projectApi, type ProjectApiError } from '../lib/projects/project-api';
 import type { EditorSelection } from '../lib/editor/projection/project-document-to-flow';
 import type { RealtimeCommandGate } from '../lib/collaboration/realtime-command-gate';
 import type { CollaborationConnectionState } from '../lib/collaboration/contracts';
+import { applyPreview as revalidateAssistantPreview, type AssistantDiagnostic, type AssistantPreview } from '@examen-sw1/assistant-core';
 
 export type EditorTool = 'select' | 'class' | 'enum' | 'association' | 'aggregation' | 'composition' | 'generalization';
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -48,6 +49,7 @@ interface EditorStore {
   relationshipDraft: RelationshipDraft | null;
   isSidebarOpen: boolean;
   isInspectorOpen: boolean;
+  isAssistantOpen: boolean;
   lastCommandError: string | null;
   undoCount: number;
   redoCount: number;
@@ -64,6 +66,7 @@ interface EditorStore {
   setActiveTool: (tool: EditorTool) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
+  toggleAssistant: () => void;
   createClass: () => CommandResult;
   renameClass: (classId: string, name: string) => CommandResult;
   deleteClass: (classId: string) => CommandResult;
@@ -85,6 +88,7 @@ interface EditorStore {
   deleteRelationship: (relationshipId: string) => CommandResult;
   moveNode: (elementId: string, position: { x: number; y: number }) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
+  applyAssistantPreview: (preview: AssistantPreview, confirmed: boolean) => { ok: boolean; diagnostics: AssistantDiagnostic[] };
   replaceProjectSession: (resource: { project: ProjectDocument; storageVersion: number }) => void;
   installAuthoritativeDocument: (resource: { project: ProjectDocument; storageVersion: number }) => void;
   rebaseHistoryToCurrentDocument: () => void;
@@ -180,6 +184,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   relationshipDraft: null,
   isSidebarOpen: false,
   isInspectorOpen: false,
+  isAssistantOpen: false,
   lastCommandError: null,
   undoCount: 0,
   redoCount: 0,
@@ -196,6 +201,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setActiveTool: (activeTool) => set((state) => (state.activeTool === activeTool && state.relationshipDraft === null ? state : { activeTool, relationshipDraft: null, lastCommandError: null })),
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   toggleInspector: () => set((state) => ({ isInspectorOpen: !state.isInspectorOpen })),
+  toggleAssistant: () => set((state) => ({ isAssistantOpen: !state.isAssistantOpen })),
   setRealtimeCommandGate: (realtimeCommandGate) => set((state) => state.realtimeCommandGate === realtimeCommandGate ? state : { realtimeCommandGate }),
   setRealtimeCommandPending: (realtimeCommandPending) => set((state) => state.realtimeCommandPending === realtimeCommandPending ? state : { realtimeCommandPending }),
   setRealtimeCommandError: (message) => set({ lastCommandError: message }),
@@ -319,6 +325,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
+  applyAssistantPreview: (preview, confirmed) => {
+    const state = get();
+    // assistant-core performs stale, confirmation, target, permission and semantic preflight without changing this history.
+    const revalidation = revalidateAssistantPreview(preview, state.currentDocument, {
+      confirmed,
+      commandBus: { execute: (document, command) => ({ ok: true, command, document, diagnostics: [] }) },
+    });
+    if (!revalidation.ok) return revalidation;
+    for (const command of preview.umlCommands) {
+      const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
+      if (!result.ok) {
+        set({ ...sync, lastCommandError: result.message });
+        return { ok: false, diagnostics: [{ code: result.reason, message: result.message, path: '$.command' }] };
+      }
+      set({ ...sync, lastCommandError: null });
+    }
+    return { ok: true, diagnostics: [] };
+  },
   undo: () => {
     if (get().collaborationRequired || get().realtimeCommandGate) return;
     const result = get().history.undo();
@@ -347,6 +371,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       relationshipDraft: null,
       isSidebarOpen: false,
       isInspectorOpen: false,
+      isAssistantOpen: false,
       lastCommandError: null,
       projectId: resource.project.id,
       storageVersion: resource.storageVersion,

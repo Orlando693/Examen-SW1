@@ -4,6 +4,7 @@ import { resetEditorStoreForTests, useEditorStore } from './editor-store';
 import { createDemoProjectDocument } from '../lib/editor/demo/demo-document';
 import { projectDocumentToFlow } from '../lib/editor/projection/project-document-to-flow';
 import { RealtimeCommandGate } from '../lib/collaboration/realtime-command-gate';
+import { createAssistantModelContext, createPreview } from '@examen-sw1/assistant-core';
 
 const createAutoLayoutCommandMock = vi.hoisted(() => vi.fn());
 const projectApiMock = vi.hoisted(() => ({
@@ -420,6 +421,39 @@ describe('editor store', () => {
 
     expect(useEditorStore.getState().currentDocument).toBe(document);
     expect(projectApiMock.saveDocument).not.toHaveBeenCalled();
+  });
+
+  it('keeps an assistant preview immutable until explicit apply and executes it through editor history', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const before = useEditorStore.getState().currentDocument;
+    const context = createAssistantModelContext(before);
+    const preview = createPreview('Create InvoiceLine', { version: 1, operation: 'create_class', name: 'InvoiceLine' }, context);
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+
+    expect(useEditorStore.getState().currentDocument).toBe(before);
+    expect(useEditorStore.getState().currentDocument.model.classes.some((item) => item.name === 'InvoiceLine')).toBe(false);
+
+    act(() => expect(useEditorStore.getState().applyAssistantPreview(preview.preview, false)).toMatchObject({ ok: true }));
+    expect(useEditorStore.getState().currentDocument.model.classes.some((item) => item.name === 'InvoiceLine')).toBe(true);
+    expect(useEditorStore.getState().history.document).toStrictEqual(useEditorStore.getState().currentDocument);
+  });
+
+  it('rejects stale and unconfirmed destructive assistant previews without mutation', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const before = useEditorStore.getState().currentDocument;
+    const deletion = createPreview('Delete invoice', { version: 1, operation: 'delete_class', class: { id: 'class-invoice' } }, createAssistantModelContext(before));
+    expect(deletion.ok).toBe(true);
+    if (!deletion.ok) return;
+
+    const unconfirmed = useEditorStore.getState().applyAssistantPreview(deletion.preview, false);
+    expect(unconfirmed).toMatchObject({ ok: false, diagnostics: [{ code: 'CONFIRMATION_REQUIRED' }] });
+    expect(useEditorStore.getState().currentDocument).toBe(before);
+
+    act(() => useEditorStore.getState().renameClass('class-customer', 'Changed'));
+    const stale = useEditorStore.getState().applyAssistantPreview(deletion.preview, true);
+    expect(stale).toMatchObject({ ok: false, diagnostics: [{ code: 'STALE_PREVIEW' }] });
+    expect(useEditorStore.getState().currentDocument.model.classes.some((item) => item.id === 'class-invoice')).toBe(true);
   });
 
   it.each([

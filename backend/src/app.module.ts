@@ -5,9 +5,10 @@ import { ProjectsModule } from './projects/projects.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { InvitationsModule } from './invitations/invitations.module.js';
 import { CollaborationModule } from './collaboration/collaboration.module.js';
+import { AssistantModule } from './assistant/assistant.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ProjectsModule, InvitationsModule, CollaborationModule],
+  imports: [PrismaModule, AuthModule, ProjectsModule, InvitationsModule, CollaborationModule, AssistantModule],
   controllers: [HealthController],
 })
 export class AppModule {}

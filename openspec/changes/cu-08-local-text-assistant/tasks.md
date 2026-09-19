@@ -19,11 +19,11 @@
 
 Generated-application CRUD resolution and authenticated API execution are OUT OF SCOPE / DEFERRED FROM CU-08. They require a distinct application-data command model, OpenAPI operation resolution, DTO mapping, endpoint selection, authenticated execution, and generated-application authorization semantics. `DomainManifest` remains read-only and cannot supply that execution layer. This capability requires a separately approved future proposal/change.
 
-## 3. Incremento 3 - User Experience, Benchmark, And E2E (NOT STARTED)
+## 3. Incremento 3 - User Experience, Benchmark, And E2E (PARTIAL)
 
-- [ ] 3.1 Add the text assistant UI with input, loading/model-unavailable state, streaming presentation, preview, diagnostics, review/apply/cancel, clarification, and destructive confirmation; verify React Testing Library coverage for the interaction states.
-- [ ] 3.2 Add a versioned reproducible benchmark dataset and runner; record quality, safety, latency, resource, and manual-observation evidence without inventing metrics.
-- [ ] 3.3 Integrate the assistant with generated-application and CASE editor contexts without bypassing their existing routes; verify browser E2E covers valid execution, cancellation, invalid intent, authorization denial, and UML mutation through the command bus.
+- [x] 3.1 Add the text assistant UI with input, loading/model-unavailable state, streaming presentation, preview, diagnostics, review/apply/cancel, clarification, and destructive confirmation; verify React Testing Library coverage for the interaction states.
+- [x] 3.2 Add a versioned reproducible benchmark dataset and runner; record quality, safety, latency, resource, and manual-observation evidence without inventing metrics. The complete measured 2026-09-18 Qwen CPU record uses dataset `assistant-command-v1-case-uml-2026-09-18`, Qwen3-1.7B-Q4_K_M at context 2048, and is summarized without prompts or chain-of-thought in the CU-08 record.
+- [x] 3.3 Integrate the assistant only with the CASE/UML editor through an authenticated read-only interpretation adapter and existing editor routes; verify browser E2E covers valid execution, cancellation, invalid intent, authorization denial, ambiguity without silent mutation, and UML mutation through the command bus. Generated-application assistant integration remains deferred outside CU-08.
 
 ## 4. Documentation And Verification
 

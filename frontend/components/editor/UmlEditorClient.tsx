@@ -16,6 +16,7 @@ import { UmlCanvas } from './UmlCanvas';
 import { InspectorPanel } from './InspectorPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { EditorStatusBar } from './EditorStatusBar';
+import { AssistantPanel } from './AssistantPanel';
 import { CollaborationClient } from '../../lib/collaboration/collaboration-client';
 import { CollaborationSessionBridge } from '../../lib/collaboration/collaboration-session-bridge';
 import { RealtimeCommandGate } from '../../lib/collaboration/realtime-command-gate';
@@ -41,6 +42,8 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
   const isInspectorOpen = useEditorStore((state) => state.isInspectorOpen);
   const toggleSidebar = useEditorStore((state) => state.toggleSidebar);
   const toggleInspector = useEditorStore((state) => state.toggleInspector);
+  const isAssistantOpen = useEditorStore((state) => state.isAssistantOpen);
+  const toggleAssistant = useEditorStore((state) => state.toggleAssistant);
   const replaceProjectSession = useEditorStore((state) => state.replaceProjectSession);
   const sessionProjectId = useEditorStore((state) => state.projectId);
   const operationalError = useEditorStore((state) => state.operationalError);
@@ -148,7 +151,7 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
             <DiagnosticsPanel />
           </Box>
         )}
-        {compact && (
+         {compact && (
           <>
             <Drawer open={isSidebarOpen} onClose={() => { toggleSidebar(); focusCanvas(); }} ModalProps={{ keepMounted: true }} PaperProps={{ sx: { width: 'min(90vw, 320px)', maxWidth: '90vw' } }}>
               <EditorSidebar compact />
@@ -160,8 +163,11 @@ export function UmlEditorClient({ projectId, allowDemoForTests = process.env.NOD
               </Box>
             </Drawer>
           </>
-        )}
-      </Box>
+         )}
+         <Drawer anchor="right" open={isAssistantOpen} onClose={() => { toggleAssistant(); focusCanvas(); }} PaperProps={{ sx: { width: 'min(92vw, 400px)', maxWidth: '92vw' } }}>
+           <AssistantPanel projectId={sessionProjectId} />
+         </Drawer>
+       </Box>
       <EditorStatusBar compact={compact} />
     </Box>
   );

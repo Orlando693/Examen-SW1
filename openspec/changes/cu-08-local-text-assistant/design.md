@@ -34,6 +34,12 @@ Use one pipeline: provider response -> strict assistant decoder -> UML validator
 
 This avoids giving the LLM direct access to persistence or domain internals. A direct Prisma/REST/React Flow integration was rejected because it bypasses established validation, authorization, or canonical mutation routes. `DomainManifest` remains read-only and has no execution role in CU-08; generated-application CRUD requires a separately designed command and authenticated OpenAPI execution layer.
 
+### CASE editor integration boundary
+
+Incremento 3 integrates the assistant only with the CASE/UML editor. The browser calls an authenticated backend interpretation adapter because `@examen-sw1/local-llm` and node-llama-cpp are Node-only. The adapter authorizes the existing project user, derives authorized UML context, invokes the provider, and returns only status, streaming UX text, a decoded candidate, clarification, or diagnostics. It does not mutate `ProjectDocument`, call a UML executor, or execute generated-application operations.
+
+After explicit review, the editor submits the preview's existing `UmlCommand` values through `executeAndSync()`, preserving the normal collaboration route and `UmlCommandBus` boundary. Streaming partial text is never executable and cannot enable Apply. Generated-application assistant integration remains deferred outside CU-08 and requires a separately designed contract and authorization model.
+
 ### Preview is a durable boundary, not model output
 
 The preview presents a normalized summary, resolved target, values, diagnostics, and confirmation requirement. Apply operates on the validated preview identity or immutable normalized command, not the original text or a later provider response. A new request invalidates any prior pending preview.

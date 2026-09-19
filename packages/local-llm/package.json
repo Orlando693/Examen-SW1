@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "scripts": { "build": "tsc -p tsconfig.build.json", "lint": "eslint . --max-warnings=0", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run", "test:local-llm": "node dist/smoke.js" },
+  "scripts": { "build": "tsc -p tsconfig.build.json", "lint": "eslint . --max-warnings=0", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run", "test:local-llm": "node dist/smoke.js", "benchmark": "node dist/benchmark-runner.js" },
   "dependencies": { "@examen-sw1/assistant-core": "^0.0.0", "node-llama-cpp": "3.21.1" },
   "devDependencies": { "@eslint/js": "^9.0.0", "@types/node": "^24.0.0", "eslint": "^9.0.0", "typescript": "^5.9.0", "typescript-eslint": "^8.0.0", "vitest": "^3.0.0" }
 }

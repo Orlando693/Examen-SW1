@@ -16,6 +16,7 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
   const applyAutoLayout = useEditorStore((state) => state.applyAutoLayout);
   const toggleSidebar = useEditorStore((state) => state.toggleSidebar);
   const toggleInspector = useEditorStore((state) => state.toggleInspector);
+  const toggleAssistant = useEditorStore((state) => state.toggleAssistant);
   const save = useEditorStore((state) => state.save);
   const reloadProject = useEditorStore((state) => state.reloadProject);
   const saveState = useEditorStore((state) => state.saveState);
@@ -61,7 +62,8 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
         {collaborationRequired ? <Tooltip title="Shared changes are persisted by authoritative realtime commands."><span><Button size={compact ? 'small' : 'medium'} color="inherit" disabled aria-label={`Collaboration persistence: ${persistenceStatus}`} sx={{ flex: '0 0 auto', textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.6)' } }}>{persistenceStatus}</Button></span></Tooltip> : <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void save()} disabled={saveState === 'idle' || saveState === 'saving'} sx={{ flex: '0 0 auto', textTransform: 'none' }}>{saveState === 'saving' ? 'Saving' : 'Save'}</Button>}
         {(saveState === 'conflict' || saveState === 'error') && <Button size="small" color="inherit" onClick={() => void reloadProject()} sx={{ flex: '0 0 auto', textTransform: 'none' }}>Reload</Button>}
         {!compact && <Button size="medium" color="inherit" onClick={() => void applyAutoLayout()} disabled={mutationsBlocked} aria-describedby={mutationsBlocked ? 'collaboration-mutation-help' : undefined} sx={{ flex: '0 0 auto', minWidth: 112, whiteSpace: 'nowrap', textTransform: 'none' }}>Auto Layout</Button>}
-        {compact && <Button size="small" color="inherit" onClick={toggleInspector} sx={{ flex: '0 0 auto', minWidth: 54, px: 0.75, textTransform: 'none' }}>Props</Button>}
+         {compact && <Button size="small" color="inherit" onClick={toggleInspector} sx={{ flex: '0 0 auto', minWidth: 54, px: 0.75, textTransform: 'none' }}>Props</Button>}
+         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={toggleAssistant} sx={{ flex: '0 0 auto', minWidth: compact ? 54 : 72, px: compact ? 0.75 : 1, textTransform: 'none' }}>Assist</Button>
       </Toolbar>
       {historyUnavailable && <Typography id="collaboration-mutation-help" role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Undo and redo are unavailable during collaborative editing. Shared mutations wait for an authoritative realtime connection.</Typography>}
     </AppBar>

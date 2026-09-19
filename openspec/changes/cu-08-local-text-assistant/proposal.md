@@ -8,9 +8,9 @@ The CASE editor currently requires direct UI interaction. CU-08 adds local natur
 - Add a fail-closed pipeline that parses assistant output, validates declared capabilities and user input, previews the resolved action, and requires review before application.
 - Adapt valid UML commands exclusively to `UmlCommand` submitted through `UmlCommandBus`.
 - Add a local LLM provider boundary using node-llama-cpp and a reproducible benchmark protocol for Qwen3 1.7B quantized configurations. A deterministic mock provider keeps tests independent from local model binaries.
-- Add assistant UI behavior for text input, preview, review, apply, cancel, diagnostics, and destructive-operation confirmation.
+- Add CASE editor-only assistant UI behavior for text input, preview, review, apply, cancel, diagnostics, and destructive-operation confirmation.
 
-Executing CRUD operations against generated application instances is outside CU-08. `DomainManifest` remains read-only; that capability requires a separately designed command model and authenticated OpenAPI execution layer.
+Generated-application assistant integration, including CRUD operations against generated application instances, is outside CU-08. `DomainManifest` remains read-only; that capability requires a separately designed command model and authenticated OpenAPI execution layer.
 
 ## Delivery Sequence
 

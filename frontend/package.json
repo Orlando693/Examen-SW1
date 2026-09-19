@@ -9,11 +9,15 @@
     "build": "next build",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "node e2e/validate-environment.mjs && playwright test",
+    "e2e:backend": "npm run db:migrate:deploy --workspace backend && npm run dev --workspace backend",
+    "e2e:frontend": "next build && next start -p 3100"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
+    "@examen-sw1/assistant-core": "0.0.0",
     "@examen-sw1/uml-core": "0.0.0",
     "@mui/material": "^7.0.0",
     "@mui/material-nextjs": "^7.0.0",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^24.0.0",
