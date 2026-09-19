@@ -26,7 +26,7 @@ describe('LocalLlmAssistantProvider', () => {
   it('reports unavailable without a model path', async () => expect(await new LocalLlmAssistantProvider({ runtime: new FakeRuntime(), modelPath: '' }).interpret({ text: 'x', context })).toMatchObject({ ok: false, diagnostics: [{ code: 'MODEL_UNAVAILABLE' }] }));
   it('keeps prompt and context deterministic and bounded', () => {
     const prompt = buildAssistantPrompt('summarize', context); expect(prompt.ok).toBe(true);
-    if (prompt.ok) { expect(prompt.prompt).toContain('/no_think'); expect(prompt.prompt).not.toContain('"oneOf"'); }
+    if (prompt.ok) { expect(prompt.prompt).toContain('/no_think'); expect(prompt.prompt).toContain('Never provide classId, attributeId, or relationId'); expect(prompt.prompt).not.toContain('"oneOf"'); }
     expect(compactContext({ ...context, selectedElementId: 'missing' }, 20)).toMatchObject({ ok: false, diagnostic: { code: 'CONTEXT_TOO_LARGE' } });
   });
   it('loads once, reuses the loaded runtime, and disposes it', async () => {
@@ -133,6 +133,7 @@ describe('LocalLlmAssistantProvider', () => {
 type Schema = Record<string, unknown>;
 const propertiesOf = (branch: Schema): Record<string, Schema> => branch.properties as Record<string, Schema>;
 const referenceFor = (branch: Schema, field: string): { id: string } | { name: string } => (propertiesOf(branch)[field].required as string[]).includes('id') ? { id: `${field}-id` } : { name: `${field}-name` };
+const hasIdReference = (branch: Schema, field: string): boolean => 'id' in referenceFor(branch, field);
 const operationOf = (branch: Schema): string => propertiesOf(branch).operation.const as string;
 const hasNestedUnion = (value: unknown): boolean => Array.isArray(value) ? value.some(hasNestedUnion) : typeof value === 'object' && value !== null && Object.entries(value).some(([key, item]) => key === 'oneOf' || key === 'anyOf' || hasNestedUnion(item));
 const upperPattern = (branch: Schema, field: 'sourceMultiplicity' | 'targetMultiplicity'): 'integer' | '*' | 'null' => {
@@ -191,6 +192,16 @@ describe('local grammar projection', () => {
     for (const reference of [null, {}, { id: 'class-id', name: 'User' }, { unknown: 'class-id' }]) {
       expect(decodeAssistantCommand({ version: 1, operation: 'delete_class', class: reference }).ok).toBe(false);
     }
+  });
+
+  it('does not project create IDs while retaining canonical ID references for existing targets', () => {
+    const branches = LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA.oneOf as Schema[];
+    for (const branch of branches.filter((item) => operationOf(item) === 'create_class')) expect(propertiesOf(branch)).not.toHaveProperty('classId');
+    for (const branch of branches.filter((item) => operationOf(item) === 'add_attribute')) expect(propertiesOf(branch)).not.toHaveProperty('attributeId');
+    for (const branch of branches.filter((item) => operationOf(item) === 'create_relation')) expect(propertiesOf(branch)).not.toHaveProperty('relationId');
+    const addAttribute = branches.find((item) => operationOf(item) === 'add_attribute' && hasIdReference(item, 'class'));
+    const createRelation = branches.find((item) => operationOf(item) === 'create_relation' && hasIdReference(item, 'source') && hasIdReference(item, 'target'));
+    expect(addAttribute).toBeDefined(); expect(createRelation).toBeDefined();
   });
 
   it('produces a decoder-valid fixture for every projected command branch', () => {

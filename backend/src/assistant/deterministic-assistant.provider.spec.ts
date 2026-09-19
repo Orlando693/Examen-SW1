@@ -24,4 +24,12 @@ describe('DeterministicAssistantProvider', () => {
     expect(result).toMatchObject({ ok: false, diagnostics: [{ code: 'GENERATION_CANCELLED' }] });
     expect(chunks).toEqual([]);
   });
+
+  it('provides colliding create IDs only as defensive E2E candidates with existing target references', async () => {
+    const project = createProjectDocument({ id: '00000000-0000-4000-8000-000000000001', ownerId: '00000000-0000-4000-8000-000000000002', name: 'Fixture project', now: '2026-09-18T00:00:00.000Z', model: { packages: [], enumerations: [], classes: [{ id: 'class-source', name: 'Source', attributes: [{ id: 'attribute-existing', name: 'existing', type: { kind: 'primitive', name: 'string' }, visibility: 'private' }], operations: [] }, { id: 'class-target', name: 'Target', attributes: [], operations: [] }], relationships: [{ id: 'relation-existing', kind: 'association', source: { classId: 'class-source' }, target: { classId: 'class-target' } }] } });
+    const provider = new DeterministicAssistantProvider(); const context = createAssistantModelContext(project);
+    await expect(provider.interpret({ text: 'create colliding class', context })).resolves.toMatchObject({ ok: true, candidate: { classId: 'class-source' } });
+    await expect(provider.interpret({ text: 'add colliding attribute', context })).resolves.toMatchObject({ ok: true, candidate: { class: { id: 'class-source' }, attributeId: 'attribute-existing' } });
+    await expect(provider.interpret({ text: 'create colliding relation', context })).resolves.toMatchObject({ ok: true, candidate: { relationId: 'relation-existing', source: { id: 'class-source' }, target: { id: 'class-target' } } });
+  });
 });

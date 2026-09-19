@@ -43,6 +43,9 @@ export class DeterministicAssistantProvider implements LocalAssistantInterpreter
     if (input.text === 'delete fixture class') return result({ version: 1, operation: 'delete_class', class: { name: 'Fixture' } });
     if (input.text === 'ambiguity candidates') return result({ version: 1, operation: 'rename_class', class: { name: 'Duplicada' }, name: 'Resolved' });
     if (input.text === 'invalid intent') return result({ version: 1, operation: 'unsupported' });
+    if (input.text === 'create colliding class') return result({ version: 1, operation: 'create_class', classId: input.context.classes[0]?.id, name: 'Generated' });
+    if (input.text === 'add colliding attribute') return result({ version: 1, operation: 'add_attribute', class: { id: input.context.classes[0]?.id ?? '' }, attributeId: input.context.classes[0]?.attributes[0]?.id, name: 'generatedField', attributeType: 'string' });
+    if (input.text === 'create colliding relation') return result({ version: 1, operation: 'create_relation', relationId: input.context.relationships[0]?.id, kind: 'association', source: { id: input.context.classes[0]?.id ?? '' }, target: { id: input.context.classes[1]?.id ?? '' }, name: 'generatedRelation' });
     return result(await ruleBased.interpret(input));
   }
 }

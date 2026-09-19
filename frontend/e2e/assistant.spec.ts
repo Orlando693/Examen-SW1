@@ -42,6 +42,22 @@ async function createProject(request: APIRequestContext, session: Session, class
   return resource;
 }
 
+async function createCollidingFixture(request: APIRequestContext, session: Session): Promise<Resource> {
+  let resource = await createProject(request, session, ['Source', 'Target']);
+  const sourceId = resource.project.model.classes[0]!.id;
+  const targetId = resource.project.model.classes[1]!.id;
+  const bus = new UmlCommandBus();
+  const attribute = bus.execute(resource.project, { type: 'AddAttribute', attributeId: createUuid(), classId: sourceId, name: 'existing', attributeType: { kind: 'primitive', name: 'string' } });
+  expect(attribute.ok).toBe(true); if (!attribute.ok) throw new Error(attribute.message);
+  const relation = bus.execute(attribute.document, { type: 'CreateAssociation', relationshipId: createUuid(), kind: 'association', sourceClassId: sourceId, targetClassId: targetId, name: 'existingRelation' });
+  expect(relation.ok).toBe(true); if (!relation.ok) throw new Error(relation.message);
+  resource = await apiJson<Resource>(request, `/projects/${resource.project.id}/document`, {
+    method: 'PUT', token: session.accessToken,
+    data: { baseStorageVersion: resource.storageVersion, document: { revision: relation.document.revision, model: relation.document.model, layout: relation.document.layout } },
+  });
+  return resource;
+}
+
 async function loginAndOpen(page: Page, email: string, projectId: string): Promise<void> {
   await page.goto(`/login?returnTo=${encodeURIComponent(`/editor?projectId=${projectId}`)}`);
   await page.getByLabel('Email').fill(email);
@@ -100,6 +116,55 @@ test.describe('CASE UML assistant', () => {
 
     const current = await apiJson<Resource>(request, `/projects/${resource.project.id}`, { token: user.session.accessToken });
     expect(current.project.model.classes.filter((item) => item.name === 'Cliente')).toHaveLength(1);
+  });
+
+  test('sanitizes colliding model create IDs while preserving existing target references', async ({ page, request }) => {
+    test.setTimeout(60_000);
+    const user = await register(request, 'colliding');
+    const resource = await createCollidingFixture(request, user.session);
+    const originalClassId = resource.project.model.classes[0]!.id;
+    const originalAttributeId = resource.project.model.classes[0]!.attributes[0]!.id;
+    const originalRelationId = resource.project.model.relationships[0]!.id;
+
+    await loginAndOpen(page, user.email, resource.project.id);
+    await openAssistant(page, 'create colliding class');
+    await expect(page.getByText('Review proposal')).toBeVisible();
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
+    await expect.poll(async () => (await apiJson<Resource>(request, `/projects/${resource.project.id}`, { token: user.session.accessToken })).project.model.classes.filter((item) => item.name === 'Generated')).toHaveLength(1);
+    await page.reload();
+    await expect(page.getByTestId('editor-root')).toBeVisible();
+    await page.getByRole('button', { name: 'Assist' }).click();
+
+    await page.getByLabel('Describe a UML change').fill('add colliding attribute');
+    await page.getByRole('button', { name: 'Generate preview' }).click();
+    await expect(page.getByText('add attribute', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
+    await expect.poll(async () => (await apiJson<Resource>(request, `/projects/${resource.project.id}`, { token: user.session.accessToken })).project.model.classes.find((item) => item.id === originalClassId)?.attributes.filter((item) => item.name === 'generatedField')).toHaveLength(1);
+    await page.reload();
+    await expect(page.getByTestId('editor-root')).toBeVisible();
+    await page.getByRole('button', { name: 'Assist' }).click();
+
+    await page.getByLabel('Describe a UML change').fill('create colliding relation');
+    await page.getByRole('button', { name: 'Generate preview' }).click();
+    await expect(page.getByText('create relation', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
+    await expect.poll(async () => (await apiJson<Resource>(request, `/projects/${resource.project.id}`, { token: user.session.accessToken })).project.model.relationships.filter((item) => item.name === 'generatedRelation')).toHaveLength(1);
+
+    const current = await apiJson<Resource>(request, `/projects/${resource.project.id}`, { token: user.session.accessToken });
+    const source = current.project.model.classes.find((item) => item.id === originalClassId)!;
+    const generatedClass = current.project.model.classes.find((item) => item.name === 'Generated')!;
+    const generatedAttribute = source.attributes.find((item) => item.name === 'generatedField')!;
+    const generatedRelation = current.project.model.relationships.find((item) => item.name === 'generatedRelation')!;
+    expect(current.project.model.classes.filter((item) => item.id === originalClassId)).toHaveLength(1);
+    expect(source.attributes.filter((item) => item.id === originalAttributeId)).toHaveLength(1);
+    expect(current.project.model.relationships.filter((item) => item.id === originalRelationId)).toHaveLength(1);
+    expect(generatedClass.id).not.toBe(originalClassId);
+    expect(generatedAttribute.id).not.toBe(originalAttributeId);
+    expect(generatedRelation.id).not.toBe(originalRelationId);
+    expect(generatedRelation).toMatchObject({ source: { classId: originalClassId }, target: { classId: resource.project.model.classes[1]!.id } });
   });
 
   test('cancels a delayed interpretation without changing the project', async ({ page, request }) => {

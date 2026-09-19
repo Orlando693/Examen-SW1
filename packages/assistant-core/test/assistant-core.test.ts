@@ -52,6 +52,16 @@ describe('AssistantCommand v1 schema', () => {
     expect(decodeAssistantCommand({ version: 1, operation: 'create_class', name: 'https://unsafe' })).toMatchObject({ ok: false });
     expect(decodeAssistantCommand({ version: 1, operation: 'summarize_model', injected: true })).toMatchObject({ ok: false });
   });
+
+  it('keeps create identities out of the grammar while accepting legacy complete candidates for sanitization', () => {
+    const createBranches = ASSISTANT_COMMAND_JSON_SCHEMA.oneOf.filter((branch) => ['create_class', 'add_attribute', 'create_relation'].includes(branch.properties.operation.const));
+    expect(createBranches.map((branch) => Object.keys(branch.properties))).toEqual([
+      ['version', 'operation', 'name'],
+      ['version', 'operation', 'class', 'name', 'attributeType'],
+      ['version', 'operation', 'kind', 'source', 'target', 'name', 'sourceMultiplicity', 'targetMultiplicity'],
+    ]);
+    expect(decodeAssistantCommand({ version: 1, operation: 'create_class', name: 'Invoice', classId: 'class-user' }).ok).toBe(true);
+  });
 });
 
 describe('assistant model context and resolution', () => {
@@ -152,6 +162,56 @@ describe('preview and command bus application', () => {
       const result = applyPreview(preview.preview, source, { commandBus: bus, confirmed: true });
       expect(result.ok).toBe(true);
       expect(bus.execute).toHaveBeenCalledTimes(1);
+      expect(source).toEqual(before);
+    }
+  });
+
+  it('discards model-owned create IDs through decode, preview, apply, command bus, and model persistence', () => {
+    const candidates: Array<{ candidate: unknown; verify: (result: ProjectDocument) => void }> = [
+      {
+        candidate: { version: 1, operation: 'create_class', name: 'Generated', classId: 'class-user' },
+        verify: (result) => {
+          const created = result.model.classes.find((item) => item.name === 'Generated');
+          expect(result.model.classes.filter((item) => item.id === 'class-user')).toHaveLength(1);
+          expect(created?.id).toBeDefined(); expect(created?.id).not.toBe('class-user');
+        },
+      },
+      {
+        candidate: { version: 1, operation: 'add_attribute', class: { id: 'class-user' }, name: 'generatedField', attributeId: 'attr-name', attributeType: 'string' },
+        verify: (result) => {
+          const attributes = result.model.classes.find((item) => item.id === 'class-user')?.attributes ?? [];
+          const created = attributes.find((item) => item.name === 'generatedField');
+          expect(attributes.filter((item) => item.id === 'attr-name')).toHaveLength(1);
+          expect(created?.id).toBeDefined(); expect(created?.id).not.toBe('attr-name');
+        },
+      },
+      {
+        candidate: { version: 1, operation: 'create_relation', kind: 'association', source: { id: 'class-user' }, target: { id: 'class-order' }, name: 'generatedRelation', relationId: 'relation-user-order' },
+        verify: (result) => {
+          const created = result.model.relationships.find((item) => item.name === 'generatedRelation');
+          expect(result.model.relationships.filter((item) => item.id === 'relation-user-order')).toHaveLength(1);
+          expect(created?.id).toBeDefined(); expect(created?.id).not.toBe('relation-user-order');
+          expect(created).toMatchObject({ source: { classId: 'class-user' }, target: { classId: 'class-order' } });
+        },
+      },
+    ];
+    for (const { candidate, verify } of candidates) {
+      const source = document(); const before = structuredClone(source); const decoded = decodeAssistantCommand(candidate);
+      expect(decoded.ok).toBe(true); if (!decoded.ok) continue;
+      const preview = createPreview('create', decoded.command, createAssistantModelContext(source));
+      expect(preview.ok).toBe(true); if (!preview.ok) continue;
+      if (decoded.command.operation === 'create_class') expect(preview.preview.umlCommands[0]).not.toHaveProperty('classId');
+      if (decoded.command.operation === 'add_attribute') {
+        expect(preview.preview.umlCommands[0]).toHaveProperty('classId', 'class-user');
+        expect(preview.preview.umlCommands[0]).not.toHaveProperty('attributeId');
+      }
+      if (decoded.command.operation === 'create_relation') {
+        expect(preview.preview.umlCommands[0]).not.toHaveProperty('relationshipId');
+        expect(preview.preview.umlCommands[0]).toMatchObject({ sourceClassId: 'class-user', targetClassId: 'class-order' });
+      }
+      expect(source).toEqual(before);
+      const applied = applyPreview(preview.preview, source);
+      expect(applied.ok).toBe(true); if (applied.ok && applied.result?.ok) verify(applied.result.document);
       expect(source).toEqual(before);
     }
   });

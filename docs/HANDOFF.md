@@ -2,19 +2,19 @@
 
 ## Estado actual
 
-No hay CU ni cambio OpenSpec activo. La correccion post-archive `fix-assistant-generation-timeout` de CU-08 fue archivada como `openspec/changes/archive/2026-09-18-fix-assistant-generation-timeout`; no reabre ni modifica el archive CU-08. CU-09 no se ha iniciado.
+Correccion post-archive CU-08 activa: `fix-assistant-model-owned-create-ids`. No reabre ni modifica el archive CU-08; CU-09 no se ha iniciado.
 
-## Ultimo cierre
+## Trabajo terminado
 
-- Backend/provider normal: `LOCAL_LLM_DEFAULT_TIMEOUT_MS = 300000`.
-- Solo test/tooling directo puede usar override, limitado a `min(default, override)` con un timer.
-- DTO HTTP, controller/service y frontend no exponen `timeoutMs`; DTO lo rechaza como campo extra. Abort/cancel sigue usando `AbortSignal`.
+- Grammar y prompt local no permiten IDs de create para clase, atributo o relacion.
+- El adaptador descarta IDs de create incluso desde candidatos completos de bypass; `UmlCommandBus`/executor conserva la asignacion UUID confiable.
+- Referencias por ID de targets existentes se preservan.
 
 ## Evidencia cerrada
 
-- local-llm 26/26 PASS; backend assistant 16/16 PASS; frontend panel 5/5 PASS.
-- E2E Playwright determinista aislado 7/7 PASS, sin modelo local; root typecheck/lint/build PASS.
-- Smoke/benchmark GGUF/Qwen no se ejecuto intencionalmente. No hubo `ECONNRESET`.
+- assistant-core 14/14; local-llm 27/27; backend assistant 17/17; frontend 183/183; Playwright 8/8 PASS.
+- Root-equivalent secuencial 462/462; typecheck/lint/build y OpenSpec change/main strict PASS.
+- Smoke GGUF/Qwen y benchmark real no se ejecutaron. No hubo `ECONNRESET`.
 
 ## Limitaciones vigentes
 
@@ -23,4 +23,4 @@ No hay CU ni cambio OpenSpec activo. La correccion post-archive `fix-assistant-g
 
 ## Siguiente accion exacta
 
-Esperar solicitud o aprobacion explicita para planificar CU-09.
+Obtener aceptacion; despues ejecutar verify/archivo solo si se solicita, y realizar el commit local de la correccion. No hacer push.

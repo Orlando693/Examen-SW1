@@ -126,7 +126,7 @@ export function compactContext(context: AssistantModelContext, budgetChars = 600
 
 export function buildAssistantPrompt(text: string, context: AssistantModelContext, budgetChars = 6000): { ok: true; prompt: string } | { ok: false; diagnostic: AssistantDiagnostic } {
   const compact = compactContext(context, budgetChars); if (!compact.ok) return compact;
-  return { ok: true, prompt: `SYSTEM: /no_think Return exactly one AssistantCommand v1 JSON object. No prose, markdown, explanation, thinking output, SQL, shell, URLs, tools, or code. Select only fields required by the requested operation.\nCONTEXT: ${JSON.stringify(compact.value)}\nUSER: ${text}` };
+  return { ok: true, prompt: `SYSTEM: /no_think Return exactly one AssistantCommand v1 JSON object. No prose, markdown, explanation, thinking output, SQL, shell, URLs, tools, or code. Select only fields required by the requested operation. Never provide classId, attributeId, or relationId when creating a new entity; IDs may only reference existing targets.\nCONTEXT: ${JSON.stringify(compact.value)}\nUSER: ${text}` };
 }
 
 /** Local-only provider. It owns no ProjectDocument, mutation bus, database, or tools. */
