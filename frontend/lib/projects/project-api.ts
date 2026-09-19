@@ -49,6 +49,7 @@ export type AssistantInterpretation = {
   clarification?: NeedsClarificationCommand;
   diagnostics: AssistantDiagnostic[];
 };
+export type VoiceTranscription = { status: 'final'; text: string } | { status: 'unavailable' | 'error' | 'cancelled'; diagnostic: { code: string; message: string } };
 
 const DEFAULT_API_BASE_URL = 'http://localhost:3001';
 
@@ -113,6 +114,13 @@ function decodeClarification(value: unknown): NeedsClarificationCommand {
     return { id: candidate.id, name: candidate.name, kind: candidate.kind as 'class' | 'attribute' | 'relationship' };
   });
   return { version: 1, operation: 'needs_clarification', candidates };
+}
+
+function decodeVoiceTranscription(value: unknown): VoiceTranscription {
+  if (!isRecord(value) || typeof value.status !== 'string') throw new ProjectApiError('INVALID_API_RESPONSE', 'The server returned an invalid transcription.');
+  if (value.status === 'final' && typeof value.text === 'string') return { status: 'final', text: value.text };
+  if (['unavailable', 'error', 'cancelled'].includes(value.status) && isRecord(value.diagnostic) && typeof value.diagnostic.code === 'string' && typeof value.diagnostic.message === 'string') return { status: value.status as 'unavailable' | 'error' | 'cancelled', diagnostic: { code: value.diagnostic.code, message: value.diagnostic.message } };
+  throw new ProjectApiError('INVALID_API_RESPONSE', 'The server returned an invalid transcription.');
 }
 
 async function request(path: string, init?: RequestInit): Promise<unknown> {
@@ -211,5 +219,15 @@ export const projectApi = {
   },
   interpretAssistantStream(id: string, input: { text: string }, signal: AbortSignal | undefined, onChunk: (chunk: string) => void): Promise<AssistantInterpretation> {
     return streamAssistantInterpretation(id, input, signal, onChunk);
+  },
+  async transcribeVoice(audio: Blob, signal: AbortSignal): Promise<VoiceTranscription> {
+    let response: Response;
+    try {
+      const session = getAuthSession();
+      response = await fetch(`${apiBaseUrl()}/assistant/voice/transcriptions`, { method: 'POST', body: audio, signal, headers: { 'content-type': 'audio/wav', ...(session ? { authorization: `Bearer ${session.accessToken}` } : {}) } });
+    } catch (cause) { if (cause instanceof DOMException && cause.name === 'AbortError') throw cause; throw new ProjectApiError('NETWORK_ERROR', 'Unable to reach the voice service.'); }
+    const body: unknown = await response.json().catch(() => undefined);
+    if (!response.ok) throw new ProjectApiError('HTTP_ERROR', `Voice request failed (${response.status}).`, {}, response.status);
+    return decodeVoiceTranscription(body);
   },
 };

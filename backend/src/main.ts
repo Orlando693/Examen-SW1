@@ -5,13 +5,14 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module.js';
 import { configureApplication, validateEnvironment } from './app.config.js';
 import { COLLABORATION_LIMITS } from './collaboration/collaboration-limits.js';
+import { WAV_HTTP_PAYLOAD_BYTES } from '@examen-sw1/local-stt';
 
 const DEFAULT_BACKEND_PORT = 3001;
 async function bootstrap() {
   validateEnvironment();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ bodyLimit: COLLABORATION_LIMITS.payloadBytes }),
+    new FastifyAdapter({ bodyLimit: Math.max(COLLABORATION_LIMITS.payloadBytes, WAV_HTTP_PAYLOAD_BYTES) }),
   );
 
   configureApplication(app);

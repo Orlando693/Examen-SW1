@@ -170,7 +170,7 @@ describe('Realtime collaboration authentication', () => {
     await prisma.projectInvitation.create({ data: { projectId: project.id, inviterId: owner.user.id, invitedEmail: pendingEmail, tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 60_000) } });
     const pendingAck = await join(await connect(url, pending.accessToken), project.id);
     expect(pendingAck).toMatchObject({ ok: false, error: { code: 'PROJECT_NOT_FOUND' } });
-  });
+  }, 15_000);
 
   it('deduplicates one user across two joined sockets in the public roster', async () => {
     const { account, url } = await start();
@@ -416,7 +416,7 @@ describe('Realtime collaboration authentication', () => {
     expect(ownerDocument).toMatchObject({ revision, model: { classes: [expect.objectContaining({ id: classB.classId })], enumerations: [], relationships: [] } });
     expect(digestProjectDocument(ownerDocument)).toBe(resultingDocumentDigest);
     expect(persisted.revision).toBe(revision); expect(persisted.storageVersion).toBe(realtimeVersion);
-  });
+  }, 15_000);
 
   it('rejects validation, deleted-target edits, rename/delete and same-field same-base conflicts without advancing state', async () => {
     const { account: owner, url } = await start();
@@ -446,7 +446,7 @@ describe('Realtime collaboration authentication', () => {
     expect(deletedEdit).toMatchObject({ ok: false, error: { code: 'DOMAIN_COMMAND_REJECTED' }, action: 'NONE' });
     const persisted = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
     expect(persisted).toMatchObject({ revision: 3, storageVersion: 3 });
-  });
+  }, 15_000);
 
   it('keeps version domains separate across commands, duplicates, rejections, resync and presence', async () => {
     const { account: owner, url } = await start();

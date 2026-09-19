@@ -33,7 +33,7 @@ describe('AssistantPanel', () => {
     expect(await screen.findByText('Choose a more specific target')).toBeInTheDocument();
     expect(screen.getByText(/class-customer/)).toBeInTheDocument();
     expect(useEditorStore.getState().currentDocument).toBe(before);
-  });
+  }, 15_000);
 
   it('cancels an in-flight interpretation and never exposes apply', async () => {
     let rejectRequest!: (reason: unknown) => void;

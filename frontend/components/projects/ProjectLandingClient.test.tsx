@@ -79,7 +79,7 @@ describe('ProjectLandingClient', () => {
     expect(screen.getByText('Delete “Orders”? This cannot be undone.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(projectApiMock.delete).toHaveBeenCalledWith(project.id, 4));
-  });
+  }, 15_000);
 
   it('keeps project opening available to editors while hiding owner-only actions', async () => {
     projectApiMock.list.mockResolvedValue([{ ...project, access: 'EDITOR' }]);

@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-08 estan COMPLETADOS y archivados. La correccion post-archive de CU-08 tambien esta cerrada y archivada; CU-09 no se ha iniciado.
+CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 esta activo en Incremento 1; la correccion post-archive de CU-08 permanece cerrada y archivada.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-00 a CU-08 estan COMPLETADOS y archivados. La correccion post-archive de CU-0
 
 ## Ciclo actual
 
-Ciclo 4 — Transicion y cierre. CU-09 esta pendiente de planificacion.
+Ciclo 4 — Transicion y cierre. CU-09 Incremento 1 esta en implementacion/verificacion.
 
 ## Caso de uso activo
 
-No hay CU ni correccion activos. CU-08 permanece CLOSED/ARCHIVED; sus Incrementos 1, 2 y 3 estan COMPLETE.
+CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 en verificacion; OpenSpec `cu-09-voice-flutter-generated-app` activo. Incrementos 2 y 3 no iniciados.
 
 ## Casos de uso completados
 
@@ -35,7 +35,7 @@ No hay CU ni correccion activos. CU-08 permanece CLOSED/ARCHIVED; sus Incremento
 
 ## OpenSpec activo
 
-No hay cambio OpenSpec activo. `fix-assistant-model-owned-create-ids` fue archivado como `openspec/changes/archive/2026-09-19-fix-assistant-model-owned-create-ids` sin reabrir ni modificar el archive `cu-08-local-text-assistant`.
+`cu-09-voice-flutter-generated-app` activo. `fix-assistant-model-owned-create-ids` permanece archivado sin reabrir ni modificar el archive `cu-08-local-text-assistant`.
 
 ## Problemas abiertos
 
@@ -45,7 +45,7 @@ No hay cambio OpenSpec activo. `fix-assistant-model-owned-create-ids` fue archiv
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 - CU-08 no incluye CRUD ni integracion de asistente sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada. Incremento 3 se limita al editor CASE/UML.
-- CU-09 no se ha iniciado.
+- CU-09 Incremento 1 tareas 1.1-1.11 COMPLETE. `@examen-sw1/local-stt` agrega WAV PCM validado, proveedor Vosk opt-in/determinista, endpoint JWT no mutante y revision de transcript. Fuente oficial confirma `vosk-model-small-es-0.42` Apache-2.0, pero no publica SHA-256 de archive/directorio; no se inventaron hashes. Smoke sin modelo devuelve `MODEL_UNAVAILABLE`. 1.12 manual sigue pendiente; I2/I3 no iniciados.
 
 ## Verificación actual
 
@@ -151,4 +151,4 @@ No hay cambio OpenSpec activo. `fix-assistant-model-owned-create-ids` fue archiv
 
 ## Próxima acción
 
-Planificar CU-09 solo cuando se solicite y apruebe su plan; no implementar CU-09 todavia.
+Ejecutar gate manual 1.12 en navegador real y registrar resultados; no iniciar Incremento 2.

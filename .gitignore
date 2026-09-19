@@ -47,5 +47,6 @@ local.properties
 
 # AI models
 models/
+*.zip
 *.gguf
 *.onnx

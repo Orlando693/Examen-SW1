@@ -25,6 +25,9 @@ describe('AssistantController', () => {
 
     const streamResponse = await request(app.getHttpServer()).post('/projects/00000000-0000-4000-8000-000000000000/assistant/interpret/stream').send({ text: 'Create Customer' }).expect(401);
     expect(streamResponse.body.error.code).toBe('AUTHENTICATION_REQUIRED');
+
+    const voiceResponse = await request(app.getHttpServer()).post('/assistant/voice/transcriptions').set('content-type', 'audio/wav').send(Buffer.from('RIFF')).expect(401);
+    expect(voiceResponse.body.error.code).toBe('AUTHENTICATION_REQUIRED');
   });
 
   it('rejects timeoutMs on both controller DTO paths before calling the assistant', async () => {
