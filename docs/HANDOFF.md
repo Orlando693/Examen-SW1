@@ -2,19 +2,14 @@
 
 ## Estado actual
 
-Correccion post-archive CU-08 activa: `fix-assistant-model-owned-create-ids`. No reabre ni modifica el archive CU-08; CU-09 no se ha iniciado.
+No hay CU ni cambio OpenSpec activo. La correccion post-archive CU-08 `fix-assistant-model-owned-create-ids` esta CLOSED/ARCHIVED como `openspec/changes/archive/2026-09-19-fix-assistant-model-owned-create-ids`; CU-09 no se ha iniciado.
 
-## Trabajo terminado
+## Ultimo cierre
 
-- Grammar y prompt local no permiten IDs de create para clase, atributo o relacion.
-- El adaptador descarta IDs de create incluso desde candidatos completos de bypass; `UmlCommandBus`/executor conserva la asignacion UUID confiable.
+- Causa raiz resuelta: el modelo podia proponer IDs de entidades nuevas en colision. Grammar/prompt los excluyen y el adaptador los omite antes del `UmlCommandBus`, que asigna IDs confiables.
 - Referencias por ID de targets existentes se preservan.
-
-## Evidencia cerrada
-
-- assistant-core 14/14; local-llm 27/27; backend assistant 17/17; frontend 183/183; Playwright 8/8 PASS.
-- Root-equivalent secuencial 462/462; typecheck/lint/build y OpenSpec change/main strict PASS.
-- Smoke GGUF/Qwen y benchmark real no se ejecutaron. No hubo `ECONNRESET`.
+- assistant-core 14/14, local-llm 27/27, backend assistant 17/17, frontend 183/183, Playwright 8/8, raiz equivalente 462/462, smoke real Qwen, typecheck/lint/build y OpenSpec strict PASS.
+- El benchmark real no se repitio; no hubo `ECONNRESET`.
 
 ## Limitaciones vigentes
 
@@ -23,4 +18,4 @@ Correccion post-archive CU-08 activa: `fix-assistant-model-owned-create-ids`. No
 
 ## Siguiente accion exacta
 
-Obtener aceptacion; despues ejecutar verify/archivo solo si se solicita, y realizar el commit local de la correccion. No hacer push.
+Planificar CU-09 solo cuando el usuario lo solicite y apruebe el plan. No implementar CU-09 todavia.
