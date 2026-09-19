@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-08 estan COMPLETADOS y archivados. Hay una correccion post-archive activa para CU-08; CU-09 no se ha iniciado.
+CU-00 a CU-08 estan COMPLETADOS y archivados. La correccion post-archive de CU-08 tambien esta archivada; CU-09 no se ha iniciado.
 
 ## Planificación vigente
 
@@ -18,7 +18,7 @@ Ciclo 3 — Construccion y generacion de aplicaciones. CU-08 cerrado; ciclo comp
 
 ## Caso de uso activo
 
-Correccion post-archive de CU-08 mediante `fix-assistant-generation-timeout`. CU-08 permanece CLOSED/ARCHIVED; Incrementos 1, 2 y 3 COMPLETE.
+No hay caso de uso ni correccion activa. CU-08 permanece CLOSED/ARCHIVED; Incrementos 1, 2 y 3 COMPLETE.
 
 ## Casos de uso completados
 
@@ -30,14 +30,14 @@ Correccion post-archive de CU-08 mediante `fix-assistant-generation-timeout`. CU
 - CU-05 — Colaboracion realtime y presencia. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`. Implementacion cerrada en commit `941ca31`.
 - CU-06 — UML -> modelo relacional y backend Spring generado. COMPLETADO, VERIFIED, ARCHIVED como `openspec/changes/archive/2026-09-16-cu-06-uml-relational-spring-generator`. El backend generado pasa Java 21/Gradle Wrapper test y build; commit de archive `506079f` esta sincronizado con `origin/main`.
 - CU-08 — Asistentes de texto y benchmark LLM. COMPLETADO, VERIFIED, aceptado y ARCHIVED como `openspec/changes/archive/2026-09-18-cu-08-local-text-assistant`. Sus dos delta specs se sincronizaron a `openspec/specs/`.
+- Correccion post-archive CU-08 — Deadline de generacion del asistente. COMPLETADA, sincronizada y ARCHIVED como `openspec/changes/archive/2026-09-18-fix-assistant-generation-timeout`.
 
 ## OpenSpec activo
 
-`fix-assistant-generation-timeout` esta activo. Corrige el contrato de deadline normal sin reabrir ni modificar el archive `cu-08-local-text-assistant`; el benchmark medido se resume sanitizadamente en el registro CU-08 y su JSON completo permanece fuera de Git.
+No hay cambio OpenSpec activo. `fix-assistant-generation-timeout` fue archivado como `openspec/changes/archive/2026-09-18-fix-assistant-generation-timeout` sin reabrir ni modificar el archive `cu-08-local-text-assistant`.
 
 ## Problemas abiertos
 
-- Correccion activa: finalizar validacion OpenSpec, actualizar evidencia y crear el commit local de timeout. No se inicio CU-09.
 - `npm audit` reporta 5 vulnerabilidades transitivas (2 moderadas y 3 altas) despues de agregar Prisma. No se ejecutó `npm audit fix --force` para evitar cambios mayores no aprobados.
 - Docker no esta instalado/disponible (`docker` no se reconoce); no bloquea el Incremento 1 porque la migracion y la integracion usan PostgreSQL local aislado.
 - Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.
@@ -48,7 +48,7 @@ Correccion post-archive de CU-08 mediante `fix-assistant-generation-timeout`. CU
 
 ## Verificación actual
 
-- Correccion `fix-assistant-generation-timeout`: `LOCAL_LLM_DEFAULT_TIMEOUT_MS` fija el presupuesto backend en 300000 ms. El override directo queda solo para tests/tooling y se limita a `min(default, override)` con un timer; DTO HTTP, controller/service y frontend no exponen ni reenvian `timeoutMs`, y el DTO lo rechaza como campo extra. Focales PASS: local-llm 26/26, backend assistant 16/16 y frontend `AssistantPanel` 5/5. Playwright aislado 7/7 PASS con proveedor determinista, `NODE_ENV=test` y sin ruta de modelo. Root typecheck, lint y build PASS. Smoke/benchmark GGUF/Qwen NOT RUN intencionalmente; no hubo `ECONNRESET`.
+- Correccion archivada `fix-assistant-generation-timeout`: `LOCAL_LLM_DEFAULT_TIMEOUT_MS` fija el presupuesto backend en 300000 ms. El override directo queda solo para tests/tooling y se limita a `min(default, override)` con un timer; DTO HTTP, controller/service y frontend no exponen ni reenvian `timeoutMs`, y el DTO lo rechaza como campo extra. Focales PASS: local-llm 26/26, backend assistant 16/16 y frontend `AssistantPanel` 5/5. Playwright aislado 7/7 PASS con proveedor determinista, `NODE_ENV=test` y sin ruta de modelo. Root typecheck, lint y build PASS. Smoke/benchmark GGUF/Qwen NOT RUN intencionalmente; no hubo `ECONNRESET`. Delta specs sincronizadas y archivo OpenSpec creado.
 - CU-08 Incremento 3 COMPLETE: UI RTL 4/4 y browser E2E Playwright 7/7 PASS con backend autentico, PostgreSQL, proveedor determinista, Chromium, consola y page errors controlados. Cubre preview/apply, cancelacion, confirmacion/cancelacion destructiva, ambiguedad, intent invalido y denial/ocultamiento. Root-equivalent test secuencial PASS 449/449: frontend 182, backend 173, assistant-core 12, local-llm 24, UML core 36, relational core 10, spring-generator 7, generated-api-contracts 5, domain-manifest 1 y frontend-generator 3. `npm test` literal excedio el limite externo y carecia de las URLs PostgreSQL requeridas, por lo que backend rechazo el aislamiento; no se tomo como evidencia y no ocurrio `ECONNRESET`. Typecheck, lint y build PASS. Prisma generate/validate y migrate deploy PASS una vez contra DEV `examen_sw1` y TEST `examen_sw1_test`, ambas con cinco migraciones sin pendientes. El benchmark real completo registro 15 casos sin duplicados para Qwen3-1.7B-Q4_K_M con contexto 2048: schema 15/15, operacion exacta 8/15, referencias 9/15, clarificacion 0/1, fallo cerrado 9/15; total 2030339.3346000002 ms, promedio 135355.95564 ms y primera respuesta promedio 88662.14462666665 ms. El resumen durable no contiene prompts ni chain-of-thought; el JSON temporal completo permanece fuera de Git.
 - CU-08 Incremento 2 COMPLETADO (6/6): `@examen-sw1/local-llm` entrega runtime local node-llama-cpp con grammar estructurado, timeout, cancelacion, streaming, busy policy y recuperacion, y `assistant-core` revalida permisos, revision, destinos, confirmacion destructiva y semantica inmediatamente antes de aplicar exclusivamente mediante `UmlCommandBus`. La validacion equivalente a raiz fue 429/429 sin fallos ni skips inesperados: frontend 176, backend 159 (incluye realtime PostgreSQL/Socket.IO), assistant-core 12, local-llm 20, UML core 36, relational core 10, spring-generator 7, generated-api-contracts 5, domain-manifest 1 y frontend-generator 3. El `npm test` literal se inicio correctamente, pero no completo por el limite externo de 10 minutos; las suites pendientes se ejecutaron luego individual y secuencialmente con sus scripts normales. `npm run typecheck`, `npm run lint`, `npm run build`, Prisma generate/validate y migrate deploy DEV/TEST, OpenSpec change/main specs strict y `git diff --check` PASS. Incremento 3 permanece NOT STARTED.
 - CU-07 Incremento 2 COMPLETADO: `@examen-sw1/domain-manifest` genera `DomainManifest` v1 exclusivamente desde `RelationalModel` y OpenAPI validado. Declara entidades, aliases estables, campos/tipos/nulabilidad/validaciones, relaciones/cardinalidad/navegacion, CRUD, pagination, filter/search/sort. La proyeccion verifica DTO create y tipos OpenAPI compatibles con los campos relacionales no generados, y el validador compara la serializacion canonica del manifest contra ambas autoridades para fallar cerrado. No consume UML, no contiene rutas absolutas, timestamps o UUIDs aleatorios, y no inicia frontend-generator. Test real fixture `CanonicalUmlModel -> RelationalModel -> OpenAPI -> DomainManifest` PASS, incluye determinismo y mismatch. Validacion fresca PASS: frontend 176, backend 159, domain-manifest 1, generated-api-contracts 5, relational 10, spring-generator 7 y UML core 36, total 394/394; raiz typecheck/lint/build, Prisma generate/validate/migrate deploy DEV/TEST y OpenSpec strict PASS.
@@ -149,4 +149,4 @@ Correccion post-archive de CU-08 mediante `fix-assistant-generation-timeout`. CU
 
 ## Próxima acción
 
-Completar validacion estricta, documentacion final y commit local de `fix-assistant-generation-timeout`; no archivar ni pushear. Despues, esperar una solicitud o aprobacion explicita para planificar CU-09.
+Esperar una solicitud o aprobacion explicita para planificar CU-09.
