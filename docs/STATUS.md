@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 esta ACTIVE: sus tres incrementos estan implementados y espera aceptacion, archive y push.
+CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 es el siguiente caso de uso, pero no se ha iniciado.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-00 a CU-07 estan COMPLETADOS y archivados. CU-08 esta ACTIVE: sus tres increm
 
 ## Ciclo actual
 
-Ciclo 3 — Construccion y generacion de aplicaciones. CU-08 activo con sus tres incrementos implementados.
+Ciclo 3 — Construccion y generacion de aplicaciones. CU-08 cerrado; ciclo completado.
 
 ## Caso de uso activo
 
-CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, Incremento 2 COMPLETE (6/6), Incremento 3 COMPLETE (3.1, 3.2 y 3.3).
+Ninguno. CU-08 — Asistentes de texto y benchmark LLM esta CLOSED/ARCHIVED; Incrementos 1, 2 y 3 COMPLETE.
 
 ## Casos de uso completados
 
@@ -29,10 +29,11 @@ CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, In
 - CU-04 — Autenticacion, ownership e invitaciones. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-12-cu-04-auth-ownership-invitations`.
 - CU-05 — Colaboracion realtime y presencia. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`. Implementacion cerrada en commit `941ca31`.
 - CU-06 — UML -> modelo relacional y backend Spring generado. COMPLETADO, VERIFIED, ARCHIVED como `openspec/changes/archive/2026-09-16-cu-06-uml-relational-spring-generator`. El backend generado pasa Java 21/Gradle Wrapper test y build; commit de archive `506079f` esta sincronizado con `origin/main`.
+- CU-08 — Asistentes de texto y benchmark LLM. COMPLETADO, VERIFIED, aceptado y ARCHIVED como `openspec/changes/archive/2026-09-18-cu-08-local-text-assistant`. Sus dos delta specs se sincronizaron a `openspec/specs/`.
 
 ## OpenSpec activo
 
-`cu-08-local-text-assistant` activo y reconciliado. Incrementos 1, 2 y 3 estan completos; el benchmark medido se resume sanitizadamente en el registro CU-08 y su JSON completo permanece fuera de Git. CU-07 y los CUs previos estan archivados.
+Ninguno. `cu-08-local-text-assistant` esta archivado; el benchmark medido se resume sanitizadamente en el registro CU-08 y su JSON completo permanece fuera de Git.
 
 ## Problemas abiertos
 
@@ -43,7 +44,7 @@ CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, In
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 - CU-08 no incluye CRUD ni integracion de asistente sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada. Incremento 3 se limita al editor CASE/UML.
-- CU-08 espera aceptacion del usuario antes de archive y push. No ejecutar CU-09 todavia.
+- CU-09 no se ha iniciado.
 
 ## Verificación actual
 
@@ -147,4 +148,4 @@ CU-08 — Asistentes de texto y benchmark LLM. ACTIVE; Incremento 1 COMPLETE, In
 
 ## Próxima acción
 
-Obtener la aceptacion del usuario para CU-08; despues archivar el cambio, actualizar el estado de cierre, hacer commit y push. No iniciar CU-09 antes de ello.
+Preparar el plan y OpenSpec de CU-09 solo tras una solicitud o aprobacion explicita. No iniciar su implementacion automaticamente.

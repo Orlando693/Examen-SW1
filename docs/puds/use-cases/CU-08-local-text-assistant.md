@@ -19,8 +19,8 @@ Permitir operaciones mediante lenguaje natural local, estructurado y validado, s
 
 ## OpenSpec
 
-- Activo: `cu-08-local-text-assistant`.
-- Estado: ACTIVE. Los tres incrementos estan implementados; pendiente la aceptacion del usuario, archive y push.
+- Archivado: `openspec/changes/archive/2026-09-18-cu-08-local-text-assistant`.
+- Estado: CLOSED/ARCHIVED. Los tres incrementos fueron aceptados, las especificaciones principales se sincronizaron y el cambio fue archivado.
 
 ## Implementacion realizada
 
@@ -83,4 +83,4 @@ Permitir operaciones mediante lenguaje natural local, estructurado y validado, s
 
 ## Resultado final
 
-- Los tres incrementos estan implementados y el benchmark medido fue reconciliado. CU-08 permanece ACTIVE hasta la aceptacion del usuario; no se archivara ni se hara push en esta solicitud.
+- Los tres incrementos estan implementados y el benchmark medido fue reconciliado. CU-08 esta CLOSED/ARCHIVED; no se inicio CU-09.

@@ -1,12 +1,12 @@
 # Project Handoff
 
-## CU activo
+## Ultimo CU cerrado
 
-CU-08 - Asistentes de texto y benchmark LLM. ACTIVE; Incrementos 1, 2 y 3 COMPLETE. Espera aceptacion, archive y push.
+CU-08 - Asistentes de texto y benchmark LLM. CLOSED/ARCHIVED; Incrementos 1, 2 y 3 COMPLETE.
 
-## OpenSpec activo
+## OpenSpec archivado
 
-`cu-08-local-text-assistant` en `openspec/changes/cu-08-local-text-assistant/`.
+`cu-08-local-text-assistant` en `openspec/changes/archive/2026-09-18-cu-08-local-text-assistant/`. Las dos delta specs se sincronizaron a las specs principales.
 
 ## Trabajo terminado
 
@@ -23,9 +23,8 @@ CU-08 - Asistentes de texto y benchmark LLM. ACTIVE; Incrementos 1, 2 y 3 COMPLE
 
 ## Trabajo pendiente
 
-- CRUD e integracion de asistente sobre instancias de aplicaciones generadas estan deferred fuera de CU-08: exigen un command model de application data y ejecucion OpenAPI autenticada que no forman parte de `AssistantCommand` UML v1. `DomainManifest` permanece read-only. Incremento 3 se limita al editor CASE/UML mediante un adaptador backend autenticado y read-only para interpretacion; el Apply final usa `executeAndSync()`.
-- Incremento 2 esta completo: una carga de modelo reutiliza sesiones/sequences aisladas por request; busy, cancelacion, timeout, streaming sin decode parcial y recovery READY tienen evidencia real/determinista. Apply revalida estado antes de despachar por el bus. La calidad semantica exacta del LLM pertenece al benchmark posterior, no al contrato de runtime.
-- No hay bloqueadores tecnicos conocidos para CU-08. La observacion manual del benchmark es `null` (no registrada) y VRAM no aplica; no se infieren valores.
+- No hay CU activo. CU-09 es el siguiente por orden, pero no se ha iniciado.
+- CRUD e integracion de asistente sobre instancias de aplicaciones generadas permanecen deferred fuera de CU-08 y requieren una propuesta independiente.
 
 ## Limitaciones vigentes
 
@@ -34,4 +33,4 @@ CU-08 - Asistentes de texto y benchmark LLM. ACTIVE; Incrementos 1, 2 y 3 COMPLE
 
 ## Siguiente accion exacta
 
-Obtener aceptacion del usuario para CU-08. Despues: archivar el OpenSpec, actualizar el cierre, hacer commit y push. No iniciar CU-09 antes de ello.
+Esperar una solicitud o aprobacion explicita para planificar CU-09. No iniciar CU-09 automaticamente.
