@@ -139,7 +139,7 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   return body;
 }
 
-async function streamAssistantInterpretation(id: string, input: { text: string; timeoutMs?: number }, signal: AbortSignal | undefined, onChunk: (chunk: string) => void): Promise<AssistantInterpretation> {
+async function streamAssistantInterpretation(id: string, input: { text: string }, signal: AbortSignal | undefined, onChunk: (chunk: string) => void): Promise<AssistantInterpretation> {
   let response: Response;
   try {
     const session = getAuthSession();
@@ -206,10 +206,10 @@ export const projectApi = {
   async delete(id: string, baseStorageVersion: number): Promise<void> {
     await request(`/projects/${encodeURIComponent(id)}?baseStorageVersion=${baseStorageVersion}`, { method: 'DELETE' });
   },
-  async interpretAssistant(id: string, input: { text: string; timeoutMs?: number }, signal?: AbortSignal): Promise<AssistantInterpretation> {
+  async interpretAssistant(id: string, input: { text: string }, signal?: AbortSignal): Promise<AssistantInterpretation> {
     return decodeAssistantInterpretation(await request(`/projects/${encodeURIComponent(id)}/assistant/interpret`, { method: 'POST', body: JSON.stringify(input), signal }));
   },
-  interpretAssistantStream(id: string, input: { text: string; timeoutMs?: number }, signal: AbortSignal | undefined, onChunk: (chunk: string) => void): Promise<AssistantInterpretation> {
+  interpretAssistantStream(id: string, input: { text: string }, signal: AbortSignal | undefined, onChunk: (chunk: string) => void): Promise<AssistantInterpretation> {
     return streamAssistantInterpretation(id, input, signal, onChunk);
   },
 };

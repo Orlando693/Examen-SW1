@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ASSISTANT_COMMAND_JSON_SCHEMA, decodeAssistantCommand } from '@examen-sw1/assistant-core';
-import { LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA, LocalLlmAssistantProvider, NodeLlamaRuntime, buildAssistantPrompt, compactContext, projectAssistantCommandJsonSchema, selectLocalLlmContextSize, type LocalLlmRuntime } from '../src/index.js';
+import { LOCAL_LLM_ASSISTANT_COMMAND_JSON_SCHEMA, LOCAL_LLM_DEFAULT_TIMEOUT_MS, LocalLlmAssistantProvider, NodeLlamaRuntime, buildAssistantPrompt, compactContext, projectAssistantCommandJsonSchema, selectLocalLlmContextSize, type LocalLlmRuntime } from '../src/index.js';
 
 const context = { projectId: 'p', revision: 1, classes: [{ id: 'c', name: 'User', attributes: [] }], enumerations: [], relationships: [] };
 class FakeRuntime implements LocalLlmRuntime {
@@ -23,7 +23,7 @@ function pendingRuntime(): { runtime: FakeRuntime; release: (value?: string) => 
 }
 
 describe('LocalLlmAssistantProvider', () => {
-  it('reports unavailable without a model path', async () => expect(await new LocalLlmAssistantProvider({ runtime: new FakeRuntime() }).interpret({ text: 'x', context })).toMatchObject({ ok: false, diagnostics: [{ code: 'MODEL_UNAVAILABLE' }] }));
+  it('reports unavailable without a model path', async () => expect(await new LocalLlmAssistantProvider({ runtime: new FakeRuntime(), modelPath: '' }).interpret({ text: 'x', context })).toMatchObject({ ok: false, diagnostics: [{ code: 'MODEL_UNAVAILABLE' }] }));
   it('keeps prompt and context deterministic and bounded', () => {
     const prompt = buildAssistantPrompt('summarize', context); expect(prompt.ok).toBe(true);
     if (prompt.ok) { expect(prompt.prompt).toContain('/no_think'); expect(prompt.prompt).not.toContain('"oneOf"'); }
@@ -31,6 +31,7 @@ describe('LocalLlmAssistantProvider', () => {
   });
   it('loads once, reuses the loaded runtime, and disposes it', async () => {
     const runtime = new FakeRuntime(); const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath() });
+    expect(provider.timeoutMs).toBe(LOCAL_LLM_DEFAULT_TIMEOUT_MS);
     expect(await provider.interpret({ text: 'x', context })).toMatchObject({ ok: true, candidate: { operation: 'summarize_model' } });
     expect(await provider.interpret({ text: 'x', context })).toMatchObject({ ok: true });
     expect(runtime.load).toHaveBeenCalledTimes(1); expect(provider.lifecycle).toBe('READY');
@@ -56,8 +57,8 @@ describe('LocalLlmAssistantProvider', () => {
     expect(await provider.interpret({ text: 'x', context, onToken: (chunk) => chunks.push(chunk) })).toMatchObject({ ok: false, diagnostics: [{ code: 'INVALID_PROVIDER_OUTPUT' }] });
     expect(chunks).toEqual(['{"version":1,"operation":"summarize_model"}']);
   });
-  it('uses one loaded runtime for normal, timeout, external cancellation, and recovery requests', async () => {
-    const { runtime, release } = pendingRuntime(); const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath(), timeoutMs: 100 });
+  it('uses one loaded runtime for normal, short timeout override, external cancellation, and recovery requests', async () => {
+    const { runtime, release } = pendingRuntime(); const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath() });
     const normal = provider.interpret({ text: 'x', context }); await vi.waitFor(() => expect(runtime.generate).toHaveBeenCalledTimes(1)); release(); expect(await normal).toMatchObject({ ok: true });
     runtime.generate.mockImplementationOnce((input) => new Promise<string>((_resolve, reject) => input.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })));
     const timed = provider.interpret({ text: 'x', context, timeoutMs: 10 });
@@ -71,6 +72,21 @@ describe('LocalLlmAssistantProvider', () => {
     runtime.generate.mockImplementationOnce(async () => runtime.response);
     expect(await provider.interpret({ text: 'x', context })).toMatchObject({ ok: true });
     expect(runtime.load).toHaveBeenCalledTimes(1);
+  });
+  it('uses the minimum of the backend deadline and a direct controlled override', async () => {
+    const runtime = new FakeRuntime(); const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath(), timeoutMs: 10 });
+    expect(await provider.interpret({ text: 'x', context, timeoutMs: LOCAL_LLM_DEFAULT_TIMEOUT_MS })).toMatchObject({ ok: true });
+    expect(provider.timeoutMs).toBe(10);
+  });
+  it('classifies the first abort source in a timeout/cancellation race and recovers', async () => {
+    const { runtime } = pendingRuntime(); const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath(), timeoutMs: 300 });
+    const external = new AbortController(); const request = provider.interpret({ text: 'x', context, signal: external.signal });
+    await vi.waitFor(() => expect(runtime.generate).toHaveBeenCalledTimes(1));
+    setTimeout(() => external.abort(), 5);
+    expect(await request).toMatchObject({ ok: false, diagnostics: [{ code: 'GENERATION_CANCELLED' }] });
+    expect(provider.lifecycle).toBe('READY');
+    runtime.generate.mockImplementationOnce(async () => runtime.response);
+    expect(await provider.interpret({ text: 'x', context })).toMatchObject({ ok: true });
   });
   it('enforces one generation while busy and releases the policy after completion', async () => {
     const { runtime, release } = pendingRuntime(); const provider = new LocalLlmAssistantProvider({ runtime, modelPath: await modelPath() }); const first = provider.interpret({ text: 'x', context });

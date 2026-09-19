@@ -72,6 +72,8 @@ Permitir operaciones mediante lenguaje natural local, estructurado y validado, s
 ## Errores y correcciones
 
 - Ninguno durante la planificacion.
+- Correccion posterior `fix-assistant-generation-timeout` (2026-09-18): la solicitud HTTP normal exponia `timeoutMs: 30000` y el proveedor mantenia un default de 20000 ms con dos timers competidores, aunque el benchmark medido requirio hasta 202800 ms. El contrato definitivo fija `LOCAL_LLM_DEFAULT_TIMEOUT_MS` en 300000 ms; el DTO HTTP y el cliente/panel frontend no exponen `timeoutMs`, y la politica DTO rechaza ese campo adicional en ambos endpoints. Controller y service no originan overrides. Solo llamadas directas internas de tests o tooling pueden aportar un override, cuyo presupuesto efectivo es `min(default, override)` y usa un unico timer; la cancelacion externa conserva su diagnostico y el provider vuelve a `READY` despues de timeout o cancelacion. No se agrego variable de entorno ni se modifico `.env.example`, contexto, sampling, grammar, modelo o benchmark.
+- Evidencia de la correccion: `@examen-sw1/local-llm` 26/26 PASS (default, override corto/minimo, timeout, cancelacion, clasificacion de primera causa y recovery); backend assistant 16/16 PASS (DTO/controller rechaza `timeoutMs` y service no lo reenvia); `AssistantPanel` frontend 5/5 PASS (solo texto y `AbortSignal`); E2E Playwright aislado 7/7 PASS con `NODE_ENV=test`, proveedor determinista y sin `LOCAL_LLM_MODEL_PATH`; root typecheck, lint y build PASS. El smoke/benchmark GGUF/Qwen fue intencionalmente NOT RUN para esta correccion.
 
 ## Limitaciones conocidas
 

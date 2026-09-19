@@ -48,6 +48,16 @@ describe('AssistantPanel', () => {
     expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
   });
 
+  it('sends only text while preserving the cancellation signal', async () => {
+    interpretAssistantStream.mockResolvedValueOnce({ status: 'model_unavailable', diagnostics: [] });
+    render(<AssistantPanel projectId="project-a" />);
+    fireEvent.change(screen.getByLabelText('Describe a UML change'), { target: { value: 'Create customer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate preview' }));
+    await screen.findByText(/local model is unavailable/i);
+    expect(interpretAssistantStream).toHaveBeenCalledWith('project-a', { text: 'Create customer' }, expect.any(AbortSignal), expect.any(Function));
+    expect(interpretAssistantStream.mock.calls[0]?.[1]).not.toHaveProperty('timeoutMs');
+  });
+
   it('requires review and destructive confirmation before applying a preview', async () => {
     interpretAssistantStream.mockResolvedValueOnce({ status: 'success', diagnostics: [], candidate: { version: 1, operation: 'delete_class', class: { id: 'class-invoice' } } });
     render(<AssistantPanel projectId="project-a" />);

@@ -37,7 +37,7 @@ export function AssistantPanel({ projectId }: { projectId: string | null }) {
     setPresentation('');
     setState('generating');
     try {
-      const response = await projectApi.interpretAssistantStream(projectId, { text: text.trim(), timeoutMs: 30_000 }, controller.signal, (chunk) => {
+      const response = await projectApi.interpretAssistantStream(projectId, { text: text.trim() }, controller.signal, (chunk) => {
         if (request.current === controller) setPresentation((current) => current + chunk);
       });
       if (request.current !== controller) return;

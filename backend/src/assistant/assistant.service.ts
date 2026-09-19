@@ -6,7 +6,7 @@ import { ProjectsService } from '../projects/projects.service.js';
 import type { AssistantInterpretationDto, InterpretAssistantDto } from './assistant.dto.js';
 
 export interface LocalAssistantInterpreter {
-  interpret(input: { text: string; context: ReturnType<typeof createAssistantModelContext>; signal?: AbortSignal; timeoutMs?: number; onPresentationChunk?: (chunk: string) => void }): Promise<LocalLlmResult>;
+  interpret(input: { text: string; context: ReturnType<typeof createAssistantModelContext>; signal?: AbortSignal; onPresentationChunk?: (chunk: string) => void }): Promise<LocalLlmResult>;
 }
 
 export const LOCAL_ASSISTANT_INTERPRETER = Symbol('LOCAL_ASSISTANT_INTERPRETER');
@@ -28,7 +28,7 @@ export class AssistantService {
     // This access-checked snapshot is intentionally the sole UML input to the provider.
     const resource = await this.projects.get(user, projectId);
     const context = createAssistantModelContext(resource.project);
-    const result = await this.interpreter.interpret({ text: input.text, context, ...(signal === undefined ? {} : { signal }), ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }), ...(onPresentationChunk === undefined ? {} : { onPresentationChunk }) });
+    const result = await this.interpreter.interpret({ text: input.text, context, ...(signal === undefined ? {} : { signal }), ...(onPresentationChunk === undefined ? {} : { onPresentationChunk }) });
     if (!result.ok) return this.failure(result.diagnostics);
 
     const preview = createPreview(input.text, result.candidate, context);

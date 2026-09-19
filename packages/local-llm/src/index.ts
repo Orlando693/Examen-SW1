@@ -79,6 +79,7 @@ export const LOCAL_LLM_GENERATION_OPTIONS = {
 export const LOCAL_LLM_CONTEXT_SIZES = [2048, 4096] as const;
 export const LOCAL_LLM_CONTEXT_SAFETY_MARGIN_TOKENS = 256;
 export const LOCAL_LLM_DEFAULT_CONTEXT_SIZE = 2048;
+export const LOCAL_LLM_DEFAULT_TIMEOUT_MS = 300_000;
 export type LocalLlmContextSize = (typeof LOCAL_LLM_CONTEXT_SIZES)[number];
 
 export function resolveLocalLlmContextSize(contextSize: number | undefined = LOCAL_LLM_DEFAULT_CONTEXT_SIZE): LocalLlmContextSize {
@@ -136,7 +137,7 @@ export class LocalLlmAssistantProvider implements AssistantProvider {
   private lifecycleEpoch = 0;
   readonly timeoutMs: number;
   readonly contextBudgetChars: number;
-  constructor(private readonly options: LocalLlmOptions) { this.timeoutMs = options.timeoutMs ?? 20_000; this.contextBudgetChars = options.contextBudgetChars ?? 6_000; }
+  constructor(private readonly options: LocalLlmOptions) { this.timeoutMs = options.timeoutMs ?? LOCAL_LLM_DEFAULT_TIMEOUT_MS; this.contextBudgetChars = options.contextBudgetChars ?? 6_000; }
   get lifecycle(): LocalLlmLifecycle { return this.state; }
   async initialize(): Promise<LocalLlmResult | undefined> {
     const epoch = this.lifecycleEpoch;
@@ -162,8 +163,8 @@ export class LocalLlmAssistantProvider implements AssistantProvider {
     if (this.active) return failure('RUNTIME_BUSY', 'Only one local generation may run at a time.');
     const controller = new AbortController(); const epoch = this.lifecycleEpoch; this.active = controller;
     let timedOut = false;
-    let timers: ReturnType<typeof setTimeout>[] = [];
-    const cancelFromExternalSignal = () => { timers.forEach(clearTimeout); controller.abort('external'); };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cancelFromExternalSignal = () => { if (!controller.signal.aborted) controller.abort('external'); };
     input.signal?.addEventListener('abort', cancelFromExternalSignal, { once: true });
     if (input.signal?.aborted) cancelFromExternalSignal();
     try {
@@ -172,8 +173,8 @@ export class LocalLlmAssistantProvider implements AssistantProvider {
       if (controller.signal.aborted) return failure('GENERATION_CANCELLED', 'Local generation was cancelled.');
       const prompt = buildAssistantPrompt(input.text, input.context, this.contextBudgetChars); if (!prompt.ok) return { ok: false, diagnostics: [prompt.diagnostic] };
       this.state = 'BUSY';
-      const timeouts = [this.timeoutMs, input.timeoutMs].filter((timeout): timeout is number => timeout !== undefined);
-      timers = timeouts.map((timeout) => setTimeout(() => { timedOut = true; controller.abort('timeout'); }, timeout));
+      const timeoutMs = input.timeoutMs === undefined ? this.timeoutMs : Math.min(this.timeoutMs, input.timeoutMs);
+      timer = setTimeout(() => { if (!controller.signal.aborted) { timedOut = true; controller.abort('timeout'); } }, timeoutMs);
       let raw: string;
       try {
         raw = await this.options.runtime.generate({
@@ -186,7 +187,7 @@ export class LocalLlmAssistantProvider implements AssistantProvider {
           },
         });
       }
-      finally { timers.forEach(clearTimeout); }
+      finally { if (timer !== undefined) clearTimeout(timer); }
       if (controller.signal.aborted) return failure(timedOut ? 'GENERATION_TIMEOUT' : 'GENERATION_CANCELLED', timedOut ? 'Local generation timed out.' : 'Local generation was cancelled.');
       let candidate: unknown; try { candidate = JSON.parse(raw); } catch { return failure('INVALID_PROVIDER_OUTPUT', 'The local model did not return JSON.'); }
       const decoded = decodeAssistantCommand(candidate); return decoded.ok ? { ok: true, candidate: decoded.command, raw } : { ok: false, diagnostics: decoded.diagnostics };

@@ -72,10 +72,18 @@ describe('AssistantService', () => {
   ] as const)('fails closed for %s results', async (status, code) => {
     interpret.mockResolvedValue({ ok: false, diagnostics: [{ code, message: 'Provider failure', path: '$' }] });
 
-    await expect(service.interpret(user, project.id, { text: 'Create Customer', timeoutMs: 20 })).resolves.toEqual({
+    await expect(service.interpret(user, project.id, { text: 'Create Customer' })).resolves.toEqual({
       status,
       diagnostics: [{ code, message: 'Provider failure', path: '$' }],
     });
+  });
+
+  it('never supplies a timeout override on the authenticated production path', async () => {
+    interpret.mockResolvedValue({ ok: false, diagnostics: [{ code: 'GENERATION_TIMEOUT', message: 'Provider failure', path: '$' }] });
+
+    await service.interpret(user, project.id, { text: 'Create Customer' });
+    expect(interpret).toHaveBeenCalledWith(expect.objectContaining({ text: 'Create Customer', context: expect.any(Object) }));
+    expect(interpret.mock.calls[0]?.[0]).not.toHaveProperty('timeoutMs');
   });
 
   it('forwards request cancellation to the provider without changing the project', async () => {
