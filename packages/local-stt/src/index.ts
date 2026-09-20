@@ -7,7 +7,7 @@ export type ValidWav = { frames: Uint8Array; durationSeconds: number };
 export const WAV_HTTP_PAYLOAD_BYTES = 2_097_152;
 export const WAV_PCM_BYTES = 1_920_000;
 export const WAV_SAMPLE_RATE = 16_000;
-export { VoskSttProvider, validateVoskModelPath } from './vosk-provider.js';
+export { VoskSttProvider, extractVoskTranscript, validateVoskModelPath } from './vosk-provider.js';
 
 const fail = (code: SttDiagnosticCode, message: string): never => { throw Object.assign(new Error(message), { code }); };
 const ascii = (data: Uint8Array, offset: number) => String.fromCharCode(...data.subarray(offset, offset + 4));
