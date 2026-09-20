@@ -2,7 +2,7 @@
 
 ## Estado
 
-CU-09 esta activo. Incremento 1 implementa la transcripcion local revisable; su gate manual 1.12 sigue pendiente. Incrementos 2 y 3 no han iniciado.
+CU-09 esta activo. Incremento 1 esta COMPLETE con su gate manual 1.12 aceptado. Incremento 2 es el siguiente y el Incremento 3 permanece pendiente; ninguno ha iniciado.
 
 ## Politica del modelo STT
 
@@ -11,7 +11,7 @@ CU-09 esta activo. Incremento 1 implementa la transcripcion local revisable; su 
 - Evidencia de seleccion: la lista oficial de modelos Vosk identifica esta release como modelo espanol ligero, compatible con Vosk API y licenciado Apache-2.0.
 - Licencia del modelo: Apache-2.0, segun la misma lista oficial.
 - Binding: paquete npm oficial `vosk` `0.3.39`, publicado por Alpha Cephei, Apache-2.0, con `engines.node >=12.x.x`. El runtime objetivo del repositorio es Node 24 LTS sobre Windows x64; la carga nativa se mantiene opt-in y el smoke debe confirmar el binario local antes de declarar compatibilidad operativa.
-- Ruta local excluida: `VOSK_MODEL_PATH`, configurada solo en `.env.local` fuera del repositorio. Debe apuntar exactamente al directorio extraido `vosk-model-small-es-0.42` con `am/final.mdl`, `conf/model.conf` y `graph/phones.txt`.
+- Ruta local excluida: `VOSK_MODEL_PATH`, configurada solo en `.env.local` fuera del repositorio. Debe apuntar exactamente al directorio extraido `vosk-model-small-es-0.42`; el validador exige `am/final.mdl`, `conf/model.conf`, `graph/HCLr.fst`, `graph/Gr.fst` y `graph/phones/word_boundary.int`.
 - SHA-256 del archive: no publicado por el upstream en su pagina ni en sidecar `.sha256`/`.sha256sum`; no se inventa ni se registra un valor.
 - SHA-256 del directorio extraido: no verificable sin disponer del artefacto local; no se inventa ni se registra un valor.
 - Provision local obligatoria: antes de ejecutar el smoke, la persona que provee el artefacto debe calcular ambos SHA-256 y compararlos contra su fuente de provision. No descargar, instalar, empaquetar ni commitear modelos es parte de esta politica.
@@ -26,17 +26,16 @@ CU-09 esta activo. Incremento 1 implementa la transcripcion local revisable; su 
 
 ## Pruebas
 
-- `@examen-sw1/local-stt`: 9/9 PASS, incluyendo los ocho escenarios WAV y provider determinista sin modelo, microfono o dispositivo.
-- Backend: 179/179 PASS; frontend: 184/184 PASS.
-- Root `typecheck`, `lint` y `build`: PASS. El intento literal de `npm run test` excedio el limite externo despues de una falla de timeout frontend que se corrigio; los workspaces modificados se ejecutaron despues de forma aislada y PASS. No ocurrio `ECONNRESET`.
-- `openspec validate cu-09-voice-flutter-generated-app --strict`, main specs strict y `git diff --check`: PASS.
-- Smoke opt-in sin modelo: devuelve de forma segura `MODEL_UNAVAILABLE`; no cargo modelo ni uso inferencia remota.
+- ROOT-EQUIVALENT secuencial: 475/475 PASS. Posteriormente se corrigio solo el validador de layout Vosk en commit `58858e8`: `@examen-sw1/local-stt` 19/19 PASS, backend voice 3/3 PASS y smoke CLI real de inicializacion Vosk PASS.
+- Root `typecheck`, `lint` y `build`: PASS. Los checks normales no cargan modelo, capturan microfono ni descargan artefactos. No ocurrio `ECONNRESET`.
+- Smoke opt-in sin modelo: devuelve de forma segura `MODEL_UNAVAILABLE`; el smoke real confirmado cargo `vosk-model-small-es-0.42` y el recognizer local.
 
 ## Pruebas manuales
 
-- No ejecutadas. La tarea 1.12 permanece sin marcar y es el gate requerido antes de avanzar el incremento.
+- Gate 1.12 en navegador real PASS: microfono, Record Voice, Stop Recording, Vosk real, transcript visible y editable, ausencia de auto-submit, envio del texto revisado, generacion Qwen real, preview correcto, ausencia de mutacion antes de Apply, Apply explicito, clase solicitada creada exactamente una vez, persistencia tras F5 y cancelacion.
+- Observacion anterior: una ejecucion real de “crea una clase cliente” produjo `New Class`. La investigacion verifico que el transcript llego sin cambios al frontend, backend y `buildAssistantPrompt`, y que adapter, `UmlCommand` y executor preservan `candidate.name`; no existe fallback productivo `New Class`. No se conservo el raw candidate de Qwen, no se establecio causa determinista y no se atribuye a un cambio especifico. Se registra como observacion de variacion semantica del modelo real no reproducida; una reproduccion controlada posterior PASS.
 
 ## Limitaciones
 
-- No existe hash publicado verificable para el modelo upstream; el smoke real y su evidencia quedan opt-in hasta que se provea un artefacto local con hashes verificables.
-- El gate manual de navegador 1.12 no se ha ejecutado y no se declara aceptacion manual.
+- No existe hash publicado verificable para el modelo upstream; los hashes del artefacto local no se inventan ni se registran.
+- La variacion semantica observada de modelo real no tuvo causa determinista establecida. La reproduccion posterior correcta no constituye un fix de producto.

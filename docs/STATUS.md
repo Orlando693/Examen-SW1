@@ -14,11 +14,11 @@ CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 esta activo en Incremento 1;
 
 ## Ciclo actual
 
-Ciclo 4 — Transicion y cierre. CU-09 Incremento 1 esta en implementacion/verificacion.
+Ciclo 4 — Transicion y cierre. CU-09 Incremento 1 esta COMPLETE; Incremento 2 es el siguiente.
 
 ## Caso de uso activo
 
-CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 en verificacion; OpenSpec `cu-09-voice-flutter-generated-app` activo. Incrementos 2 y 3 no iniciados.
+CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 COMPLETE; OpenSpec `cu-09-voice-flutter-generated-app` activo. Incremento 2 NEXT e Incremento 3 PENDING, ambos no iniciados.
 
 ## Casos de uso completados
 
@@ -45,7 +45,7 @@ CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 en verificacion;
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 - CU-08 no incluye CRUD ni integracion de asistente sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada. Incremento 3 se limita al editor CASE/UML.
-- CU-09 Incremento 1 tareas 1.1-1.11 COMPLETE. `@examen-sw1/local-stt` agrega WAV PCM validado, proveedor Vosk opt-in/determinista, endpoint JWT no mutante y revision de transcript. Fuente oficial confirma `vosk-model-small-es-0.42` Apache-2.0, pero no publica SHA-256 de archive/directorio; no se inventaron hashes. Smoke sin modelo devuelve `MODEL_UNAVAILABLE`. 1.12 manual sigue pendiente; I2/I3 no iniciados.
+- CU-09 Incremento 1 COMPLETE 12/12. `@examen-sw1/local-stt` agrega WAV PCM validado, proveedor Vosk opt-in/determinista, endpoint JWT no mutante y revision de transcript. El modelo real `vosk-model-small-es-0.42`, microfono real, revision del transcript, Qwen preview/apply, persistencia tras F5 y cancelacion PASS. ROOT-EQUIVALENT 475/475 PASS; despues, el fix del validador de layout Vosk `58858e8` dejo local-stt 19/19, backend voice 3/3 y smoke CLI real PASS, ademas de typecheck/lint/build PASS. Un intento anterior produjo `New Class` para “crea una clase cliente”; no se reprodujo, no se preservo raw Qwen y no se establecio causa determinista, por lo que se registra como observacion de variacion semantica del modelo real, no como bug resuelto. I2 NEXT; I3 PENDING.
 
 ## Verificación actual
 
@@ -151,4 +151,4 @@ CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 en verificacion;
 
 ## Próxima acción
 
-Ejecutar gate manual 1.12 en navegador real y registrar resultados; no iniciar Incremento 2.
+Esperar la instruccion explicita para iniciar Incremento 2; no iniciar Flutter, no archivar ni hacer push.

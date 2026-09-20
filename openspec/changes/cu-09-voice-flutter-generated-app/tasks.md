@@ -11,7 +11,7 @@
 - [x] 1.9 Add the CASE assistant-panel review flow with recording, processing, final, unavailable, error, and cancel states; final text remains editable and only explicit submit can call the existing text-assistant interpretation endpoint.
 - [x] 1.10 Reuse the existing authenticated CU-08 interpretation/preview/apply UI only after transcript submit; verify corrected text is submitted, destructive proposals retain confirmation, and all eventual mutations still use `executeAndSync()` and the existing collaboration/command-bus route.
 - [x] 1.11 Run focused STT/package/backend/frontend and relevant root checks without local STT assets; verify normal test, typecheck, lint, and build commands do not load a model, capture microphone input, or download runtime artifacts.
-- [ ] 1.12 Manual Increment 1 gate: in a real browser, verify permission denial, successful record-stop-final-review-submit, edit-before-submit, format/limit diagnostics, cancel during recording, cancel during processing, no request after cancellation, and CU-08 destructive confirmation; record observed outcomes and blockers without advancing if any required scenario fails.
+- [x] 1.12 Manual Increment 1 gate: in a real browser, verify permission denial, successful record-stop-final-review-submit, edit-before-submit, format/limit diagnostics, cancel during recording, cancel during processing, no request after cancellation, and CU-08 destructive confirmation; record observed outcomes and blockers without advancing if any required scenario fails.
 
 ## 2. Incremento 2 - Benchmark STT Reproducible
 
