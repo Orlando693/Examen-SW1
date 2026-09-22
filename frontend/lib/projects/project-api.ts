@@ -43,6 +43,11 @@ export interface UpdateProjectMetadataRequest {
   description?: string | null;
 }
 
+export interface SpringGenerationDownload {
+  blob: Blob;
+  filename: string;
+}
+
 export type AssistantInterpretation = {
   status: 'success' | 'model_unavailable' | 'cancelled' | 'timeout' | 'invalid';
   candidate?: AssistantCommand;
@@ -121,6 +126,39 @@ function decodeVoiceTranscription(value: unknown): VoiceTranscription {
   if (value.status === 'final' && typeof value.text === 'string') return { status: 'final', text: value.text };
   if (['unavailable', 'error', 'cancelled'].includes(value.status) && isRecord(value.diagnostic) && typeof value.diagnostic.code === 'string' && typeof value.diagnostic.message === 'string') return { status: value.status as 'unavailable' | 'error' | 'cancelled', diagnostic: { code: value.diagnostic.code, message: value.diagnostic.message } };
   throw new ProjectApiError('INVALID_API_RESPONSE', 'The server returned an invalid transcription.');
+}
+
+function springDownloadFilename(contentDisposition: string | null): string {
+  const candidate = contentDisposition?.match(/(?:^|;)\s*filename="?([^";]+)"?/i)?.[1];
+  return candidate !== undefined && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.zip$/.test(candidate)
+    ? candidate
+    : 'spring-backend.zip';
+}
+
+async function generationDownload(id: string): Promise<SpringGenerationDownload> {
+  let response: Response;
+  try {
+    const session = getAuthSession();
+    response = await fetch(`${apiBaseUrl()}/projects/${encodeURIComponent(id)}/generations/spring`, {
+      method: 'POST',
+      headers: session ? { authorization: `Bearer ${session.accessToken}` } : {},
+    });
+  } catch {
+    throw new ProjectApiError('NETWORK_ERROR', 'Unable to reach the project service.');
+  }
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => undefined);
+    if (response.status === 401) clearAuthSession();
+    if (isRecord(body) && isRecord(body.error) && typeof body.error.code === 'string' && typeof body.error.message === 'string') {
+      throw new ProjectApiError(body.error.code, body.error.message, isRecord(body.error.details) ? body.error.details : {}, response.status);
+    }
+    throw new ProjectApiError('HTTP_ERROR', `Project request failed (${response.status}).`, {}, response.status);
+  }
+  try {
+    return { blob: await response.blob(), filename: springDownloadFilename(response.headers.get('content-disposition')) };
+  } catch {
+    throw new ProjectApiError('INVALID_API_RESPONSE', 'The server returned an invalid generated artifact.');
+  }
 }
 
 async function request(path: string, init?: RequestInit): Promise<unknown> {
@@ -213,6 +251,9 @@ export const projectApi = {
   },
   async delete(id: string, baseStorageVersion: number): Promise<void> {
     await request(`/projects/${encodeURIComponent(id)}?baseStorageVersion=${baseStorageVersion}`, { method: 'DELETE' });
+  },
+  generateSpring(id: string): Promise<SpringGenerationDownload> {
+    return generationDownload(id);
   },
   async interpretAssistant(id: string, input: { text: string }, signal?: AbortSignal): Promise<AssistantInterpretation> {
     return decodeAssistantInterpretation(await request(`/projects/${encodeURIComponent(id)}/assistant/interpret`, { method: 'POST', body: JSON.stringify(input), signal }));

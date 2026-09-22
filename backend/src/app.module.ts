@@ -7,9 +7,10 @@ import { InvitationsModule } from './invitations/invitations.module.js';
 import { CollaborationModule } from './collaboration/collaboration.module.js';
 import { AssistantModule } from './assistant/assistant.module.js';
 import { VoiceModule } from './voice/voice.module.js';
+import { SpringGenerationModule } from './generations/spring-generation.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ProjectsModule, InvitationsModule, CollaborationModule, AssistantModule, VoiceModule],
+  imports: [PrismaModule, AuthModule, ProjectsModule, InvitationsModule, CollaborationModule, AssistantModule, VoiceModule, SpringGenerationModule],
   controllers: [HealthController],
 })
 export class AppModule {}

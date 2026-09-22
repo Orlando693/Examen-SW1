@@ -13,7 +13,7 @@ import { clearAuthSession, setAuthSession } from '../../lib/auth/auth-session';
 
 const fitViewMock = vi.hoisted(() => vi.fn());
 const reactFlowLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }));
-const projectApiMock = vi.hoisted(() => ({ get: vi.fn(), saveDocument: vi.fn() }));
+const projectApiMock = vi.hoisted(() => ({ get: vi.fn(), saveDocument: vi.fn(), generateSpring: vi.fn() }));
 const socketIoMock = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void;
   type Socket = { connected: boolean; listeners: Map<string, Set<Listener>>; emitted: Array<{ event: string; args: unknown[] }>; connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
@@ -104,6 +104,7 @@ describe('UmlEditorClient', { timeout: 15_000 }, () => {
     fitViewMock.mockClear();
     projectApiMock.get.mockReset();
     projectApiMock.saveDocument.mockReset();
+    projectApiMock.generateSpring.mockReset();
     reactFlowLifecycle.mounts = 0;
     reactFlowLifecycle.unmounts = 0;
     resizeObserverCallbacks = [];
@@ -135,6 +136,7 @@ describe('UmlEditorClient', { timeout: 15_000 }, () => {
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver;
     clearAuthSession();
+    vi.unstubAllGlobals();
   });
 
   function createRelationshipWithDialog(kind: string, sourceId: string, targetId: string) {
@@ -189,6 +191,55 @@ describe('UmlEditorClient', { timeout: 15_000 }, () => {
     render(<UmlEditorClient allowDemoForTests />);
 
     expect(screen.queryByText('LOCAL DEMO')).not.toBeInTheDocument();
+  });
+
+  it('generates only a clean active project, downloads its ZIP, releases its URL, and prevents duplicates', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
+    const createObjectUrl = vi.fn(() => 'blob:generated-spring');
+    const revokeObjectUrl = vi.fn();
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectUrl },
+      revokeObjectURL: { configurable: true, value: revokeObjectUrl },
+    });
+    Object.defineProperties(window.URL, {
+      createObjectURL: { configurable: true, value: createObjectUrl },
+      revokeObjectURL: { configurable: true, value: revokeObjectUrl },
+    });
+    let resolveGeneration: ((value: { blob: Blob; filename: string }) => void) | undefined;
+    projectApiMock.generateSpring.mockImplementationOnce(() => new Promise((resolve) => { resolveGeneration = resolve; }));
+    render(<UmlEditorClient />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generar backend Spring' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generando backend...' }));
+    expect(projectApiMock.generateSpring).toHaveBeenCalledTimes(1);
+    expect(projectApiMock.generateSpring).toHaveBeenCalledWith(project.id);
+    await act(async () => { resolveGeneration?.({ blob: new Blob(['zip']), filename: 'pedidos.zip' }); });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Backend descargado' })).toBeInTheDocument());
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:generated-spring');
+    anchorClick.mockRestore();
+    delete (URL as { createObjectURL?: unknown }).createObjectURL;
+    delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
+  });
+
+  it('blocks generation with unsaved changes and shows a bounded failure state', async () => {
+    const project = createDemoProjectDocument();
+    project.id = '11111111-1111-4111-8111-111111111111';
+    useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 });
+    render(<UmlEditorClient />);
+    act(() => { useEditorStore.getState().renameClass('class-customer', 'Cliente'); });
+    expect(screen.getByRole('button', { name: 'Generar backend Spring' })).toBeDisabled();
+    expect(projectApiMock.generateSpring).not.toHaveBeenCalled();
+
+    act(() => { useEditorStore.getState().replaceProjectSession({ project, storageVersion: 4 }); });
+    projectApiMock.generateSpring.mockRejectedValueOnce(new Error('internal path should not be visible'));
+    fireEvent.click(screen.getByRole('button', { name: 'Generar backend Spring' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Error al generar backend' })).toBeInTheDocument());
+    expect(screen.queryByText('internal path should not be visible')).not.toBeInTheDocument();
   });
 
   it('starts one active realtime transport and leaves Connecting when its handshake fails', async () => {

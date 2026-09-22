@@ -18,6 +18,7 @@ export function configureApplication(app: INestApplication) {
   app.enableCors({
     origin: process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGIN,
     methods: CORS_METHODS,
+    exposedHeaders: ['Content-Disposition'],
   });
 }
 
