@@ -5,15 +5,32 @@ import { resetEditorStoreForTests, useEditorStore } from '../../stores/editor-st
 import { createDemoProjectDocument } from '../../lib/editor/demo/demo-document';
 
 const interpretAssistantStream = vi.hoisted(() => vi.fn());
+const transcribeVoice = vi.hoisted(() => vi.fn());
+const recorderStart = vi.hoisted(() => vi.fn());
+const recorderStop = vi.hoisted(() => vi.fn());
+const recorderCancel = vi.hoisted(() => vi.fn());
 vi.mock('../../lib/projects/project-api', () => ({
   ProjectApiError: class ProjectApiError extends Error {},
-  projectApi: { interpretAssistantStream },
+  projectApi: { interpretAssistantStream, transcribeVoice },
+}));
+vi.mock('../../lib/voice/voice-recorder', () => ({
+  VoiceRecorder: class VoiceRecorder {
+    start = recorderStart;
+    stop = recorderStop;
+    cancel = recorderCancel;
+  },
 }));
 
 describe('AssistantPanel', () => {
   beforeEach(() => {
     resetEditorStoreForTests(createDemoProjectDocument());
     interpretAssistantStream.mockReset();
+    transcribeVoice.mockReset();
+    recorderStart.mockReset();
+    recorderStop.mockReset();
+    recorderCancel.mockReset();
+    recorderStart.mockResolvedValue(undefined);
+    recorderStop.mockResolvedValue(new Blob(['voice'], { type: 'audio/wav' }));
   });
 
   it('shows unavailable, timeout, invalid diagnostics, and clarification without mutating the model', async () => {
@@ -88,5 +105,71 @@ describe('AssistantPanel', () => {
     finish({ status: 'success', diagnostics: [], candidate: { version: 1, operation: 'create_class', name: 'Customer' } });
     expect(await screen.findByText('Review proposal')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
+  });
+
+  it('disables preview generation while transcribing and cancels only the voice request', async () => {
+    let resolveTranscription!: (value: unknown) => void;
+    transcribeVoice.mockImplementationOnce((_audio, signal) => new Promise((resolve) => { resolveTranscription = resolve; expect(signal).toBeInstanceOf(AbortSignal); }));
+    render(<AssistantPanel projectId="project-a" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }));
+    expect(await screen.findByRole('button', { name: 'Stop recording' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }));
+    await waitFor(() => expect(transcribeVoice).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Generate preview' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel transcription' }));
+    expect(transcribeVoice.mock.calls[0]?.[1].aborted).toBe(true);
+    resolveTranscription({ status: 'final', text: 'stale text' });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Cancel transcription' })).not.toBeInTheDocument());
+    expect(screen.getByLabelText('Describe a UML change')).toHaveValue('');
+    expect(interpretAssistantStream).not.toHaveBeenCalled();
+  });
+
+  it('keeps final transcription editable and submits it only after explicit preview generation', async () => {
+    transcribeVoice.mockResolvedValueOnce({ status: 'final', text: 'crear clase Cliente' });
+    interpretAssistantStream.mockResolvedValueOnce({ status: 'model_unavailable', diagnostics: [] });
+    render(<AssistantPanel projectId="project-a" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }));
+    expect(await screen.findByDisplayValue('crear clase Cliente')).toBeInTheDocument();
+    expect(interpretAssistantStream).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Describe a UML change'), { target: { value: 'crear clase Proveedor' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate preview' }));
+    await screen.findByText(/local model is unavailable/i);
+    expect(interpretAssistantStream).toHaveBeenCalledWith('project-a', { text: 'crear clase Proveedor' }, expect.any(AbortSignal), expect.any(Function));
+  });
+
+  it('does not publish a stale transcription after cancellation', async () => {
+    let resolveTranscription!: (value: unknown) => void;
+    transcribeVoice.mockImplementationOnce(() => new Promise((resolve) => { resolveTranscription = resolve; }));
+    render(<AssistantPanel projectId="project-a" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }));
+    await waitFor(() => expect(transcribeVoice).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel transcription' }));
+    resolveTranscription({ status: 'final', text: 'do not publish' });
+    await waitFor(() => expect(screen.getByLabelText('Describe a UML change')).toHaveValue(''));
+  });
+
+  it('aborts an in-flight transcription when the panel unmounts', async () => {
+    transcribeVoice.mockImplementationOnce(() => new Promise(() => undefined));
+    const view = render(<AssistantPanel projectId="project-a" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Record voice' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }));
+    await waitFor(() => expect(transcribeVoice).toHaveBeenCalledTimes(1));
+    const signal = transcribeVoice.mock.calls[0]?.[1] as AbortSignal;
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    expect(recorderCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts an in-flight interpretation when the panel unmounts', async () => {
+    interpretAssistantStream.mockImplementationOnce(() => new Promise(() => undefined));
+    const view = render(<AssistantPanel projectId="project-a" />);
+    fireEvent.change(screen.getByLabelText('Describe a UML change'), { target: { value: 'Create customer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate preview' }));
+    await waitFor(() => expect(interpretAssistantStream).toHaveBeenCalledTimes(1));
+    const signal = interpretAssistantStream.mock.calls[0]?.[2] as AbortSignal;
+    view.unmount();
+    expect(signal.aborted).toBe(true);
   });
 });

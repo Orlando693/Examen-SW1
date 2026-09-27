@@ -1,7 +1,7 @@
 'use client';
 
 import { Alert, Box, Button, CircularProgress, Divider, FormControlLabel, List, ListItem, ListItemText, Stack, TextField, Typography } from '@mui/material';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createAssistantModelContext, createPreview, type AssistantDiagnostic, type AssistantPreview } from '@examen-sw1/assistant-core';
 import { ProjectApiError, projectApi } from '../../lib/projects/project-api';
 import { useEditorStore } from '../../stores/editor-store';
@@ -26,25 +26,32 @@ export function AssistantPanel({ projectId }: { projectId: string | null }) {
   const [presentation, setPresentation] = useState('');
   const [clarification, setClarification] = useState<ClarificationCandidate[]>([]);
   const [confirmed, setConfirmed] = useState(false);
-  const request = useRef<AbortController | null>(null);
+  const interpretationRequest = useRef<AbortController | null>(null);
+  const transcriptionRequest = useRef<AbortController | null>(null);
   const recorder = useRef<VoiceRecorder | null>(null);
   const [voiceState, setVoiceState] = useState<'idle' | 'requesting' | 'recording' | 'processing' | 'unavailable' | 'error'>('idle');
   const [voiceDiagnostic, setVoiceDiagnostic] = useState('');
 
+  useEffect(() => () => {
+    interpretationRequest.current?.abort();
+    transcriptionRequest.current?.abort();
+    recorder.current?.cancel();
+  }, []);
+
   const resetProposal = () => { setPreview(null); setClarification([]); setConfirmed(false); };
   const interpret = async () => {
-    if (!projectId || !text.trim() || state === 'generating') return;
+    if (!projectId || !text.trim() || state === 'generating' || voiceState !== 'idle') return;
     const controller = new AbortController();
-    request.current = controller;
+    interpretationRequest.current = controller;
     resetProposal();
     setDiagnostics([]);
     setPresentation('');
     setState('generating');
     try {
       const response = await projectApi.interpretAssistantStream(projectId, { text: text.trim() }, controller.signal, (chunk) => {
-        if (request.current === controller) setPresentation((current) => current + chunk);
+        if (interpretationRequest.current === controller) setPresentation((current) => current + chunk);
       });
-      if (request.current !== controller) return;
+      if (interpretationRequest.current !== controller) return;
       setDiagnostics(response.diagnostics);
       if (response.status !== 'success') { setState(response.status === 'model_unavailable' ? 'unavailable' : response.status); return; }
       if (response.clarification) { setClarification(response.clarification.candidates); setState('invalid'); return; }
@@ -59,28 +66,29 @@ export function AssistantPanel({ projectId }: { projectId: string | null }) {
       setPreview(result.preview);
       setState('idle');
     } catch (cause) {
-      if (request.current !== controller) return;
+      if (interpretationRequest.current !== controller) return;
       if (cause instanceof DOMException && cause.name === 'AbortError') { setState('cancelled'); return; }
       const error = cause as ProjectApiError;
       setDiagnostics([{ code: error.code ?? 'NETWORK_ERROR', message: error.message ?? 'Unable to interpret the request.', path: '$' }]);
       setState('error');
     } finally {
-      if (request.current === controller) request.current = null;
+      if (interpretationRequest.current === controller) interpretationRequest.current = null;
     }
   };
-  const cancelGeneration = () => { request.current?.abort(); request.current = null; resetProposal(); setPresentation(''); setState('cancelled'); };
+  const cancelGeneration = () => { interpretationRequest.current?.abort(); interpretationRequest.current = null; resetProposal(); setPresentation(''); setState('cancelled'); };
   const cancelPreview = () => { resetProposal(); setState('idle'); };
   const record = async () => {
-    try { setVoiceDiagnostic(''); setVoiceState('requesting'); const next = new VoiceRecorder(); recorder.current = next; await next.start(); setVoiceState('recording'); }
-    catch (cause) { setVoiceState('error'); setVoiceDiagnostic(cause instanceof DOMException && cause.name === 'NotAllowedError' ? 'MICROPHONE_DENIED' : 'MICROPHONE_UNAVAILABLE'); }
+    const next = new VoiceRecorder();
+    try { setVoiceDiagnostic(''); setVoiceState('requesting'); recorder.current = next; await next.start(); if (recorder.current === next) setVoiceState('recording'); }
+    catch (cause) { if (recorder.current === next) { setVoiceState('error'); setVoiceDiagnostic(cause instanceof DOMException && cause.name === 'NotAllowedError' ? 'MICROPHONE_DENIED' : 'MICROPHONE_UNAVAILABLE'); } }
   };
   const stopRecording = async () => {
-    const active = recorder.current; if (!active) return; setVoiceState('processing'); const controller = new AbortController(); request.current = controller;
-    try { const result = await projectApi.transcribeVoice(await active.stop(), controller.signal); if (request.current !== controller) return; if (result.status === 'final') { setText(result.text); setVoiceState('idle'); } else { setVoiceState(result.status === 'unavailable' ? 'unavailable' : 'error'); setVoiceDiagnostic(result.diagnostic.code); } }
-    catch (cause) { if (cause instanceof DOMException && cause.name === 'AbortError') setVoiceState('idle'); else { setVoiceState('error'); setVoiceDiagnostic('TRANSCRIPTION_FAILED'); } }
-    finally { if (request.current === controller) request.current = null; recorder.current = null; }
+    const active = recorder.current; if (!active) return; setVoiceState('processing'); const controller = new AbortController(); transcriptionRequest.current = controller;
+    try { const audio = await active.stop(); if (recorder.current !== active || transcriptionRequest.current !== controller) return; const result = await projectApi.transcribeVoice(audio, controller.signal); if (recorder.current !== active || transcriptionRequest.current !== controller) return; if (result.status === 'final') { setText(result.text); setVoiceState('idle'); } else { setVoiceState(result.status === 'unavailable' ? 'unavailable' : 'error'); setVoiceDiagnostic(result.diagnostic.code); } }
+    catch (cause) { if (recorder.current !== active || transcriptionRequest.current !== controller) return; if (cause instanceof DOMException && cause.name === 'AbortError') setVoiceState('idle'); else { setVoiceState('error'); setVoiceDiagnostic('TRANSCRIPTION_FAILED'); } }
+    finally { if (transcriptionRequest.current === controller) transcriptionRequest.current = null; if (recorder.current === active) recorder.current = null; }
   };
-  const cancelVoice = () => { recorder.current?.cancel(); recorder.current = null; request.current?.abort(); request.current = null; setVoiceState('idle'); };
+  const cancelVoice = () => { recorder.current?.cancel(); recorder.current = null; transcriptionRequest.current?.abort(); transcriptionRequest.current = null; setVoiceState('idle'); };
   const apply = () => {
     if (!preview) return;
     const result = applyAssistantPreview(preview, confirmed);
@@ -101,7 +109,7 @@ export function AssistantPanel({ projectId }: { projectId: string | null }) {
        {voiceState === 'recording' ? <Stack direction="row" spacing={1}><Button color="error" onClick={() => void stopRecording()}>Stop recording</Button><Button onClick={cancelVoice}>Cancel recording</Button></Stack> : voiceState === 'processing' ? <Button onClick={cancelVoice} startIcon={<CircularProgress size={14} />}>Cancel transcription</Button> : <Button variant="outlined" onClick={() => void record()} disabled={!projectId || state === 'generating'}>Record voice</Button>}
        {voiceState === 'unavailable' && <Alert severity="warning">The local speech model is unavailable.</Alert>}
        {voiceState === 'error' && <Alert severity="error">Voice transcription failed: {voiceDiagnostic}</Alert>}
-       {state === 'generating' ? <Button variant="outlined" color="inherit" onClick={cancelGeneration} startIcon={<CircularProgress size={14} />}>Cancel interpretation</Button> : <Button variant="contained" onClick={() => void interpret()} disabled={!projectId || !text.trim()}>Generate preview</Button>}
+       {state === 'generating' ? <Button variant="outlined" color="inherit" onClick={cancelGeneration} startIcon={<CircularProgress size={14} />}>Cancel interpretation</Button> : <Button variant="contained" onClick={() => void interpret()} disabled={!projectId || !text.trim() || voiceState !== 'idle'}>Generate preview</Button>}
        {presentation && <Typography aria-label="Assistant generation" variant="body2" color="text.secondary">{presentation}</Typography>}
       {clarification.length > 0 && <><Divider /><Typography variant="subtitle2">Choose a more specific target</Typography><List dense>{clarification.map((candidate) => <ListItem key={candidate.id} disableGutters><ListItemText primary={candidate.name} secondary={`${candidate.kind} · ${candidate.id}`} /></ListItem>)}</List></>}
       {preview && <><Divider /><Typography variant="subtitle2">Review proposal</Typography><Typography variant="body2">{preview.summary}</Typography><Typography variant="caption" color="text.secondary">{preview.umlCommands.length} UML command{preview.umlCommands.length === 1 ? '' : 's'} · revision {preview.contextRevision}</Typography>{preview.requiresConfirmation && <FormControlLabel control={<input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />} label="I confirm this destructive change." />}<Stack direction="row" spacing={1}><Button variant="contained" onClick={apply} disabled={preview.requiresConfirmation && !confirmed}>Apply</Button><Button onClick={cancelPreview}>Cancel preview</Button></Stack></>}

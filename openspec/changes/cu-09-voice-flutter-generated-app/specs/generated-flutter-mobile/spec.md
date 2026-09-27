@@ -1,8 +1,18 @@
-## Purpose
+## Deferred Historical Scope
 
-Defines deterministic generation of an independent Flutter mobile client from the verified generated Spring API contract and Domain Manifest, with Android as its minimum demonstrable target.
+The original CU-09 proposal included deterministic generation of an independent Flutter mobile client from verified Spring OpenAPI and Domain Manifest contracts, with Android as its minimum target. Flutter was deferred before implementation for the current academic delivery. This delta specification is retained as historical evidence only: it defines no active requirement, acceptance criterion, task, or CU-10 dependency, and no Flutter completion is claimed.
 
-## ADDED Requirements
+## REMOVED Requirements
+
+### Requirement: Active generated Flutter mobile acceptance
+
+Flutter/Dart generation and Android build acceptance are removed from the active CU-09 delivery scope. The original planned requirements remain below as historical context only and are deferred to future work before implementation.
+
+#### Scenario: CU-09 is evaluated for the academic delivery
+- **WHEN** CU-09 acceptance is reviewed
+- **THEN** reviewed local voice input, reproducible STT benchmark evidence, and their manual gates are evaluated, while Flutter generation and Android build are not claimed or required
+
+## Original Planned Requirements
 
 ### Requirement: Flutter generation consumes existing generated contracts
 The system SHALL generate an independent Flutter and Dart application only after independently validated generated Spring OpenAPI and Domain Manifest inputs pass a fail-closed cross-contract check. OpenAPI SHALL be the sole authority for operation IDs, HTTP methods, paths, parameters, media types, request/response schemas, and transport statuses. Domain Manifest SHALL be the sole authority for entity aliases, field/control semantics, declared CRUD capabilities, and relationship navigation. The generator SHALL reject missing, duplicate, or incompatible entity/capability/operation mappings and SHALL not guess a route, request body, field, or relationship. It SHALL not read Canonical UML, reconstruct relational rules, import the generated Next.js application, or use Capacitor.
