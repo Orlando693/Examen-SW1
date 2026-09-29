@@ -5,6 +5,8 @@ import {
   decodeSerializedProjectDocument,
   INITIAL_DOCUMENT_SCHEMA_VERSION,
   INITIAL_STORAGE_VERSION,
+  CURRENT_DOCUMENT_SCHEMA_VERSION,
+  migrateProjectResource,
   stringType,
   validateProjectDocument,
 } from '../src/index.js';
@@ -53,11 +55,27 @@ describe('project persistence decoder', () => {
     });
   });
 
-  it('rejects unsupported persisted document schema versions', () => {
-    expect(decodeProjectResource({ project: document, storageVersion: 0, documentSchemaVersion: 2 })).toMatchObject({
-      ok: false,
-      diagnostics: [{ code: 'UNSUPPORTED_DOCUMENT_SCHEMA_VERSION', path: 'resource.documentSchemaVersion' }],
-    });
+  it('accepts the current persisted document schema version and rejects unknown versions', () => {
+    expect(decodeProjectResource({ project: document, storageVersion: 0, documentSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSION })).toMatchObject({ ok: true });
+    expect(decodeProjectResource({ project: document, storageVersion: 0, documentSchemaVersion: 4 })).toMatchObject({ ok: false, diagnostics: [{ code: 'UNSUPPORTED_DOCUMENT_SCHEMA_VERSION', path: 'resource.documentSchemaVersion' }] });
+  });
+
+  it('migrates normal legacy many-to-many once and fails closed for ambiguous self relationships', () => {
+    const legacy = createProjectDocument({ id: 'legacy', name: 'Legacy', now: '2026-09-07T00:00:00.000Z', model: { packages: [], classes: [{ id: 'student', name: 'Student', attributes: [], operations: [] }, { id: 'course', name: 'Course', attributes: [], operations: [] }], enumerations: [], relationships: [{ id: 'enrolment', kind: 'association', source: { classId: 'student', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'course', multiplicity: { lower: 0, upper: '*' } } }] } });
+    const migrated = migrateProjectResource({ project: legacy, storageVersion: 0, documentSchemaVersion: INITIAL_DOCUMENT_SCHEMA_VERSION });
+    expect(migrated).toMatchObject({ ok: true, migrated: true, value: { documentSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSION } });
+    if (migrated.ok) expect(migrateProjectResource(migrated.value)).toMatchObject({ ok: true, migrated: false });
+    const ambiguous = structuredClone(legacy);
+    ambiguous.model.classes = [{ id: 'person', name: 'Person', attributes: [], operations: [] }];
+    ambiguous.model.relationships[0] = { id: 'ambiguous', kind: 'association', source: { classId: 'person', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'person', multiplicity: { lower: 0, upper: '*' } } };
+    expect(migrateProjectResource({ project: ambiguous, storageVersion: 0, documentSchemaVersion: INITIAL_DOCUMENT_SCHEMA_VERSION })).toEqual({ ok: false, code: 'LEGACY_MANY_TO_MANY_MIGRATION_FAILED' });
+  });
+
+  it('repairs the version-2 malformed association entity shape once before generation', () => {
+    const malformed = createProjectDocument({ id: 'v2-materialization', name: 'V2', now: '2026-09-07T00:00:00.000Z', model: { packages: [], classes: [{ id: 'stadium', name: 'Stadium', attributes: [], operations: [] }, { id: 'club', name: 'Club', attributes: [], operations: [] }, { id: 'stadium-club', name: 'StadiumClub', attributes: [{ id: 'stadium-club-id', name: 'id', type: { kind: 'primitive', name: 'number' }, visibility: 'private', generation: { identifier: true } }], operations: [] }], enumerations: [], relationships: [{ id: 'first', kind: 'association', source: { classId: 'stadium' }, target: { classId: 'stadium-club', multiplicity: { lower: 1, upper: 1 } } }, { id: 'second', kind: 'association', source: { classId: 'stadium-club', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'club' } }] } });
+    const migrated = migrateProjectResource({ project: malformed, storageVersion: 3, documentSchemaVersion: 2 });
+    expect(migrated).toMatchObject({ ok: true, migrated: true, value: { documentSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSION, project: { model: { relationships: [{ source: { classId: 'stadium', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'stadium-club', multiplicity: { lower: 0, upper: '*' } } }, { source: { classId: 'club', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'stadium-club', multiplicity: { lower: 0, upper: '*' } } }] } } } });
+    if (migrated.ok) expect(migrateProjectResource(migrated.value)).toMatchObject({ ok: true, migrated: false });
   });
 
   it('accepts all supported relationship and type variants structurally', () => {

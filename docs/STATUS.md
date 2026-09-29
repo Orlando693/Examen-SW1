@@ -2,23 +2,23 @@
 
 ## Estado general
 
-CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 esta activo en Incremento 1; la correccion post-archive de CU-08 permanece cerrada y archivada.
+CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 esta activo en Incremento 2; la correccion post-archive de CU-08 permanece cerrada y archivada.
 
 ## Planificación vigente
 
 - 4 ciclos PUDS.
 - 12 casos de uso (`CU-00` a `CU-11`).
 - 3 casos de uso por ciclo.
-- Flutter reemplaza a Capacitor para la aplicación móvil generada.
+- Flutter permanece como trabajo futuro diferido antes de implementación; no es criterio de aceptación de CU-09 para esta entrega.
 - AWS es la plataforma obligatoria de despliegue online.
 
 ## Ciclo actual
 
-Ciclo 4 — Transicion y cierre. CU-09 Incremento 1 esta COMPLETE; Incremento 2 es el siguiente.
+Ciclo 4 — Transicion y cierre. CU-09 Incrementos 1 y 2 estan COMPLETE; pendiente de verify y aceptacion/cierre formal.
 
 ## Caso de uso activo
 
-CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 COMPLETE; OpenSpec `cu-09-voice-flutter-generated-app` activo. Incremento 2 NEXT e Incremento 3 PENDING, ambos no iniciados.
+CU-09 — Voz y benchmark STT reproducible. OpenSpec `cu-09-voice-flutter-generated-app` activo con 22/22 tareas COMPLETE; pendiente de verify y aceptacion/cierre formal. Flutter fue diferido antes de implementación y no tiene tareas activas.
 
 ## Casos de uso completados
 
@@ -44,8 +44,8 @@ CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 COMPLETE; OpenSp
 - Deuda menor: `favicon.ico` devuelve 404. No bloquea CU-02.
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
-- CU-08 no incluye CRUD ni integracion de asistente sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada. Incremento 3 se limita al editor CASE/UML.
-- CU-09 Incremento 1 COMPLETE 12/12. `@examen-sw1/local-stt` agrega WAV PCM validado, proveedor Vosk opt-in/determinista, endpoint JWT no mutante y revision de transcript. El modelo real `vosk-model-small-es-0.42`, microfono real, revision del transcript, Qwen preview/apply, persistencia tras F5 y cancelacion PASS. ROOT-EQUIVALENT 475/475 PASS; despues, el fix del validador de layout Vosk `58858e8` dejo local-stt 19/19, backend voice 3/3 y smoke CLI real PASS, ademas de typecheck/lint/build PASS. Un intento anterior produjo `New Class` para “crea una clase cliente”; no se reprodujo, no se preservo raw Qwen y no se establecio causa determinista, por lo que se registra como observacion de variacion semantica del modelo real, no como bug resuelto. I2 NEXT; I3 PENDING.
+- CU-08 no incluye CRUD ni integracion de asistente sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada.
+- CU-09 Incrementos 1 y 2 COMPLETE 22/22. `AssistantPanel` separa los controladores de voz/interpretacion, aborta ambos al desmontar, descarta resultados tardios y bloquea preview durante voz activa; sus pruebas focales son 10/10 PASS. `@examen-sw1/local-stt-benchmark` mide `loadLatencyMs` exclusivamente mediante inicializacion de Vosk, antes de todo WAV; benchmark 7/7 y local-stt 19/19 PASS. El usuario reviso el Run 3 real externo `benchmark-2026-09-27T15-57-58.122Z.json`: Vosk real sin proveedor fake, siete casos, hash de directorio `02711944638bebebe29e89b73ae75840dc403a9716a81e4f72d7e2840976ed96`, carga pura `1156.822 ms`, WER `12/25 = 0.48`, command success `2/7` y `failed-transcript -> TRANSCRIPTION_EMPTY`. No es una afirmacion de calidad. I3 diferido con Flutter; siguiente accion: verify CU-09.
 
 ## Verificación actual
 
@@ -151,4 +151,4 @@ CU-09 — Voz y aplicacion movil Flutter generada. Incremento 1 COMPLETE; OpenSp
 
 ## Próxima acción
 
-Esperar la instruccion explicita para iniciar Incremento 2; no iniciar Flutter, no archivar ni hacer push.
+Ejecutar `/opsx:verify` para CU-09; no iniciar Flutter, no archivar ni hacer push sin aceptacion final.

@@ -5,7 +5,7 @@ import type { CollaborationParticipant } from '../../lib/collaboration/contracts
 import { avatarInitials } from '../../lib/collaboration/presence-roster';
 import { useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
-import { projectApi } from '../../lib/projects/project-api';
+import { ProjectApiError, projectApi } from '../../lib/projects/project-api';
 
 export function EditorAppBar({ compact, participants = [], currentUserId = null }: { compact: boolean; participants?: CollaborationParticipant[]; currentUserId?: string | null }) {
   const projectDocument = useEditorStore((state) => state.currentDocument);
@@ -34,6 +34,7 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
             : realtimeCommandPending ? 'Saving'
               : collaborationState === 'connected' ? 'Saved' : 'Connecting';
   const [generationState, setGenerationState] = useState<'ready' | 'generating' | 'downloaded' | 'error'>('ready');
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const generationInFlight = useRef(false);
   const canGenerate = projectId !== null && (saveState === 'idle' || saveState === 'saved') && !generationInFlight.current;
 
@@ -41,6 +42,7 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
     if (!projectId || !canGenerate) return;
     generationInFlight.current = true;
     setGenerationState('generating');
+    setGenerationError(null);
     try {
       const download = await projectApi.generateSpring(projectId);
       const objectUrl = URL.createObjectURL(download.blob);
@@ -53,8 +55,9 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
       link.remove();
       URL.revokeObjectURL(objectUrl);
       setGenerationState('downloaded');
-    } catch {
+    } catch (error) {
       setGenerationState('error');
+      setGenerationError(error instanceof ProjectApiError ? `${error.code}: ${error.message}` : 'GENERATION_FAILED: Unable to generate the backend.');
     } finally {
       generationInFlight.current = false;
     }
@@ -94,7 +97,8 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
          {compact && <Button size="small" color="inherit" onClick={toggleInspector} sx={{ flex: '0 0 auto', minWidth: 54, px: 0.75, textTransform: 'none' }}>Props</Button>}
          <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={toggleAssistant} sx={{ flex: '0 0 auto', minWidth: compact ? 54 : 72, px: compact ? 0.75 : 1, textTransform: 'none' }}>Assist</Button>
       </Toolbar>
-      {historyUnavailable && <Typography id="collaboration-mutation-help" role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Undo and redo are unavailable during collaborative editing. Shared mutations wait for an authoritative realtime connection.</Typography>}
+       {historyUnavailable && <Typography id="collaboration-mutation-help" role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Undo and redo are unavailable during collaborative editing. Shared mutations wait for an authoritative realtime connection.</Typography>}
+       {generationError && <Typography role="alert" sx={{ px: 2, pb: 1, color: '#ffb4ab', fontSize: 12 }}>{generationError}</Typography>}
     </AppBar>
   );
 }

@@ -48,14 +48,12 @@ interface FieldContext extends TemplateContext {
 interface RelationshipContext extends TemplateContext {
   name: string;
   accessorName: string;
-  annotation: 'ManyToMany' | 'ManyToOne' | 'OneToMany' | 'OneToOne';
+  annotation: 'ManyToOne' | 'OneToMany' | 'OneToOne';
   targetClassName: string;
   targetIdAccessor: string;
   collection: boolean;
   mappedBy?: string;
   joinColumn?: string;
-  inverseJoinColumn?: string;
-  joinTableName?: string;
   cascade: boolean;
   orphanRemoval: boolean;
   onDelete: boolean;
@@ -118,31 +116,19 @@ function relationshipContexts(model: RelationalModel): Map<string, RelationshipC
   const byId = new Map(entities.map((table) => [table.id, table]));
   const contexts = new Map(entities.map((table) => [table.id, [] as RelationshipContext[]]));
   for (const relation of model.relations.filter((item) => item.kind !== 'INHERITANCE').sort((left, right) => compare(left.id, right.id))) {
-    if (relation.kind === 'MANY_TO_MANY') {
-      const [leftId, rightId, joinId] = relation.tableIds;
-      const left = byId.get(leftId); const right = byId.get(rightId); const join = model.tables.find((table) => table.id === joinId);
-      if (!left || !right || !join) throw new Error(`Invalid many-to-many relation ${relation.id}.`);
-      const leftForeignKey = join.foreignKeys.find((foreignKey) => foreignKey.referencedTableId === left.id);
-      const rightForeignKey = join.foreignKeys.find((foreignKey) => foreignKey.referencedTableId === right.id);
-      const leftColumn = leftForeignKey && join.columns.find((column) => column.id === leftForeignKey.columnIds[0]);
-      const rightColumn = rightForeignKey && join.columns.find((column) => column.id === rightForeignKey.columnIds[0]);
-      if (!leftColumn || !rightColumn) throw new Error(`Invalid many-to-many join table ${join.id}.`);
-      const ownerName = plural(right.name);
-      addRelationship(contexts, left.id, relationshipContext(ownerName, 'ManyToMany', right, { collection: true, joinTableName: join.name, joinColumn: leftColumn.name, inverseJoinColumn: rightColumn.name }));
-      addRelationship(contexts, right.id, relationshipContext(plural(left.name), 'ManyToMany', left, { collection: true, mappedBy: ownerName }));
-      continue;
-    }
     const owner = relation.ownerTableId ? byId.get(relation.ownerTableId) : undefined;
-    const target = relation.tableIds.map((id) => byId.get(id)).find((table) => table && table.id !== owner?.id);
+    const target = relation.tableIds.map((id) => byId.get(id)).find((table) => table && table.id !== owner?.id)
+      ?? (relation.tableIds.every((id) => id === owner?.id) ? owner : undefined);
     if (!owner || !target) throw new Error(`Invalid relational relation ${relation.id}.`);
-    const foreignKey = owner.foreignKeys.find((item) => item.referencedTableId === target.id);
+    const foreignKey = owner.foreignKeys.find((item) => item.id === relation.ownerForeignKeyId) ?? owner.foreignKeys.find((item) => item.referencedTableId === target.id);
     const column = foreignKey && owner.columns.find((item) => item.id === foreignKey.columnIds[0]);
     if (!column) throw new Error(`Invalid relational foreign key for ${relation.id}.`);
     const oneToOne = relation.kind === 'ONE_TO_ONE' || owner.uniqueConstraints.some((constraint) => constraint.columnIds.length === 1 && constraint.columnIds[0] === column.id);
     const composition = relation.kind === 'COMPOSITION';
-    const ownerName = camel(target.name);
+    const ownerName = camel(relation.ownerPropertyName ?? target.name);
+    const inverseName = camel(relation.inversePropertyName ?? plural(owner.name));
     addRelationship(contexts, owner.id, relationshipContext(ownerName, oneToOne ? 'OneToOne' : 'ManyToOne', target, { joinColumn: column.name, cascade: composition && oneToOne, orphanRemoval: composition && oneToOne, onDelete: composition }));
-    addRelationship(contexts, target.id, relationshipContext(oneToOne ? plural(owner.name) : plural(owner.name), oneToOne ? 'OneToOne' : 'OneToMany', owner, { collection: !oneToOne, mappedBy: ownerName, cascade: composition, orphanRemoval: composition && !oneToOne }));
+    addRelationship(contexts, target.id, relationshipContext(inverseName, oneToOne ? 'OneToOne' : 'OneToMany', owner, { collection: !oneToOne, mappedBy: ownerName, cascade: composition, orphanRemoval: composition && !oneToOne }));
   }
   for (const values of contexts.values()) values.sort((left, right) => compare(left.name, right.name));
   return contexts;

@@ -201,12 +201,22 @@ function validateRelationship(relationship: UmlRelationship, index: number, clas
     diagnostics.push(error('INVALID_GENERALIZATION', 'Generalization source and target must be different classes.', `${basePath}.target.classId`, relationship.id, 'UmlRelationship'));
   }
 
+  validateRoleName(relationship.source?.roleName, `${basePath}.source.roleName`, relationship.id, diagnostics);
+  validateRoleName(relationship.target?.roleName, `${basePath}.target.roleName`, relationship.id, diagnostics);
+
   if (relationship.kind !== 'generalization') {
     validateMultiplicity(relationship.source?.multiplicity, `${basePath}.source.multiplicity`, relationship.id, diagnostics);
     validateMultiplicity(relationship.target?.multiplicity, `${basePath}.target.multiplicity`, relationship.id, diagnostics);
   }
 
   return diagnostics;
+}
+
+function validateRoleName(roleName: string | undefined, path: string, relationshipId: Uuid, diagnostics: ValidationDiagnostic[]) {
+  if (roleName === undefined) return;
+  if (!roleName.trim() || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(roleName)) {
+    diagnostics.push(error('INVALID_ROLE_NAME', 'Endpoint role names must be non-empty identifiers.', path, relationshipId, 'UmlRelationship'));
+  }
 }
 
 function validateMultiplicity(multiplicity: Multiplicity | undefined, path: string, relationshipId: Uuid, diagnostics: ValidationDiagnostic[]) {

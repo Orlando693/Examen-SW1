@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   createProjectDocument,
+  CURRENT_DOCUMENT_SCHEMA_VERSION,
   decodeProjectDocument,
-  INITIAL_DOCUMENT_SCHEMA_VERSION,
   INITIAL_STORAGE_VERSION,
   StructuralDecodeError,
+  migrateProjectResource,
   validateProjectDocument,
   type ProjectDocument,
   type ProjectResource,
@@ -40,7 +41,7 @@ export class ProjectsService {
 
   async create(user: SafeUser, input: CreateProjectDto): Promise<ProjectResource> {
     const document = createProjectDocument({ name: input.name, ...(input.description === undefined || input.description === null ? {} : { description: input.description }), ownerId: user.id });
-    const row = await this.repository.create(toProjectPersistenceData({ project: document, storageVersion: INITIAL_STORAGE_VERSION, documentSchemaVersion: INITIAL_DOCUMENT_SCHEMA_VERSION }));
+    const row = await this.repository.create(toProjectPersistenceData({ project: document, storageVersion: INITIAL_STORAGE_VERSION, documentSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSION }));
     return this.resource(row);
   }
 
@@ -50,7 +51,7 @@ export class ProjectsService {
   }
 
   async get(user: SafeUser, id: string): Promise<ProjectResource> {
-    return this.resource(await this.requireAccessibleRow(user.id, id));
+    return this.resource(await this.requireAccessibleRow(user.id, id), user.id);
   }
 
   async saveDocument(user: SafeUser, id: string, input: SaveProjectDocumentDto): Promise<ProjectResource> {
@@ -84,7 +85,7 @@ export class ProjectsService {
       throw new Error('Unreachable metadata mutation failure.');
     }
     // The returned CAS row, not a later reload, is the durable metadata snapshot.
-    return this.resource(updated);
+    return this.resource(updated, user.id);
   }
 
   async delete(user: SafeUser, id: string, baseStorageVersion: number): Promise<void> {
@@ -130,13 +131,24 @@ export class ProjectsService {
     throw new ProjectApiError(404, 'PROJECT_NOT_FOUND', 'The project was not found.');
   }
 
-  private resource(row: Project): ProjectResource {
+  private async resource(row: Project, userId?: string): Promise<ProjectResource> {
     try {
       const resource = toProjectResource(row);
       if (validateProjectDocument(resource.project).hasErrors) {
         throw new StoredProjectDataError(false);
       }
-      return resource;
+      const migrated = migrateProjectResource(resource);
+      if (!migrated.ok) throw new ProjectApiError(422, 'LEGACY_MANY_TO_MANY_MIGRATION_FAILED', 'The legacy many-to-many relationship cannot be migrated.');
+      if (!migrated.migrated || !userId) return migrated.value;
+      const persisted = await this.repository.updateAndReturnIfAccessibleVersion(row.id, userId, resource.storageVersion, {
+        revision: migrated.value.project.revision,
+        documentSchemaVersion: migrated.value.documentSchemaVersion,
+        model: migrated.value.project.model as never,
+        layout: migrated.value.project.layout as never,
+        updatedAt: new Date(migrated.value.project.timestamps.updatedAt),
+      });
+      if (persisted) return toProjectResource(persisted);
+      return this.resource(await this.requireAccessibleRow(userId, row.id), userId);
     } catch (error) {
       if (error instanceof StructuralDecodeError) {
         throw new StoredProjectDataError(error.diagnostics.some((diagnostic) => diagnostic.code === 'UNSUPPORTED_DOCUMENT_SCHEMA_VERSION'));

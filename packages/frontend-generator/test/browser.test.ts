@@ -59,7 +59,7 @@ async function stop(child: ReturnType<typeof spawn>) {
 }
 
 async function createProduct(page: Page, sku: string) {
-  await page.getByRole('button', { name: 'Product' }).click();
+  await page.getByRole('button', { name: 'product', exact: true }).click();
   await page.getByRole('button', { name: 'Create' }).click();
   await page.getByLabel('sku').fill(sku);
   await page.getByRole('button', { name: 'Save' }).click();
@@ -115,7 +115,7 @@ describe('generated frontend real browser', () => {
         await browserExpect(page.getByLabel('Loading')).toBeVisible();
         await browserExpect(page.getByText('No Customer records.')).toBeVisible({ timeout: 30_000 });
         await page.unroute(`${baseUrl}/api/customer?*`);
-        await page.getByRole('button', { name: 'Product' }).click();
+        await page.getByRole('button', { name: 'product', exact: true }).click();
         await browserExpect(page.getByRole('heading', { name: 'Product' })).toBeVisible();
 
         const sku = `browser-${Date.now()}`;
@@ -147,19 +147,19 @@ describe('generated frontend real browser', () => {
 
         await page.route(`${baseUrl}/api/product?*`, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }));
         await page.getByRole('button', { name: /^customer$/i }).click();
-        await page.getByRole('button', { name: 'Product' }).click();
+        await page.getByRole('button', { name: 'product', exact: true }).click();
         await browserExpect(page.getByText('Request failed: 500')).toBeVisible();
         await page.unroute(`${baseUrl}/api/product?*`);
 
         await page.setViewportSize({ width: 390, height: 844 });
         await page.getByRole('button', { name: 'open navigation' }).click();
         await browserExpect(page.getByRole('presentation')).toBeVisible();
-        await page.getByRole('button', { name: 'Product' }).last().click();
+        await page.getByRole('button', { name: 'product', exact: true }).last().click();
         await browserExpect(page.getByRole('heading', { name: 'Product' })).toBeVisible();
         await page.setViewportSize({ width: 768, height: 1024 });
         expect(await page.locator('body').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
         await page.setViewportSize({ width: 1440, height: 900 });
-        await browserExpect(page.getByRole('button', { name: 'Product' })).toBeVisible();
+        await browserExpect(page.getByRole('button', { name: 'product', exact: true })).toBeVisible();
 
         expect(pageErrors).toEqual([]);
         expect(apiFailures).toEqual([expect.stringMatching(/^500 /)]);

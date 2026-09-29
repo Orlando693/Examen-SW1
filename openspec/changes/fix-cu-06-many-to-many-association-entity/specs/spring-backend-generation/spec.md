@@ -1,16 +1,23 @@
 ## ADDED Requirements
 
-### Requirement: Generated association-entity persistence and CRUD
-The generated backend SHALL render each materialized association class as a normal generated entity, repository, service, controller, validation contract, and supported CRUD resource. Its persistence mapping SHALL use the generated association entity's own identifier plus normal JPA relationships to the endpoint entities and SHALL not render direct `@ManyToMany` or `@JoinTable` for that semantic relationship.
+### Requirement: Generated recursive and association-entity persistence
+The generated backend SHALL render recursive one-to-many and materialized normal/self many-to-many models as normal generated entities, repositories, services, controllers, validation contracts, and supported CRUD resources. It SHALL use ordinary JPA FK mappings and SHALL not render `@ManyToMany` or `@JoinTable` for those semantics.
 
-#### Scenario: Generate an association entity
+#### Scenario: Generate recursive one-to-many
+- **WHEN** the relational model contains `Empleado` with a `jefe_id` self FK
+- **THEN** generated `Empleado` source contains a valid self `@ManyToOne` and role-distinguished navigation without a join table
+
+#### Scenario: Generate normal association entity
 - **WHEN** the relational model contains `Alumno`, `Materia`, and `AlumnoMateria` with two foreign keys
-- **THEN** the generated project contains an `AlumnoMateria` entity and its ordinary generated CRUD layers with JPA mappings to `Alumno` and `Materia`
+- **THEN** the generated project contains ordinary entity and CRUD layers for all three classes and no direct many-to-many annotation
 
-#### Scenario: Build generated association project
-- **WHEN** the known association-entity fixture is generated with Java 21 available
-- **THEN** the generated Gradle Wrapper test and build complete successfully and generated source contains no direct many-to-many annotation for the fixture
+#### Scenario: Generate recursive association entity
+- **WHEN** the relational model contains `Persona` and `PersonaAmistad` with `persona_origen_id` and `persona_destino_id`
+- **THEN** generated `PersonaAmistad` source contains two `@ManyToOne` mappings to `Persona` with distinct `@JoinColumn` names and ordinary CRUD layers
 
-#### Scenario: Generate a migrated historical project
-- **WHEN** a historical direct many-to-many project has been migrated through the authoritative project flow
-- **THEN** its generated source contains the association entity and contains neither `@ManyToMany` nor `@JoinTable`
+### Requirement: Generated ZIP acceptance evidence
+The generation flow SHALL produce a ZIP that reflects only the persisted migrated canonical model and that passes generated-project verification. Acceptance SHALL use an isolated PostgreSQL database and the generated API contract for recursive one-to-many, normal many-to-many association entities, and recursive many-to-many association entities.
+
+#### Scenario: Verify generated ZIP and API
+- **WHEN** the three accepted model scenarios are generated from persisted projects
+- **THEN** extracted Java 21 projects pass Gradle test and build, Swagger is available, Postman CRUD creates, reads, updates when supported, and deletes the required resources, and PostgreSQL inspection confirms the expected tables and foreign keys

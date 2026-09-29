@@ -48,6 +48,8 @@ export function executeCommand(document: ProjectDocument, command: UmlCommand, o
       return updateMultiplicity(document, command, options);
     case 'UpdateRelationship':
       return updateRelationship(document, command, options);
+    case 'MaterializeManyToManyAssociation':
+      return materializeManyToManyAssociation(document, command, options);
     case 'MoveNode':
       return withValidation(document, command, moveNode(document, command, options), options);
     case 'ApplyLayout':
@@ -258,10 +260,12 @@ function createAssociation(document: ProjectDocument, command: Extract<UmlComman
     source: {
       classId: command.sourceClassId,
       ...(command.sourceMultiplicity === undefined ? {} : { multiplicity: command.sourceMultiplicity }),
+      ...(command.sourceRoleName === undefined ? {} : { roleName: command.sourceRoleName.trim() }),
     },
     target: {
       classId: command.targetClassId,
       ...(command.targetMultiplicity === undefined ? {} : { multiplicity: command.targetMultiplicity }),
+      ...(command.targetRoleName === undefined ? {} : { roleName: command.targetRoleName.trim() }),
     },
   };
   next.model.relationships.push(relationship);
@@ -328,14 +332,70 @@ function updateRelationship(document: ProjectDocument, command: Extract<UmlComma
     nextRelationship.source = {
       ...nextRelationship.source,
       ...(command.sourceMultiplicity === undefined ? {} : { multiplicity: command.sourceMultiplicity ?? undefined }),
+      ...(command.sourceRoleName === undefined ? {} : { roleName: command.sourceRoleName?.trim() || undefined }),
     };
     nextRelationship.target = {
       ...nextRelationship.target,
       ...(command.targetMultiplicity === undefined ? {} : { multiplicity: command.targetMultiplicity ?? undefined }),
+      ...(command.targetRoleName === undefined ? {} : { roleName: command.targetRoleName?.trim() || undefined }),
     };
   }
   next.model.relationships[relationshipIndex] = nextRelationship;
   return withValidation(document, command, accept(command, next), options);
+}
+
+function materializeManyToManyAssociation(document: ProjectDocument, command: Extract<UmlCommand, { type: 'MaterializeManyToManyAssociation' }>, options: ExecuteCommandOptions): CommandResult {
+  const relationship = command.replaceRelationshipId === undefined ? undefined : document.model.relationships.find((item) => item.id === command.replaceRelationshipId);
+  if (command.replaceRelationshipId !== undefined && !relationship) return reject(document, command, 'NOT_FOUND', `Relationship '${command.replaceRelationshipId}' was not found.`);
+  if (command.kind !== undefined && command.kind !== 'association') {
+    return reject(document, command, 'INVALID_COMMAND', 'Only association many-to-many relationships can be materialized.');
+  }
+  if (command.sourceMultiplicity.upper !== '*' || command.targetMultiplicity.upper !== '*') {
+    return reject(document, command, 'INVALID_COMMAND', 'Only association many-to-many relationships can be materialized.');
+  }
+  if (relationship && (relationship.kind !== 'association' || relationship.source.classId !== command.sourceClassId || relationship.target.classId !== command.targetClassId)) {
+    return reject(document, command, 'INVALID_COMMAND', 'Replacement relationship endpoints must match the materialization candidate.');
+  }
+  const self = command.sourceClassId === command.targetClassId;
+  const sourceRole = command.sourceRoleName?.trim();
+  const targetRole = command.targetRoleName?.trim();
+  if (self && (!command.name?.trim() || !sourceRole || !targetRole || sourceRole === targetRole)) {
+    return reject(document, command, 'INVALID_COMMAND', 'Self many-to-many relationships require a name and distinct endpoint roles.');
+  }
+  const suppliedIds = [command.associationClassId, command.identifierAttributeId, command.sourceRelationshipId, command.targetRelationshipId, command.layoutNodeId].filter((id): id is string => id !== undefined);
+  const existingIds = new Set<string>([
+    ...document.model.classes.map((item) => item.id),
+    ...document.model.classes.flatMap((item) => item.attributes.map((attribute) => attribute.id)),
+    ...document.model.relationships.map((item) => item.id),
+    ...document.layout.nodes.map((item) => item.id),
+  ]);
+  if (new Set(suppliedIds).size !== suppliedIds.length || suppliedIds.some((id) => existingIds.has(id))) {
+    return reject(document, command, 'INVALID_COMMAND', 'Materialization ids must be unique and unused.');
+  }
+  if (document.model.classes.some((item) => item.name === command.associationClassName)) {
+    return reject(document, command, 'INVALID_COMMAND', `Class '${command.associationClassName}' already exists.`);
+  }
+  const next = nextDocument(document, options);
+  if (relationship) next.model.relationships = next.model.relationships.filter((item) => item.id !== relationship.id);
+  const associationClassId = createUuid(command.associationClassId);
+  const identifierAttributeId = createUuid(command.identifierAttributeId);
+  const sourceRelationshipId = createUuid(command.sourceRelationshipId);
+  const targetRelationshipId = createUuid(command.targetRelationshipId);
+  next.model.classes.push({ id: associationClassId, name: command.associationClassName, attributes: [{ id: identifierAttributeId, name: 'id', type: { kind: 'primitive', name: 'number' }, visibility: 'private', generation: { identifier: true } }], operations: [] });
+  next.model.relationships.push(
+    { id: sourceRelationshipId, kind: 'association', source: { classId: command.sourceClassId, ...(sourceRole ? { roleName: sourceRole } : {}), multiplicity: { lower: 1, upper: 1 } }, target: { classId: associationClassId, multiplicity: { lower: 0, upper: '*' } } },
+    { id: targetRelationshipId, kind: 'association', source: { classId: command.targetClassId, ...(targetRole ? { roleName: targetRole } : {}), multiplicity: { lower: 1, upper: 1 } }, target: { classId: associationClassId, multiplicity: { lower: 0, upper: '*' } } },
+  );
+  next.layout.nodes.push({ id: createUuid(command.layoutNodeId), elementId: associationClassId, position: associationEntityPosition(document, command.sourceClassId, command.targetClassId) });
+  return withValidation(document, command, accept(command, next), options);
+}
+
+function associationEntityPosition(document: ProjectDocument, sourceClassId: string, targetClassId: string): { x: number; y: number } {
+  const source = document.layout.nodes.find((node) => node.elementId === sourceClassId)?.position;
+  const target = document.layout.nodes.find((node) => node.elementId === targetClassId)?.position;
+  if (source && target) return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
+  if (source) return { x: source.x + 240, y: source.y };
+  return { x: 0, y: 0 };
 }
 
 function moveNode(document: ProjectDocument, command: Extract<UmlCommand, { type: 'MoveNode' }>, options: ExecuteCommandOptions): CommandResult {

@@ -11,6 +11,7 @@ export type UmlTypeRef =
   | { kind: 'custom'; name: string };
 
 export interface GenerationMetadata {
+  identifier?: boolean;
   entity?: boolean;
   auditable?: boolean;
   readOnly?: boolean;

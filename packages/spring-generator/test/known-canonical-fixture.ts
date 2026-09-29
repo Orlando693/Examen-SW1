@@ -15,15 +15,23 @@ export const knownCanonicalFixture: CanonicalUmlModel = {
     { id: id('40'), name: 'PurchaseOrder', attributes: [attribute('41', 'status', { kind: 'enumeration', enumerationId: id('1') }, { required: true })], operations: [] },
     { id: id('50'), name: 'OrderLine', attributes: [attribute('51', 'quantity', primitive('number'), { required: true })], operations: [] },
     { id: id('60'), name: 'Product', attributes: [attribute('61', 'sku', primitive('string'), { required: true, unique: true })], operations: [] },
+    { id: id('70'), name: 'PurchaseOrderProduct', attributes: [attribute('71', 'id', primitive('number'))], operations: [] },
+    { id: id('80'), name: 'Employee', attributes: [], operations: [] },
+    { id: id('90'), name: 'Person', attributes: [], operations: [] },
+    { id: id('95'), name: 'PersonFriendship', attributes: [attribute('96', 'id', primitive('number'))], operations: [] },
   ],
   relationships: [
     { id: id('100'), kind: 'generalization', source: { classId: id('20') }, target: { classId: id('10') } },
     { id: id('101'), kind: 'association', name: 'customerProfile', source: { classId: id('10'), multiplicity: { lower: 0, upper: 1 } }, target: { classId: id('30'), multiplicity: { lower: 0, upper: 1 } } },
     { id: id('102'), kind: 'association', name: 'customerOrders', source: { classId: id('10'), multiplicity: { lower: 1, upper: 1 } }, target: { classId: id('40'), multiplicity: { lower: 0, upper: '*' } } },
     { id: id('103'), kind: 'composition', name: 'orderLines', source: { classId: id('40'), multiplicity: { lower: 1, upper: 1 } }, target: { classId: id('50'), multiplicity: { lower: 1, upper: '*' } } },
-    { id: id('104'), kind: 'association', name: 'orderedProducts', source: { classId: id('40'), roleName: 'orders', multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('60'), roleName: 'products', multiplicity: { lower: 0, upper: '*' } } },
+    { id: id('104'), kind: 'association', name: 'purchaseOrder', source: { classId: id('70'), multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('40'), roleName: 'purchaseOrder', multiplicity: { lower: 0, upper: 1 } } },
+    { id: id('106'), kind: 'association', name: 'product', source: { classId: id('70'), multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('60'), roleName: 'product', multiplicity: { lower: 0, upper: 1 } } },
     { id: id('105'), kind: 'aggregation', name: 'customerProducts', source: { classId: id('10'), multiplicity: { lower: 0, upper: 1 } }, target: { classId: id('60'), multiplicity: { lower: 0, upper: '*' } } },
+    { id: id('107'), kind: 'association', source: { classId: id('80'), roleName: 'subordinates', multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('80'), roleName: 'manager', multiplicity: { lower: 0, upper: 1 } } },
+    { id: id('108'), kind: 'association', source: { classId: id('95'), multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('90'), roleName: 'personOrigin', multiplicity: { lower: 1, upper: 1 } } },
+    { id: id('109'), kind: 'association', source: { classId: id('95'), multiplicity: { lower: 0, upper: '*' } }, target: { classId: id('90'), roleName: 'personDestination', multiplicity: { lower: 1, upper: 1 } } },
   ],
 };
 
-export const knownFixtureMetadata: RelationalGenerationMetadata = { identifiers: [{ classId: id('10'), attributeId: id('11') }] };
+export const knownFixtureMetadata: RelationalGenerationMetadata = { identifiers: [{ classId: id('10'), attributeId: id('11') }, { classId: id('70'), attributeId: id('71') }, { classId: id('95'), attributeId: id('96') }] };

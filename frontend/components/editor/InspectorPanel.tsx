@@ -131,28 +131,36 @@ export function InspectorPanel({ onEditingChange }: { onEditingChange?: (element
   );
 }
 
-function RelationshipEditor({ relationship, updateRelationship, disabled }: { relationship: { id: string; kind: string; name?: string; source: { multiplicity?: Multiplicity }; target: { multiplicity?: Multiplicity } }; updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null }) => unknown; disabled: boolean }) {
+function RelationshipEditor({ relationship, updateRelationship, disabled }: { relationship: { id: string; kind: string; name?: string; source: { multiplicity?: Multiplicity; roleName?: string }; target: { multiplicity?: Multiplicity; roleName?: string } }; updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null; sourceRoleName?: string | null; targetRoleName?: string | null }) => unknown; disabled: boolean }) {
   const [name, setName] = useState(relationship.name ?? '');
   const [sourceMultiplicity, setSourceMultiplicity] = useState(multiplicityPreset(relationship.source.multiplicity));
   const [targetMultiplicity, setTargetMultiplicity] = useState(multiplicityPreset(relationship.target.multiplicity));
+  const [sourceRoleName, setSourceRoleName] = useState(relationship.source.roleName ?? '');
+  const [targetRoleName, setTargetRoleName] = useState(relationship.target.roleName ?? '');
 
   useEffect(() => {
     setName(relationship.name ?? '');
     setSourceMultiplicity(multiplicityPreset(relationship.source.multiplicity));
     setTargetMultiplicity(multiplicityPreset(relationship.target.multiplicity));
-  }, [relationship.id, relationship.name, relationship.source.multiplicity, relationship.target.multiplicity]);
+    setSourceRoleName(relationship.source.roleName ?? '');
+    setTargetRoleName(relationship.target.roleName ?? '');
+  }, [relationship.id, relationship.name, relationship.source.multiplicity, relationship.target.multiplicity, relationship.source.roleName, relationship.target.roleName]);
 
   return <Stack spacing={1}>
     <TextField label="Nombre de relación" size="small" fullWidth disabled={disabled} value={name} onChange={(event) => setName(event.target.value)} helperText="Deje vacío para quitarlo." />
     {relationship.kind !== 'generalization' && <>
       <MultiplicitySelect label="Multiplicidad origen" value={sourceMultiplicity} onChange={setSourceMultiplicity} disabled={disabled} />
       <MultiplicitySelect label="Multiplicidad destino" value={targetMultiplicity} onChange={setTargetMultiplicity} disabled={disabled} />
+      <TextField label="Rol de origen" size="small" fullWidth disabled={disabled} value={sourceRoleName} onChange={(event) => setSourceRoleName(event.target.value)} helperText="Deje vacío para quitarlo." />
+      <TextField label="Rol de destino" size="small" fullWidth disabled={disabled} value={targetRoleName} onChange={(event) => setTargetRoleName(event.target.value)} helperText="Deje vacío para quitarlo." />
     </>}
     <Button variant="outlined" disabled={disabled} onClick={() => updateRelationship(relationship.id, {
       name: name.trim() === '' ? null : name.trim(),
       ...(relationship.kind === 'generalization' ? {} : {
         sourceMultiplicity: parseMultiplicityPreset(sourceMultiplicity),
         targetMultiplicity: parseMultiplicityPreset(targetMultiplicity),
+        sourceRoleName: sourceRoleName.trim() === '' ? null : sourceRoleName.trim(),
+        targetRoleName: targetRoleName.trim() === '' ? null : targetRoleName.trim(),
       }),
     })}>Guardar cambios</Button>
   </Stack>;

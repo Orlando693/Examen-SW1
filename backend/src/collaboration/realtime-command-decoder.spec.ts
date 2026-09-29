@@ -28,4 +28,8 @@ describe('decodeRealtimeCommandEnvelope', () => {
     expect(decodeRealtimeCommandEnvelope(envelope({ type: 'CreateAssociation', sourceClassId: id, targetClassId: id2, sourceMultiplicity: { lower: Number.NaN, upper: 1 } })).ok).toBe(false);
     expect(decodeRealtimeCommandEnvelope(envelope({ type: 'MoveNode', elementId: id, position: { x: 0, y: 0 }, size: { width: Infinity, height: 1 } })).ok).toBe(false);
   });
+  it('decodes endpoint roles and authoritative materialization ids only', () => {
+    expect(decodeRealtimeCommandEnvelope(envelope({ type: 'CreateAssociation', sourceClassId: id, targetClassId: id2, sourceRoleName: 'origin', targetRoleName: 'destination' })).ok).toBe(true);
+    expect(decodeRealtimeCommandEnvelope(envelope({ type: 'MaterializeManyToManyAssociation', sourceClassId: id, targetClassId: id2, sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' }, associationClassName: 'PersonFriendship' })).ok).toBe(true);
+  });
 });

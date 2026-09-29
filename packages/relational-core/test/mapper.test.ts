@@ -71,17 +71,16 @@ describe('RelationalMapper', () => {
     expect(mapCanonicalUmlModel(model([], [], [{ id: 'bad', name: 'Bad', literals: [{ id: 'literal', name: 'not valid' }] }])).success).toBe(false);
   });
 
-  it('maps 1:N, 1:1, N:M and relation indexes without redundant unique indexes', () => {
-    const customer = clazz('customer', 'Customer'); const order = clazz('order', 'Order'); const profile = clazz('profile', 'Profile'); const tag = clazz('tag', 'Tag');
-    const relational = successful(mapCanonicalUmlModel(model([customer, order, profile, tag], [
-      relation('orders', 'association', 'customer', 1, 'order', '*'), relation('profile', 'association', 'customer', 1, 'profile', 1), relation('tags', 'association', 'order', '*', 'tag', '*'),
+  it('maps 1:N, 1:1 and relation indexes without redundant unique indexes', () => {
+    const customer = clazz('customer', 'Customer'); const order = clazz('order', 'Order'); const profile = clazz('profile', 'Profile');
+    const relational = successful(mapCanonicalUmlModel(model([customer, order, profile], [
+      relation('orders', 'association', 'customer', 1, 'order', '*'), relation('profile', 'association', 'customer', 1, 'profile', 1),
     ])));
     const orderTable = relational.tables.find((table) => table.id === 'table:order')!;
     const customerTable = relational.tables.find((table) => table.id === 'table:customer')!;
     expect(orderTable.foreignKeys).toHaveLength(1); expect(orderTable.indexes).toHaveLength(1);
     expect(customerTable.foreignKeys).toHaveLength(1); expect(customerTable.uniqueConstraints).toHaveLength(1); expect(customerTable.indexes).toHaveLength(0);
-    const join = relational.tables.find((table) => table.kind === 'JOIN')!;
-    expect(join.primaryKey.columnIds).toHaveLength(2); expect(join.foreignKeys).toHaveLength(2); expect(join.indexes).toHaveLength(1);
+    expect(relational.tables).toHaveLength(3);
   });
 
   it('maps aggregation normally and composition with ownership cascade while rejecting ambiguous composition', () => {
@@ -105,17 +104,41 @@ describe('RelationalMapper', () => {
     expect(mapCanonicalUmlModel(model([person, employee], [generalization('a', 'employee', 'person'), generalization('b', 'person', 'employee')])).success).toBe(false);
   });
 
-  it('handles deterministic SQL names, reserved words, caps, collisions, self relations and permutations', () => {
+  it('maps role-aware recursive 1:N and association entities without join tables', () => {
+    const employee = clazz('employee', 'Empleado');
+    const manager = relation('manager', 'association', 'employee', '*', 'employee', 1);
+    manager.source.roleName = 'subordinados'; manager.target.roleName = 'jefe';
+    const self = successful(mapCanonicalUmlModel(model([employee], [manager])));
+    expect(self.tables).toHaveLength(1);
+    expect(self.tables[0].foreignKeys[0]).toMatchObject({ referencedTableId: 'table:employee' });
+    expect(self.tables[0].columns).toContainEqual(expect.objectContaining({ name: 'jefe_id', nullable: true }));
+    expect(self.relations[0]).toMatchObject({ ownerPropertyName: 'jefe', inversePropertyName: 'subordinados' });
+
+    const person = clazz('person', 'Persona'); const friendship = clazz('friendship', 'PersonaAmistad');
+    const origin = relation('origin', 'association', 'friendship', '*', 'person', 1);
+    origin.target.roleName = 'personaOrigen';
+    const destination = relation('destination', 'association', 'friendship', '*', 'person', 1);
+    destination.target.roleName = 'personaDestino';
+    const associationEntity = successful(mapCanonicalUmlModel(model([person, friendship], [origin, destination])));
+    const friendshipTable = associationEntity.tables.find((table) => table.id === 'table:friendship')!;
+    expect(friendshipTable.columns).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'persona_origen_id' }), expect.objectContaining({ name: 'persona_destino_id' })]));
+    expect(friendshipTable.foreignKeys).toHaveLength(2);
+    expect(friendshipTable.foreignKeys.every((foreignKey) => foreignKey.referencedTableId === 'table:person')).toBe(true);
+  });
+
+  it('rejects unmigrated direct many-to-many input', () => {
+    const result = mapCanonicalUmlModel(model([clazz('left', 'Left'), clazz('right', 'Right')], [relation('legacy', 'association', 'left', '*', 'right', '*')]));
+    expect(result).toMatchObject({ success: false, diagnostics: [expect.objectContaining({ code: 'MIGRATION_REQUIRED' })] });
+  });
+
+  it('handles deterministic SQL names, reserved words, caps, collisions and permutations', () => {
     const select = clazz('select', 'Select'); const long = clazz('long', 'A'.repeat(100)); const first = clazz('one', 'CustomerOrder'); const second = clazz('two', 'customer_order');
-    const self = relation('self', 'association', 'one', '*', 'one', '*'); self.source.roleName = 'parents'; self.target.roleName = 'children';
-    const input = model([select, long, first, second], [self]);
+    const input = model([select, long, first, second]);
     const once = successful(mapCanonicalUmlModel(input)); const twice = successful(mapCanonicalUmlModel({ ...input, classes: [...input.classes].reverse(), relationships: [...input.relationships].reverse() }));
     expect(once).toEqual(twice);
     expect(once.tables.map((table) => table.name)).toContain('select_');
     expect(once.tables.every((table) => table.name.length <= 63)).toBe(true);
     expect(once.tables.filter((table) => table.kind === 'ENTITY' && table.name.startsWith('customer_order')).map((table) => table.name)).toHaveLength(2);
-    expect(once.tables.some((table) => table.kind === 'JOIN')).toBe(true);
-    expect(mapCanonicalUmlModel(model([first], [relation('bad-self', 'association', 'one', '*', 'one', '*')])).success).toBe(false);
   });
 
   it('returns deterministic diagnostics for malformed references and repeated input', () => {

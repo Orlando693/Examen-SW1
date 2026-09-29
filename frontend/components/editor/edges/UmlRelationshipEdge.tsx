@@ -12,8 +12,10 @@ const colors = {
 
 export function UmlRelationshipEdge(props: EdgeProps) {
   const data = props.data as UmlRelationshipEdgeData | undefined;
+  const selfLoop = data?.isSelfLoop === true;
   const [sourcePosition, targetPosition] = relationshipSides(props.sourceX, props.sourceY, props.targetX, props.targetY);
-  const [edgePath, labelX, labelY] = getSmoothStepPath({ ...props, sourcePosition, targetPosition, borderRadius: 12, offset: 24 });
+  const [normalPath, normalLabelX, normalLabelY] = getSmoothStepPath({ ...props, sourcePosition, targetPosition, borderRadius: 12, offset: 24 });
+  const [edgePath, labelX, labelY] = selfLoop ? selfLoopPath(props.sourceX, props.sourceY) : [normalPath, normalLabelX, normalLabelY];
   const kind = data?.kind ?? 'association';
   const color = props.selected ? '#22A7B8' : colors[kind];
   const markerId = `uml-relationship-${props.id}-${kind}`;
@@ -37,11 +39,18 @@ export function UmlRelationshipEdge(props: EdgeProps) {
       <BaseEdge path={edgePath} markerStart={markerStart} markerEnd={markerEnd} style={{ stroke: color, strokeWidth: props.selected ? 3 : 2, filter: props.selected ? 'drop-shadow(0 0 3px rgba(34,167,184,0.45))' : undefined }} />
       <EdgeLabelRenderer>
         {data?.label && <div data-testid="uml-relationship-name" style={labelStyle(labelX, labelY)}>{data.label}</div>}
-        {data?.sourceMultiplicity && <div data-testid="uml-relationship-source-multiplicity" style={labelStyle(...endpointLabelPosition(props.sourceX, props.sourceY, props.targetX, props.targetY, 'source'))}>{data.sourceMultiplicity}</div>}
-        {data?.targetMultiplicity && <div data-testid="uml-relationship-target-multiplicity" style={labelStyle(...endpointLabelPosition(props.sourceX, props.sourceY, props.targetX, props.targetY, 'target'))}>{data.targetMultiplicity}</div>}
+        {data?.sourceMultiplicity && <div data-testid="uml-relationship-source-multiplicity" style={labelStyle(...relationshipEndpointLabelPosition(props, 'source', selfLoop, 0))}>{data.sourceMultiplicity}</div>}
+        {data?.targetMultiplicity && <div data-testid="uml-relationship-target-multiplicity" style={labelStyle(...relationshipEndpointLabelPosition(props, 'target', selfLoop, 0))}>{data.targetMultiplicity}</div>}
+        {data?.sourceRoleName && <div data-testid="uml-relationship-source-role" style={labelStyle(...relationshipEndpointLabelPosition(props, 'source', selfLoop, -20))}>{data.sourceRoleName}</div>}
+        {data?.targetRoleName && <div data-testid="uml-relationship-target-role" style={labelStyle(...relationshipEndpointLabelPosition(props, 'target', selfLoop, 20))}>{data.targetRoleName}</div>}
       </EdgeLabelRenderer>
     </>
   );
+}
+
+export function selfLoopPath(sourceX: number, sourceY: number): [string, number, number] {
+  const radius = 72;
+  return [`M ${sourceX} ${sourceY} C ${sourceX + radius} ${sourceY - radius}, ${sourceX + radius} ${sourceY + radius}, ${sourceX} ${sourceY + 36}`, sourceX + radius, sourceY - 10];
 }
 
 export function relationshipSides(sourceX: number, sourceY: number, targetX: number, targetY: number): [Position, Position] {
@@ -85,6 +94,16 @@ function endpointLabelPosition(sourceX: number, sourceY: number, targetX: number
   const y = sourceY + (deltaY / length) * progress + (deltaX / length) * offset * direction;
 
   return [roundCoordinate(x), roundCoordinate(y)];
+}
+
+function relationshipEndpointLabelPosition(props: EdgeProps, endpoint: 'source' | 'target', selfLoop: boolean, offset: number): [number, number] {
+  if (selfLoop) {
+    return endpoint === 'source'
+      ? [props.sourceX + 28, props.sourceY - 28 + offset]
+      : [props.sourceX + 82, props.sourceY + 30 + offset];
+  }
+  const [x, y] = endpointLabelPosition(props.sourceX, props.sourceY, props.targetX, props.targetY, endpoint);
+  return [x, y + offset];
 }
 
 function roundCoordinate(value: number): number {

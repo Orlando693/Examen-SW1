@@ -4,7 +4,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { PrismaClient } from '@prisma/client';
 import { createWriteStream } from 'node:fs';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -19,6 +19,7 @@ import { configureApplication } from '../src/app.config.js';
 import { SPRING_GENERATION_TEMP_ROOT } from '../src/generations/spring-generation.service.js';
 import { SPRING_ZIP_ARCHIVER, YazlSpringZipArchiver, type SpringZipArchiver } from '../src/generations/spring-zip-archiver.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import type { CanonicalUmlModel } from '@examen-sw1/uml-core';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -27,7 +28,7 @@ function assertIsolatedTestDatabase(databaseUrl: string): void {
   if (url.protocol !== 'postgresql:' || url.hostname !== 'localhost' || url.port !== '5432' || url.pathname !== '/examen_sw1_test') throw new Error('TEST_DATABASE_URL must target the isolated local integration database.');
 }
 
-function liveModel(firstName = 'Cliente') {
+function liveModel(firstName = 'Cliente'): CanonicalUmlModel {
   return {
     packages: [],
     classes: [
@@ -36,6 +37,62 @@ function liveModel(firstName = 'Cliente') {
     ],
     enumerations: [],
     relationships: [{ id: 'cliente-pedidos', kind: 'association', source: { classId: 'cliente', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'pedido', multiplicity: { lower: 0, upper: '*' } } }],
+  };
+}
+
+function recursiveOneToManyModel(): CanonicalUmlModel {
+  return {
+    packages: [],
+    classes: [{ id: 'empleado', name: 'Empleado', attributes: [], operations: [] }],
+    enumerations: [],
+    relationships: [{ id: 'empleado-jefe', kind: 'association', source: { classId: 'empleado', roleName: 'subordinados', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'empleado', roleName: 'jefe', multiplicity: { lower: 0, upper: 1 } } }],
+  };
+}
+
+function normalAssociationEntityModel(): CanonicalUmlModel {
+  return {
+    packages: [],
+    classes: [
+      { id: 'alumno', name: 'Alumno', attributes: [], operations: [] },
+      { id: 'materia', name: 'Materia', attributes: [], operations: [] },
+      { id: 'alumno-materia', name: 'AlumnoMateria', attributes: [{ id: 'alumno-materia-id', name: 'id', visibility: 'private', type: { kind: 'primitive', name: 'number' }, generation: { identifier: true } }], operations: [] },
+    ],
+    enumerations: [],
+    relationships: [
+      { id: 'alumno-materia-alumno', kind: 'association', source: { classId: 'alumno-materia', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'alumno', roleName: 'alumno', multiplicity: { lower: 1, upper: 1 } } },
+      { id: 'alumno-materia-materia', kind: 'association', source: { classId: 'alumno-materia', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'materia', roleName: 'materia', multiplicity: { lower: 1, upper: 1 } } },
+    ],
+  };
+}
+
+function recursiveAssociationEntityModel(): CanonicalUmlModel {
+  return {
+    packages: [],
+    classes: [
+      { id: 'persona', name: 'Persona', attributes: [], operations: [] },
+      { id: 'persona-amistad', name: 'PersonaAmistad', attributes: [{ id: 'persona-amistad-id', name: 'id', visibility: 'private', type: { kind: 'primitive', name: 'number' }, generation: { identifier: true } }], operations: [] },
+    ],
+    enumerations: [],
+    relationships: [
+      { id: 'persona-amistad-origen', kind: 'association', source: { classId: 'persona-amistad', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'persona', roleName: 'personaOrigen', multiplicity: { lower: 1, upper: 1 } } },
+      { id: 'persona-amistad-destino', kind: 'association', source: { classId: 'persona-amistad', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'persona', roleName: 'personaDestino', multiplicity: { lower: 1, upper: 1 } } },
+    ],
+  };
+}
+
+function malformedVersionTwoAssociationEntityModel(): CanonicalUmlModel {
+  return {
+    packages: [],
+    classes: [
+      { id: 'stadium', name: 'Estadio', attributes: [{ id: 'stadium-id', name: 'id', visibility: 'private', type: { kind: 'primitive', name: 'number' } }], operations: [] },
+      { id: 'club', name: 'Club', attributes: [{ id: 'club-id', name: 'id', visibility: 'private', type: { kind: 'primitive', name: 'number' } }], operations: [] },
+      { id: 'stadium-club', name: 'EstadioClub', attributes: [{ id: 'stadium-club-id', name: 'id', visibility: 'private', type: { kind: 'primitive', name: 'number' }, generation: { identifier: true } }], operations: [] },
+    ],
+    enumerations: [],
+    relationships: [
+      { id: 'stadium-link', kind: 'association', source: { classId: 'stadium' }, target: { classId: 'stadium-club', multiplicity: { lower: 1, upper: 1 } } },
+      { id: 'club-link', kind: 'association', source: { classId: 'stadium-club', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'club' } },
+    ],
   };
 }
 
@@ -163,13 +220,25 @@ if (!testDatabaseUrl) {
       projectIds.add(response.body.project.id);
       return response.body;
     }
-    async function save(token: string, id: string, baseStorageVersion: number, firstName = 'Cliente') {
-      return request(app.getHttpServer()).put(`/projects/${id}/document`).set(authenticated(token)).send({ baseStorageVersion, document: { revision: 1, model: liveModel(firstName), layout: { nodes: [] } } }).expect(200);
+    async function save(token: string, id: string, baseStorageVersion: number, model: CanonicalUmlModel = liveModel() as CanonicalUmlModel) {
+      return request(app.getHttpServer()).put(`/projects/${id}/document`).set(authenticated(token)).send({ baseStorageVersion, document: { revision: 1, model, layout: { nodes: [] } } }).expect(200);
     }
     function generate(token: string, id: string) {
       return request(app.getHttpServer()).post(`/projects/${id}/generations/spring`).set(authenticated(token)).buffer(true).parse(binaryParser);
     }
     const errorBody = (body: Buffer) => JSON.parse(body.toString()) as { error: { code: string; details: object } };
+
+    async function sourceFromZip(buffer: Buffer, className: string): Promise<string> {
+      const extractionRoot = await mkdtemp(join(tmpdir(), 'examen-sw1-spring-source-'));
+      try {
+        const entry = (await zipEntries(buffer)).find((path) => path.endsWith(`/domain/${className}.java`));
+        expect(entry).toBeDefined();
+        await extractZip(buffer, extractionRoot);
+        return await readFile(join(extractionRoot, ...entry!.split('/')), 'utf8');
+      } finally {
+        await rm(extractionRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+      }
+    }
 
     it('returns CORS headers for Spring generation preflight, ZIP download, and errors', async () => {
       const owner = await user();
@@ -233,13 +302,60 @@ if (!testDatabaseUrl) {
       }
     }, 400_000);
 
+    it('generates persisted recursive and association-entity ZIP sources without retired many-to-many annotations', async () => {
+      const owner = await user();
+
+      const employees = await project(owner.token, 'Empleados');
+      await save(owner.token, employees.project.id, 0, recursiveOneToManyModel());
+      const employee = await sourceFromZip((await generate(owner.token, employees.project.id).expect(200)).body as Buffer, 'Empleado');
+      expect(employee).toContain('@JoinColumn(name = "jefe_id")');
+      expect(employee).toContain('private Empleado jefe;');
+      expect(employee).toContain('Set<Empleado> subordinados');
+
+      const enrollments = await project(owner.token, 'Matriculas');
+      await save(owner.token, enrollments.project.id, 0, normalAssociationEntityModel());
+      const enrollment = await sourceFromZip((await generate(owner.token, enrollments.project.id).expect(200)).body as Buffer, 'AlumnoMateria');
+      expect(enrollment).toContain('@JoinColumn(name = "alumno_id")');
+      expect(enrollment).toContain('@JoinColumn(name = "materia_id")');
+      expect(enrollment).toContain('private Alumno alumno;');
+      expect(enrollment).toContain('private Materia materia;');
+
+      const friendships = await project(owner.token, 'Amistades');
+      await save(owner.token, friendships.project.id, 0, recursiveAssociationEntityModel());
+      const friendship = await sourceFromZip((await generate(owner.token, friendships.project.id).expect(200)).body as Buffer, 'PersonaAmistad');
+      expect(friendship).toContain('@JoinColumn(name = "persona_origen_id")');
+      expect(friendship).toContain('@JoinColumn(name = "persona_destino_id")');
+      expect(friendship).toContain('private Persona personaOrigen;');
+      expect(friendship).toContain('private Persona personaDestino;');
+
+      for (const source of [employee, enrollment, friendship]) {
+        expect(source).not.toContain('@ManyToMany');
+        expect(source).not.toContain('@JoinTable');
+      }
+      await waitForTemporaryCleanup(temporaryParent);
+    }, 30_000);
+
+    it('repairs a persisted version-2 EstadioClub materialization before generation', async () => {
+      const owner = await user();
+      const created = await project(owner.token, 'Estadios');
+      await prisma.project.update({ where: { id: created.project.id }, data: { documentSchemaVersion: 2, model: malformedVersionTwoAssociationEntityModel() as never } });
+
+      const response = await generate(owner.token, created.project.id).expect(200);
+      const association = await sourceFromZip(response.body as Buffer, 'EstadioClub');
+      expect(association).toContain('@JoinColumn(name = "estadio_id")');
+      expect(association).toContain('@JoinColumn(name = "club_id")');
+      expect(association).not.toContain('@ManyToMany');
+      expect(association).not.toContain('@JoinTable');
+      await expect(prisma.project.findUniqueOrThrow({ where: { id: created.project.id }, select: { documentSchemaVersion: true } })).resolves.toMatchObject({ documentSchemaVersion: 3 });
+    }, 30_000);
+
     it('uses the latest saved model rather than a fixture and enforces authentication/access concealment', async () => {
       const owner = await user();
       const unrelated = await user();
       const created = await project(owner.token);
-      await save(owner.token, created.project.id, 0, 'Cliente');
+      await save(owner.token, created.project.id, 0, liveModel('Cliente'));
       const first = await generate(owner.token, created.project.id).expect(200);
-      await save(owner.token, created.project.id, 1, 'Producto');
+      await save(owner.token, created.project.id, 1, liveModel('Producto'));
       const second = await generate(owner.token, created.project.id).expect(200);
       expect((await zipEntries(first.body as Buffer)).some((entry) => /\/Cliente\.java$/.test(entry))).toBe(true);
       expect((await zipEntries(second.body as Buffer)).some((entry) => /\/Producto\.java$/.test(entry))).toBe(true);

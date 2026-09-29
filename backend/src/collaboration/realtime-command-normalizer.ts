@@ -28,6 +28,16 @@ export function normalizeRealtimeCommand(command: UmlCommand, resource: ProjectR
     case 'AddEnumerationLiteral': { const literalId = materialize(command.literalId); return literalId ? finish({ ...command, literalId }) : { ok: false, code: 'INVALID_NORMALIZATION' }; }
     case 'AddAttribute': { const attributeId = materialize(command.attributeId); return attributeId ? finish({ ...command, attributeId, visibility: command.visibility ?? 'private' }) : { ok: false, code: 'INVALID_NORMALIZATION' }; }
     case 'CreateAssociation': { const relationshipId = materialize(command.relationshipId); return relationshipId ? finish({ ...command, relationshipId, kind: command.kind ?? 'association' }) : { ok: false, code: 'INVALID_NORMALIZATION' }; }
+    case 'MaterializeManyToManyAssociation': {
+      const associationClassId = materialize(command.associationClassId);
+      const identifierAttributeId = materialize(command.identifierAttributeId);
+      const sourceRelationshipId = materialize(command.sourceRelationshipId);
+      const targetRelationshipId = materialize(command.targetRelationshipId);
+      const layoutNodeId = materialize(command.layoutNodeId);
+      return associationClassId && identifierAttributeId && sourceRelationshipId && targetRelationshipId && layoutNodeId
+        ? finish({ ...command, associationClassId, identifierAttributeId, sourceRelationshipId, targetRelationshipId, layoutNodeId })
+        : { ok: false, code: 'INVALID_NORMALIZATION' };
+    }
     case 'CreateGeneralization': { const relationshipId = materialize(command.relationshipId); return relationshipId ? finish({ ...command, relationshipId }) : { ok: false, code: 'INVALID_NORMALIZATION' }; }
     case 'MoveNode': {
       if (!elements(resource).has(command.elementId)) return { ok: false, code: 'INVALID_NORMALIZATION' };

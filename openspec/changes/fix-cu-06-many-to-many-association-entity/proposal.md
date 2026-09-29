@@ -1,20 +1,21 @@
 ## Why
 
-CU-06 currently preserves a direct UML many-to-many association and derives a composite-key join table plus direct JPA `@ManyToMany`/`@JoinTable`. That leaves the visible canonical model different from the generated application and prevents a modeler from treating the link as a real, editable domain entity.
+CU-06 currently rejects every self association and represents direct many-to-many relations with hidden relational joins and generated JPA `@ManyToMany`/`@JoinTable`. This leaves recursive domain semantics and association entities absent from the persisted canonical model and from the generated application.
 
-This corrective change makes a many-to-many intent materialize once, atomically, as an explicit association class in the canonical project document, so the editor, persistence, collaboration, relational model, and generated Spring backend share one semantic representation.
+This corrective change establishes explicit, role-aware canonical relations for the definitive examination scope: recursive associations, normal and recursive N:M materialization, relational mapping, Spring ZIP generation, and acceptance evidence.
 
 ## What Changes
 
-- Add an authoritative atomic UML command that replaces a newly created or updated many-to-many association with one normal association class and two supported replacement associations.
-- Detect many-to-many exclusively from the existing endpoint multiplicity representation: both upper bounds represent many (`*`, including canonical ranges ending in `*`).
-- Give the association class a stable authority-assigned UUID, deterministic collision-safe human-readable name, persisted identifier-marked `id: number` attribute that maps to SQL `BIGINT`/Java `Long`, and an initial layout position derived from the endpoint nodes.
-- Preserve a materialized association class when later multiplicity edits would no longer be many-to-many; destructive dematerialization requires a future explicit operation.
-- Project, persist, reload, synchronize, validate, and locally undo/redo the whole transformation as one logical document mutation.
-- Migrate historical persisted direct N:M documents once and durably through the authoritative project boundary before they are edited, synchronized, mapped, or generated; fail closed with an actionable diagnostic when historical relationship metadata cannot be represented safely.
-- Replace relational-core's direct N:M join-table representation and Spring's direct `@ManyToMany`/`@JoinTable` rendering with the ordinary three-entity/two-many-to-one representation. **BREAKING** for consumers of internal `JOIN`/`MANY_TO_MANY` relational contracts and generated source expectations.
-- Extend the persisted-project Spring ZIP integration and generated-project harness to prove association-entity source, Gradle test/build, and the mandatory manual PostgreSQL/Swagger/CRUD smoke gate.
-- Do not modify archived CU-06 changes, the active CU-09 change, or the CU-10 proposal.
+- Permit `ASSOCIATION` relationships whose source and target are the same class; retain the prohibition on self-generalization.
+- Persist an optional `roleName` on each association endpoint, validate distinguishable recursive endpoints where required, and preserve roles through editor, persistence, realtime, relational mapping, and generation.
+- Render a persisted recursive association as a React Flow self-loop without renderer-side semantic mutation.
+- Map recursive 1:N directly to one entity table with a self-referential FK, never a join table.
+- Atomically replace every direct normal N:M association with one visible canonical association entity, its identifier-marked `id: number`, and two ordinary replacement associations; no direct N:M remains in `CanonicalUmlModel`.
+- Require a non-empty `relationshipName` and distinct non-empty endpoint roles for self N:M; materialize `Persona * <-> * Persona` as a named association entity such as `PersonaAmistad` with two distinct references such as `personaOrigen` and `personaDestino`.
+- Migrate supported persisted version-1 direct N:M documents deterministically to document schema version 2. Fail closed with `LEGACY_MANY_TO_MANY_MIGRATION_FAILED` when recursive legacy semantics or roles cannot be determined safely.
+- Remove production direct N:M relational and Spring rendering paths, including `@ManyToMany`, `@JoinTable`, and hidden join-table contracts, after legacy migration coverage exists. **BREAKING** for internal relational and generated-source consumers that expect those retired contracts.
+- Prove the generated Spring ZIP from persisted models with Java 21 Gradle tests/build, isolated PostgreSQL tables and FKs, Swagger, and Postman CRUD acceptance for recursive 1:N, normal N:M, and recursive N:M.
+- Do not modify archived CU-06 artifacts, the active CU-09 change, CU-10, voice, Flutter, XMI, or unrelated workspace files.
 
 ## Capabilities
 
@@ -24,17 +25,17 @@ This corrective change makes a many-to-many intent materialize once, atomically,
 
 ### Modified Capabilities
 
-- `canonical-uml-core`: atomically materialize a semantic association class instead of retaining direct canonical N:M relations.
-- `manual-uml-workspace`: show the resulting class and two relationships from the document projection without renderer-side semantic mutation.
-- `project-persistence-management`: migrate and durably reload historical direct N:M documents exactly once as a versioned materialized document.
-- `realtime-collaboration`: apply the authority-normalized atomic materialization command once through the existing durable command protocol.
-- `uml-relational-mapping`: map the association class as an ordinary entity with a surrogate key and two foreign keys instead of an internal N:M join table.
-- `spring-backend-generation`: generate normal association-entity CRUD and JPA many-to-one/one-to-many relationships, never direct `@ManyToMany`/`@JoinTable` for materialized N:M.
+- `canonical-uml-core`: role-aware recursive associations and atomic normal/self N:M association-entity materialization replace direct canonical N:M relations.
+- `manual-uml-workspace`: recursive relationships render as self-loops and materialized association entities render solely from the canonical document.
+- `project-persistence-management`: versioned, idempotent and fail-closed migration plus round-trip persistence cover role-aware recursive and materialized relation documents.
+- `realtime-collaboration`: authoritative normalization, deduplication, persistence and convergence cover recursive relation commands and materialization.
+- `uml-relational-mapping`: recursive 1:N maps to a self FK and association entities map to ordinary tables with distinct FK columns, replacing direct N:M join mapping.
+- `spring-backend-generation`: generated Spring entities use ordinary JPA FK mappings and CRUD for association entities, never direct N:M annotations.
 
 ## Impact
 
-- `packages/uml-core`: model contracts, versioned document migration, commands, executor, validation, decoder, and history tests.
-- `frontend`: relationship creation/edit intent, document projection, layout placement, and editor tests.
-- `backend`: persisted project decoding/integration and realtime command decoder, normalizer, coordinator, and integration tests.
-- `packages/relational-core` and `packages/spring-generator`: contracts, mapper/generator/templates, fixtures, and generated Gradle harness.
-- Existing project generation endpoint and generated Spring API behavior; no root dependency is expected.
+- `packages/uml-core`: relationship endpoint contract, validation, document migration, commands, executor, history, and tests.
+- `frontend`: relationship adapter/form, self-loop projection, inspector, and editor tests.
+- `backend`: project decode/migration, generation boundary, realtime decoder/normalizer/coordinator, and integration tests.
+- `packages/relational-core` and `packages/spring-generator`: relation contracts, mapper/generator/templates, fixtures, ZIP harness, and generated-project tests.
+- Generated Spring backend, OpenAPI-derived Postman acceptance, and isolated PostgreSQL smoke evidence; no new dependency is expected.

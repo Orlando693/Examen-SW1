@@ -145,7 +145,7 @@ describe('editor store', () => {
     expect(useEditorStore.getState().currentDocument.model.relationships.some((relationship) => relationship.id === 'rel-customer-orders')).toBe(false);
   });
 
-  it('rejects self relationships without executing a UML command', () => {
+  it('allows self associations but rejects other self relationships without executing a UML command', () => {
     resetEditorStoreForTests(createDemoProjectDocument());
     const before = useEditorStore.getState().currentDocument;
 
@@ -157,6 +157,117 @@ describe('editor store', () => {
     expect(useEditorStore.getState().currentDocument).toEqual(before);
     expect(useEditorStore.getState().relationshipDraft).toBeNull();
     expect(useEditorStore.getState().lastCommandError).toMatch(/si misma/);
+
+    act(() => {
+      useEditorStore.getState().createRelationship('association', 'class-customer', 'class-customer', {
+        name: 'reportsTo',
+        sourceRoleName: 'subordinates',
+        targetRoleName: 'manager',
+        sourceMultiplicity: { lower: 0, upper: '*' },
+        targetMultiplicity: { lower: 0, upper: 1 },
+      });
+    });
+
+    expect(useEditorStore.getState().currentDocument.model.relationships).toHaveLength(before.model.relationships.length + 1);
+    expect(useEditorStore.getState().currentDocument.model.relationships.at(-1)).toMatchObject({
+      source: { classId: 'class-customer', roleName: 'subordinates' },
+      target: { classId: 'class-customer', roleName: 'manager' },
+    });
+  });
+
+  it('creates a normal many-to-many association as one materialization with frontend-owned ids', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+
+    act(() => {
+      useEditorStore.getState().createRelationship('association', 'class-customer', 'class-order', {
+        sourceMultiplicity: { lower: 0, upper: '*' },
+        targetMultiplicity: { lower: 0, upper: '*' },
+      });
+    });
+
+    const document = useEditorStore.getState().currentDocument;
+    const associationEntity = document.model.classes.find((umlClass) => umlClass.name === 'CustomerOrder');
+    expect(useEditorStore.getState().undoCount).toBe(1);
+    expect(associationEntity?.attributes).toEqual([expect.objectContaining({ name: 'id', type: { kind: 'primitive', name: 'number' }, generation: { identifier: true } })]);
+    expect(document.model.relationships.some((relationship) => relationship.kind === 'association' && relationship.source.classId === 'class-customer' && relationship.target.classId === 'class-order')).toBe(false);
+    expect(document.model.relationships.filter((relationship) => relationship.source.classId === associationEntity?.id || relationship.target.classId === associationEntity?.id)).toHaveLength(2);
+    expect(document.layout.nodes.filter((node) => node.elementId === associationEntity?.id)).toHaveLength(1);
+
+    act(() => useEditorStore.getState().undo());
+    expect(useEditorStore.getState().currentDocument.model.classes.some((umlClass) => umlClass.name === 'CustomerOrder')).toBe(false);
+    act(() => useEditorStore.getState().redo());
+    expect(useEditorStore.getState().currentDocument.model.classes.find((umlClass) => umlClass.name === 'CustomerOrder')?.id).toBe(associationEntity?.id);
+  });
+
+  it('materializes self many-to-many only through the atomic command and preserves distinct roles', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+    const before = structuredClone(useEditorStore.getState().currentDocument);
+
+    act(() => {
+      const rejected = useEditorStore.getState().createRelationship('association', 'class-customer', 'class-customer', {
+        sourceMultiplicity: { lower: 0, upper: '*' },
+        targetMultiplicity: { lower: 0, upper: '*' },
+      });
+      expect(rejected?.ok).toBe(false);
+    });
+    expect(useEditorStore.getState().currentDocument).toEqual(before);
+
+    act(() => {
+      useEditorStore.getState().createRelationship('association', 'class-customer', 'class-customer', {
+        name: 'Friendship',
+        sourceMultiplicity: { lower: 0, upper: '*' },
+        targetMultiplicity: { lower: 0, upper: '*' },
+        sourceRoleName: 'origin',
+        targetRoleName: 'destination',
+      });
+    });
+
+    const document = useEditorStore.getState().currentDocument;
+    const associationEntity = document.model.classes.find((umlClass) => umlClass.name === 'CustomerFriendship');
+    expect(associationEntity).toBeDefined();
+    expect(document.model.relationships.filter((relationship) => relationship.source.classId === 'class-customer' && relationship.target.classId === 'class-customer')).toHaveLength(0);
+    expect(document.model.relationships.filter((relationship) => relationship.source.classId === associationEntity?.id || relationship.target.classId === associationEntity?.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: expect.objectContaining({ roleName: 'origin' }) }),
+      expect.objectContaining({ target: expect.objectContaining({ roleName: 'destination' }) }),
+    ]));
+  });
+
+  it('materializes a relationship edited to many-to-many instead of leaving a direct relationship', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+
+    act(() => {
+      useEditorStore.getState().updateRelationship('rel-customer-invoice', {
+        name: 'Purchases',
+        sourceMultiplicity: { lower: 0, upper: '*' },
+        targetMultiplicity: { lower: 0, upper: '*' },
+        sourceRoleName: 'customers',
+        targetRoleName: 'orders',
+      });
+    });
+
+    const document = useEditorStore.getState().currentDocument;
+    expect(document.model.relationships.some((relationship) => relationship.id === 'rel-customer-invoice')).toBe(false);
+    expect(document.model.classes.some((umlClass) => umlClass.name === 'CustomerInvoice')).toBe(true);
+  });
+
+  it('materializes an association when a multiplicity edit completes many-to-many', () => {
+    resetEditorStoreForTests(createDemoProjectDocument());
+
+    act(() => {
+      useEditorStore.getState().createRelationship('association', 'class-customer', 'class-invoice', {
+        sourceMultiplicity: { lower: 0, upper: '*' },
+        targetMultiplicity: { lower: 0, upper: 1 },
+      });
+    });
+    const directRelationship = useEditorStore.getState().currentDocument.model.relationships.at(-1)!;
+
+    act(() => {
+      useEditorStore.getState().updateMultiplicity(directRelationship.id, 'target', { lower: 0, upper: '*' });
+    });
+
+    const document = useEditorStore.getState().currentDocument;
+    expect(document.model.relationships.some((relationship) => relationship.id === directRelationship.id)).toBe(false);
+    expect(document.model.classes.some((umlClass) => umlClass.name === 'CustomerInvoice')).toBe(true);
   });
 
   it('updates attribute name and type through UpdateAttribute and keeps undo/redo synchronized', () => {
@@ -369,6 +480,7 @@ describe('editor store', () => {
     ['UpdateEnumerationLiteral', () => useEditorStore.getState().updateEnumerationLiteral('enum-order-status', 'literal-paid', 'PAID')],
     ['RemoveEnumerationLiteral', () => useEditorStore.getState().removeEnumerationLiteral('enum-order-status', 'literal-paid')],
     ['CreateAssociation', () => { useEditorStore.getState().startRelationship('association', 'class-customer'); return useEditorStore.getState().completeRelationship('class-order'); }],
+    ['MaterializeManyToManyAssociation', () => useEditorStore.getState().createRelationship('association', 'class-customer', 'class-order', { sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' } })],
     ['CreateGeneralization', () => useEditorStore.getState().createRelationship('generalization', 'class-customer', 'class-order')],
     ['DeleteRelationship', () => useEditorStore.getState().deleteRelationship('rel-customer-orders')],
     ['UpdateMultiplicity', () => useEditorStore.getState().updateMultiplicity('rel-customer-orders', 'target', { lower: 1, upper: 1 })],

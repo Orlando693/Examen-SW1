@@ -33,6 +33,8 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
   const [relationshipName, setRelationshipName] = useState('');
   const [sourceMultiplicity, setSourceMultiplicity] = useState('');
   const [targetMultiplicity, setTargetMultiplicity] = useState('');
+  const [sourceRoleName, setSourceRoleName] = useState('');
+  const [targetRoleName, setTargetRoleName] = useState('');
   const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
 
   const choose = useCallback((tool: EditorTool) => {
@@ -52,6 +54,8 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
     setRelationshipName('');
     setSourceMultiplicity('');
     setTargetMultiplicity('');
+    setSourceRoleName('');
+    setTargetRoleName('');
     setIsRelationDialogOpen(true);
   };
 
@@ -61,6 +65,8 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
       ...(relationshipName.trim() === '' ? {} : { name: relationshipName.trim() }),
       ...(relationKind === 'generalization' || sourceMultiplicity === '' ? {} : { sourceMultiplicity: parseMultiplicityPreset(sourceMultiplicity) }),
       ...(relationKind === 'generalization' || targetMultiplicity === '' ? {} : { targetMultiplicity: parseMultiplicityPreset(targetMultiplicity) }),
+      ...(relationKind === 'generalization' || sourceRoleName.trim() === '' ? {} : { sourceRoleName: sourceRoleName.trim() }),
+      ...(relationKind === 'generalization' || targetRoleName.trim() === '' ? {} : { targetRoleName: targetRoleName.trim() }),
     })?.ok) {
       setIsRelationDialogOpen(false);
     }
@@ -122,12 +128,14 @@ export function EditorToolbox({ compact }: { compact: boolean }) {
                 {relationKind !== 'generalization' && <>
                   <MultiplicitySelect label="Multiplicidad origen" value={sourceMultiplicity} onChange={setSourceMultiplicity} />
                   <MultiplicitySelect label="Multiplicidad destino" value={targetMultiplicity} onChange={setTargetMultiplicity} />
+                  <TextField label="Rol de origen" value={sourceRoleName} onChange={(event) => setSourceRoleName(event.target.value)} helperText="Opcional, obligatorio y distinto para N:M recursiva." fullWidth />
+                  <TextField label="Rol de destino" value={targetRoleName} onChange={(event) => setTargetRoleName(event.target.value)} helperText="Opcional, obligatorio y distinto para N:M recursiva." fullWidth />
                 </>}
               </Stack>
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setIsRelationDialogOpen(false)}>Cancelar</Button>
-              <Button variant="contained" onClick={confirmRelation} disabled={mutationsBlocked || !sourceClassId || !targetClassId || sourceClassId === targetClassId}>Crear</Button>
+              <Button variant="contained" onClick={confirmRelation} disabled={mutationsBlocked || !sourceClassId || !targetClassId || (sourceClassId === targetClassId && relationKind !== 'association')}>Crear</Button>
             </DialogActions>
           </Dialog>
         </Box>

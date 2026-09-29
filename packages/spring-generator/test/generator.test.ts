@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RelationalModel } from '@examen-sw1/relational-core';
+import type { CanonicalUmlModel } from '@examen-sw1/uml-core';
 import { generateSpringProject, verifyGeneratedProject, writeGeneratedFiles } from '../src/index.js';
 import { knownCanonicalFixture, knownFixtureMetadata } from './known-canonical-fixture.js';
 import { mapCanonicalUmlModel } from '@examen-sw1/relational-core';
@@ -70,9 +71,40 @@ describe('generateSpringProject', () => {
     expect(mapped.success).toBe(true);
     if (!mapped.success) return;
     expect(mapped.model.enums).toHaveLength(1);
-    expect(mapped.model.tables.some((table) => table.kind === 'JOIN')).toBe(true);
-    expect(mapped.model.relations.map((relation) => relation.kind)).toEqual(expect.arrayContaining(['INHERITANCE', 'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_MANY', 'AGGREGATION', 'COMPOSITION']));
+    expect(mapped.model.tables.every((table) => table.kind === 'ENTITY')).toBe(true);
+    expect(mapped.model.relations.map((relation) => relation.kind)).toEqual(expect.arrayContaining(['INHERITANCE', 'ONE_TO_ONE', 'ONE_TO_MANY', 'AGGREGATION', 'COMPOSITION']));
     expect(mapped.model.tables.find((table) => table.name === 'customer')?.primaryKey.columnIds).toHaveLength(1);
+  });
+
+  it('renders role-aware self FKs and recursive association entity fields', async () => {
+    const modelWithRoles: CanonicalUmlModel = {
+      packages: [], enumerations: [],
+      classes: [
+        { id: 'employee', name: 'Empleado', attributes: [], operations: [] },
+        { id: 'person', name: 'Persona', attributes: [], operations: [] },
+        { id: 'friendship', name: 'PersonaAmistad', attributes: [], operations: [] },
+      ],
+      relationships: [
+        { id: 'manager', kind: 'association', source: { classId: 'employee', roleName: 'subordinados', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'employee', roleName: 'jefe', multiplicity: { lower: 0, upper: 1 } } },
+        { id: 'origin', kind: 'association', source: { classId: 'friendship', multiplicity: { lower: 1, upper: '*' } }, target: { classId: 'person', roleName: 'personaOrigen', multiplicity: { lower: 1, upper: 1 } } },
+        { id: 'destination', kind: 'association', source: { classId: 'friendship', multiplicity: { lower: 1, upper: '*' } }, target: { classId: 'person', roleName: 'personaDestino', multiplicity: { lower: 1, upper: 1 } } },
+      ],
+    };
+    const mapped = mapCanonicalUmlModel(modelWithRoles);
+    expect(mapped.success).toBe(true);
+    if (!mapped.success) return;
+    const output = await generateSpringProject(mapped.model);
+    expect(output.diagnostics).toEqual([]);
+    const employee = typeof output.files.find((item) => item.path.endsWith('/Empleado.java'))?.content === 'string' ? output.files.find((item) => item.path.endsWith('/Empleado.java'))!.content : '';
+    const friendship = typeof output.files.find((item) => item.path.endsWith('/PersonaAmistad.java'))?.content === 'string' ? output.files.find((item) => item.path.endsWith('/PersonaAmistad.java'))!.content : '';
+    expect(employee).toContain('@JoinColumn(name = "jefe_id")');
+    expect(employee).toContain('private Empleado jefe;');
+    expect(employee).toContain('@OneToMany(mappedBy = "jefe", fetch = FetchType.LAZY)');
+    expect(employee).toContain('Set<Empleado> subordinados');
+    expect(friendship).toContain('@JoinColumn(name = "persona_origen_id")');
+    expect(friendship).toContain('@JoinColumn(name = "persona_destino_id")');
+    expect(friendship).toContain('private Persona personaOrigen;');
+    expect(friendship).toContain('private Persona personaDestino;');
   });
 
   it('generates the known fixture twice and builds it with its isolated Gradle Wrapper harness', async () => {
@@ -110,15 +142,13 @@ describe('generateSpringProject', () => {
     const customer = file(first, 'src/main/java/com/generated/app/domain/Customer.java');
     const profile = file(first, 'src/main/java/com/generated/app/domain/Profile.java');
     const line = file(first, 'src/main/java/com/generated/app/domain/OrderLine.java');
-    expect(product).toContain('@ManyToMany(fetch = FetchType.LAZY)');
-    expect(product).toContain('@JoinTable(name = "product_purchase_order_ordered_products"');
-    expect(product).toContain('Set<PurchaseOrder> purchaseOrders = new LinkedHashSet<>()');
-    expect(order).toContain('@ManyToMany(mappedBy = "purchaseOrders", fetch = FetchType.LAZY)');
-    expect(order).toContain('Set<Product> products = new LinkedHashSet<>()');
-    expect(file(first, 'src/main/java/com/generated/app/application/PurchaseOrderService.java')).toContain('new RelationshipResponse("products", entity.getProducts().stream()');
-    expect(file(first, 'src/main/java/com/generated/app/application/ProductService.java')).toContain('new RelationshipResponse("purchaseOrders", entity.getPurchaseOrders().stream()');
-    expect(file(first, 'src/main/java/com/generated/app/api/PurchaseOrderController.java')).toContain('RelationshipResponse relationship');
-    expect(file(first, 'src/main/java/com/generated/app/api/ProductController.java')).toContain('RelationshipResponse relationship');
+    const purchaseOrderProduct = file(first, 'src/main/java/com/generated/app/domain/PurchaseOrderProduct.java');
+    expect(purchaseOrderProduct).toContain('@ManyToOne(fetch = FetchType.LAZY)');
+    expect(purchaseOrderProduct).toContain('@JoinColumn(name = "purchase_order_id")');
+    expect(purchaseOrderProduct).toContain('@JoinColumn(name = "product_id")');
+    expect(product).not.toContain('@ManyToMany');
+    expect(order).not.toContain('@JoinTable');
+    expect(file(first, 'src/main/java/com/generated/app/api/PurchaseOrderProductController.java')).toContain('RelationshipResponse relationship');
     expect(file(first, 'src/main/java/com/generated/app/api/dto/RelationshipResponse.java')).toContain('List<Object> ids');
     expect(file(first, 'src/main/java/com/generated/app/persistence/PurchaseOrderRepository.java')).toContain('JpaRepository<PurchaseOrder, Long>');
     expect(file(first, 'src/main/java/com/generated/app/persistence/ProductRepository.java')).toContain('JpaRepository<Product, Long>');
@@ -140,5 +170,6 @@ describe('generateSpringProject', () => {
     expect(aggregationOwner?.[0]).not.toContain('CascadeType.ALL');
     expect(aggregationOwner?.[0]).not.toContain('orphanRemoval');
     expect(aggregationOwner?.[0]).not.toContain('@OnDelete');
+    expect(first.files.every((item) => typeof item.content !== 'string' || !/@ManyToMany|@JoinTable/.test(item.content))).toBe(true);
   });
 });

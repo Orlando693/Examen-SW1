@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { EdgeProps } from '@xyflow/react';
-import { relationshipSides, UmlRelationshipEdge } from './UmlRelationshipEdge';
+import { relationshipSides, selfLoopPath, UmlRelationshipEdge } from './UmlRelationshipEdge';
 
 vi.mock('@xyflow/react', async () => {
   const React = await import('react');
@@ -63,5 +63,15 @@ describe('UmlRelationshipEdge', () => {
     expect(relationshipSides(100, 10, 10, 30)).toEqual(['left', 'right']);
     expect(relationshipSides(10, 10, 30, 100)).toEqual(['bottom', 'top']);
     expect(relationshipSides(10, 100, 30, 10)).toEqual(['top', 'bottom']);
+  });
+
+  it('renders a non-degenerate self-loop and distinct endpoint role labels', () => {
+    render(<svg><UmlRelationshipEdge {...({ id: 'self', source: 'person', target: 'person', sourceX: 50, sourceY: 60, targetX: 50, targetY: 60, data: { relationshipId: 'self', kind: 'association', isSelfLoop: true, sourceMultiplicity: '0..*', targetMultiplicity: '0..1', sourceRoleName: 'subordinates', targetRoleName: 'manager' } } as unknown as EdgeProps)} /></svg>);
+
+    expect(selfLoopPath(50, 60)[0]).not.toBe('M 50,60 L 50,60');
+    expect(screen.getByTestId('uml-relationship-source-role')).toHaveTextContent('subordinates');
+    expect(screen.getByTestId('uml-relationship-target-role')).toHaveTextContent('manager');
+    expect(screen.getByTestId('uml-relationship-source-multiplicity')).toHaveStyle({ transform: 'translate(-50%, -50%) translate(78px,32px)' });
+    expect(screen.getByTestId('uml-relationship-target-multiplicity')).toHaveStyle({ transform: 'translate(-50%, -50%) translate(132px,90px)' });
   });
 });

@@ -1,88 +1,81 @@
 ## Context
 
-See proposal.md for motivation. The present canonical model represents N:M as one ordinary association whose endpoint multiplicities each have `upper: '*'`. The relational mapper converts it to a `JOIN` table with two-FK composite key and a `MANY_TO_MANY` relation; Spring then renders `@ManyToMany` and `@JoinTable`. This is the only current N:M route, but it makes the generated semantic entity invisible in `ProjectDocument`.
+See proposal.md for motivation. The canonical model currently prohibits equal association endpoints, has no endpoint role contract, and uses direct N:M associations. The relational mapper turns direct N:M into a hidden `JOIN`/`MANY_TO_MANY` representation and Spring emits `@ManyToMany`/`@JoinTable`.
 
-`ProjectDocument.model` and `ProjectDocument.layout` are persisted JSON inside `ProjectResource`. The resource already has `documentSchemaVersion`, but its current decoder supports only version `1` and has no migration registry. Local mutations use `UmlCommandBus` and snapshot history. Realtime decodes, authority-normalizes, deduplicates, executes through that bus, validates, CAS-persists, then broadcasts one normalized command. React Flow is a projection. The active CU-09 and CU-10 working-tree changes are outside this change.
+`ProjectDocument.model` and `ProjectDocument.layout` are persisted in `ProjectResource`; document schema version 1 is the historical format. Local mutations use `UmlCommandBus` and snapshot history. Realtime decodes, normalizes, deduplicates, executes through the same bus, validates, CAS-persists, then broadcasts an authoritative result. React Flow remains a projection only.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Establish one canonical N:M strategy: materialized normal class plus two normal relationships in `CanonicalUmlModel`.
-- Make the transformation deterministic, atomic, persistible, undoable locally, and reproducible from the realtime authority result.
-- Remove direct join-table and direct JPA N:M rendering so `RelationalModel` and generated Spring source consume only the materialized form.
+- Make role-aware recursive associations canonical, persisted, command-driven, replay-safe, and visible as self-loops.
+- Establish association entities as the only representation of normal and recursive N:M after migration.
+- Preserve the ordinary direct representation for recursive 1:N and generate unambiguous self FKs.
+- Ensure the generated ZIP exactly reflects the persisted version-2 canonical document and provides usable CRUD acceptance paths.
 
 **Non-Goals:**
 
-- General UML association-class language features, composite keys, XMI, Flutter, assistant, voice, or UI redesign.
-- Self many-to-many relations. The editor currently rejects same-class associations and commands do not carry the role data needed to model them safely.
-- Automatic destructive reversal after materialization or generated cascading deletes beyond current conventions.
+- General UML association-class language features, composite keys, automatic destructive dematerialization, voice, CU-09, Flutter, CU-10/XMI, or a workspace redesign.
+- Relaxing self-generalization or allowing self N:M without a relationship name and distinguishable roles.
+- Retaining parallel direct-N:M/join-table generation after migration support is in place.
 
 ## Decisions
 
-### 1. One explicit canonical transformation
+### 1. Endpoint roles and recursive validity
 
-Add one typed `MaterializeManyToManyAssociation` command, used by the editor adapter when creating an N:M association and when updating an existing direct association into N:M. Its executor validates distinct endpoint classes and both canonical upper bounds as many, then in one immutable document result:
+Extend each relationship endpoint with persisted optional `roleName`. The value is trimmed, validated as a usable generated property identifier when generation consumes it, and survives all document transports. Existing non-recursive relationships remain valid without roles.
 
-1. removes the existing direct relationship when one exists;
-2. creates a normal UML class;
-3. creates its explicit `id: number` attribute with persisted `generation.identifier: true`; this is a minimal extension to the current attribute generation metadata and maps to `BIGINT`/Java `Long` rather than a composite key;
-4. creates two replacement associations, each expressing association-class many-to-one to an original class under the existing endpoint orientation; and
-5. creates a `DiagramLayout` entry at the endpoint midpoint plus a fixed deterministic offset.
+An `ASSOCIATION` may use the same source and target class ID. `GENERALIZATION` continues to reject equal endpoints. A recursive 1:N association requires distinguishable endpoint roles when both generated navigations would otherwise collide; the example is `Empleado` with `jefe` at the `0..1` endpoint and `subordinados` at the `0..*` endpoint. The canonical validator is the single authority for these rules. Allowing a renderer-only loop is rejected because it would not persist or generate. Allowing self-generalization is rejected because it is semantically cyclic and remains invalid UML for this product.
 
-The class is ordinary `CanonicalUmlClass`; no second model type or generator-only entity is introduced. The command includes all resulting stable IDs and resolved name after authority normalization. A create/update request that is not N:M continues to use the existing relation commands. The executor does not leave a direct N:M relation, partial class, or one replacement edge. `number` remains the exact canonical primitive because that is the current primitive union; as an ordinary scalar it maps to `NUMERIC`/`BigDecimal`, while the new persisted identifier flag deliberately selects the existing identifier convention of `BIGINT`/`Long`.
+### 2. Self-loop projection
 
-An alternative that only derives a generated association entity from the direct N:M relation is rejected because the editor and persisted semantic model would remain inconsistent with generated behavior. A compound client sequence of existing create commands is rejected because it is not atomic under history or realtime.
+The frontend adapter submits the normal relationship command with equal class IDs only for `ASSOCIATION`. The React Flow projection detects an accepted canonical self association and renders a deterministic non-degenerate self-loop with both multiplicities and endpoint roles. It never synthesizes, modifies, or deletes the canonical relation. Selection, inspector editing, deletion, reload, local undo/redo, and realtime ingestion operate on the same relationship ID.
 
-### 2. Existing multiplicity format and naming policy
+### 3. Atomic association-entity materialization
 
-Many means the real existing `upper` representation is `'*'`; canonical range values such as `0..*` and `1..*` already normalize to this upper bound. No new multiplicity syntax is introduced.
+Many means both endpoint multiplicity upper bounds are `*`. Creating a normal N:M or editing a direct normal association into N:M issues one atomic materialization command. The authority resolves every UUID, deterministic collision-safe class name, identifier attribute, replacement relation, and layout ID before execution. The executor removes the direct relation and creates one ordinary canonical class, identifier-marked `id: number`, two ordinary associations, and deterministic layout in one document snapshot.
 
-The preferred class name is source class name plus target class name in user-entered association orientation, for example `AlumnoMateria`. For a second relationship between the same classes, a non-empty relationship name is appended in PascalCase before collision resolution, for example `UsuarioRolRoles` and `UsuarioRolFavoritos`. If the candidate conflicts with an existing class, append the smallest positive decimal suffix (`AlumnoMateria2`, then `AlumnoMateria3`) that is unused. The executor calculates the name once from the authoritative base document; the normalized command carries it and the server-selected UUIDs, making redo/replay exact and preventing render/reload duplicates.
+Normal N:M names use source plus target class names in entered orientation, for example `AlumnoMateria`, appending a PascalCase relationship name when needed to distinguish repeated pairs and then a numeric collision suffix. The materialized class is normal editable `CanonicalUmlClass`, not a generator-only type. A compound sequence is rejected because it could leave partial state under undo or realtime.
 
-### 3. Lifecycle, deletion, and changing multiplicities
+### 4. Recursive N:M naming and role rules
 
-Materialization is irreversible without a future explicit destructive command. Editing a replacement relationship to no longer have the intended cardinality does not delete the association class, its identifier, attributes, or remaining relationships. That preserves user additions safely; relational validation can reject an unsupported resulting shape rather than guessing.
+A self N:M MUST provide a non-empty `relationshipName` and two distinct non-empty endpoint roles. The association entity name is the endpoint class name followed by the PascalCase relationship name, for example `PersonaAmistad`. The roles supply the two distinct association properties and FK bases: `personaOrigen` and `personaDestino` generate `persona_origen_id` and `persona_destino_id`.
 
-The normal `DeleteRelationship` operation removes only the selected replacement relationship. It does not recreate the direct N:M relation or delete the class. Normal `DeleteClass` removes all relationships referencing that class and its layout entry; deleting the association class therefore removes both replacement edges, while deleting either endpoint removes its edges and prevents dangling references. Existing model validation remains the single reference-invariant authority.
+The materialization command rejects missing, equal, invalid, or colliding self-N:M roles before mutation. It creates exactly two associations to the same `Persona` class, each retaining its role. This prevents duplicate Java properties and ambiguous same-table FKs. Automatically inventing roles is rejected because endpoint meaning cannot be inferred safely.
 
-### 4. History, persistence, and realtime
+### 5. Lifecycle, history, persistence, and realtime
 
-The command bus returns one document snapshot, so local `UmlHistory` records one entry: one undo restores the prior direct relationship or pre-update model, and one redo restores exactly the same class IDs, names, layout and edges. Realtime continues to disable snapshot undo.
+One local materialization produces one history snapshot: undo restores the direct relation or pre-edit state and redo restores the exact resolved IDs, name, roles, layout, and edges. Deleting a direct recursive association or a replacement association uses normal `DeleteRelationship`; deleting an association entity removes its edges through normal class deletion. No operation silently recreates a direct N:M or dematerializes an entity.
 
-The realtime normalizer selects every missing resulting class/attribute/relationship/layout ID before execution and incorporates the strict command in its current canonical digest. Existing session queue, `(projectId, sessionId, commandId)`/digest dedupe, CAS commit point, and normalized result broadcast make retry idempotent. No React effect, persistence reload, or client sync can invoke materialization. A concurrent second user works from stale bases and must resynchronize; it cannot add a second entity for the accepted operation.
+The realtime normalizer includes role fields and all authority-selected materialization values in its canonical digest. Existing command identity/digest dedupe, CAS commit point, normalized broadcast, and authoritative ingestion guarantee retry idempotence. Migration happens before join/generation processing; the renderer and clients never migrate or materialize from effects.
 
-### 5. Historical document migration
+### 6. Version-1 to version-2 migration
 
-Introduce a minimal versioned migration registry at the persistence decode boundary and advance migrated resources from `documentSchemaVersion: 1` to `2`. The authoritative project service invokes it before semantic validation, command handling, realtime join, relational mapping, or Spring generation. It converts every historical direct N:M association once, validates the complete candidate, and durably CAS-persists the version-2 `ProjectResource` before returning or broadcasting it. React, the canvas, and ordinary reload do not perform the transformation.
+Introduce an authoritative migration registry from document schema version 1 to 2. Version 2 forbids direct N:M. A normal legacy direct N:M migrates deterministically from relationship ID, endpoint IDs/order, multiplicities, valid roles and relationship name into one association entity, identifier attribute, two relations, and layout IDs. Version-2 reprocessing is a semantic no-op.
 
-For each legacy direct association, migration derives the association class, identifier attribute, two replacement relationship IDs, and layout-node ID deterministically from the historical relationship UUID plus fixed purpose suffixes. It uses the historical endpoint order, endpoint class IDs, multiplicity lower/upper information, valid role names, and a non-empty relationship name in the deterministic association-class naming candidate. It preserves association kind only for a plain UML association. Historical N:M aggregation or composition, malformed references/multiplicities, unsupported metadata, or any value that cannot be represented by the new ordinary class/two-association form fails closed with an actionable `LEGACY_MANY_TO_MANY_MIGRATION_FAILED` diagnostic; it is neither discarded nor generated through the legacy path.
+A self legacy N:M migrates only when its metadata contains a non-empty relationship name and two distinct valid roles that determine two references. If this information, plain association semantics, valid endpoints, multiplicities, or layout derivation is unavailable, migration returns `LEGACY_MANY_TO_MANY_MIGRATION_FAILED`, leaves the version-1 resource unchanged, and prevents edit, realtime join, mapping, and generation through the retired path. Migration runs inside the existing per-project authoritative coordinator and CAS-persists version 2 before continuing.
 
-Version `2` has no direct N:M associations. Re-running the registry on version `2`, saving/reloading it, or receiving it by realtime is a semantic no-op, so it cannot create another association class. Existing valid version-1 documents without direct N:M only receive the version transition with equivalent canonical semantics. This uses the existing resource version rather than introducing an independent model-version field.
+### 7. Relational and Spring mapping
 
-### 6. Relational and Spring simplification
+A role-aware recursive 1:N maps to only `empleado` with nullable `jefe_id BIGINT REFERENCES empleado(id)`. Spring renders a valid self `@ManyToOne` with `@JoinColumn(name = "jefe_id")` and, where supported by existing navigation conventions, the inverse collection using the distinct `subordinados` role. No join table is used.
 
-`relational-core` maps the resulting three normal classes and two relationships. `AlumnoMateria` is an `ENTITY` table with `id BIGINT` and two non-null foreign keys, using existing SQL names and constraints. Remove `JOIN` tables and `MANY_TO_MANY` relation kind/path for this former direct case rather than supporting both representations.
+Materialized normal N:M maps `Alumno`, `Materia`, and `AlumnoMateria` as three ordinary entity tables. Materialized self N:M maps `Persona` and `PersonaAmistad`; the latter has a surrogate `id BIGINT` and two named FKs to `persona`. Spring generates ordinary entities and CRUD layers. `PersonaAmistad` has two `@ManyToOne` fields and two distinct `@JoinColumn` names. Remove `JOIN`, `MANY_TO_MANY`, `@ManyToMany`, `@JoinTable`, and their production template contexts after migration tests preserve historical coverage.
 
-Spring consumes only ordinary entity tables and FK relationships: the link entity has generated-id JPA persistence and two `@ManyToOne` fields; endpoint collections use current normal relationship conventions where applicable. It produces the same repository/service/controller/DTO layers and CRUD routes as other generated entities. Remove `ManyToMany` context generation, `@JoinTable` template output, direct-N:M fixture assertions, and the direct join-table mapper branch. This is a deliberate internal contract break, contained in the workspace packages.
+### 8. Generated ZIP acceptance
 
-### 7. Explicit unsupported cases
-
-Self N:M is rejected clearly before materialization because distinct endpoint role names are not available through the editor/realtime command contract. Multiple N:M associations between the same distinct classes are supported through relationship-name-aware candidates and deterministic numeric collision suffixes. Missing/invalid endpoint references and any attempted dangling result are rejected before mutation.
+The generation endpoint consumes the persisted, migrated canonical document only. Automated harnesses extract the ZIP outside the repository and run Java 21 `gradlew.bat --no-daemon test` and `build`. The manual gate uses an isolated PostgreSQL database, starts the generated application, verifies Swagger/OpenAPI and the Postman collection, and executes create/read/update-if-supported/delete for: self 1:N (`Empleado` jefe/subordinado), normal N:M (`Alumno`, `Materia`, `AlumnoMateria`), and self N:M (`Persona`, `PersonaAmistad`). Database inspection verifies one self-FK table and two distinct same-table FKs.
 
 ## Risks / Trade-offs
 
-- [Historical migration write races a command or join] -> Run version migration inside the existing authoritative per-project coordinator and persist version `2` before normal command/session processing.
-- [Legacy metadata cannot be represented] -> Fail closed with a relationship-referenced migration diagnostic; retain the stored version-1 resource unchanged for repair rather than silently dropping semantics.
-- [Normal class identifier appears as canonical `number`] -> Add only persisted `generation.identifier`; reuse the existing identifier mapping to Java `Long`/SQL `BIGINT` and do not expand canonical primitive types.
-- [Relationship orientation may be misunderstood] -> Assert resulting FK ownership and generated Java annotations with domain, mapper, source, and real Gradle tests.
-- [Association class placement overlaps nodes] -> Use deterministic midpoint offset only; layout remains secondary and model correctness does not depend on it.
-- [Generated PostgreSQL smoke could affect CASE data] -> Require the separate `generated_many_to_many_smoke` database and prohibit reset/use of `examen_sw1`.
+- [Role names generate invalid or duplicate properties] -> Validate roles centrally before commands, mapping, or generation and fail closed.
+- [Legacy self N:M lacks semantic metadata] -> Emit `LEGACY_MANY_TO_MANY_MIGRATION_FAILED`, preserve version 1, and prohibit fallback generation.
+- [Migration races joins or commands] -> Serialize it in the existing project coordinator and CAS-persist before session creation or command handling.
+- [Self-loop geometry obscures the node] -> Use deterministic projection geometry only; layout and semantics remain independent.
+- [Generated PostgreSQL smoke affects CASE data] -> Require an isolated database and prohibit use of `examen_sw1`.
 
 ## Migration Plan
 
-1. Add and test the authoritative `v1 -> v2` migration registry and CAS persistence, retaining direct-N:M fixtures only as migration regressions.
-2. Implement and test the atomic core command plus frontend, persistence, and realtime boundary support for new models.
-3. Make relational-core consume only version-2 association entities, then remove the direct N:M runtime mapper path and direct JPA generator path.
-4. Change generated fixtures/harnesses to materialized canonical input and run automated checks plus the mandatory browser-to-ZIP, isolated PostgreSQL, Swagger, and CRUD manual gate.
-5. Rollback before release by reverting this change as a whole. A failed migration leaves the version-1 resource unchanged; no fallback direct N:M generation is permitted.
+1. Add endpoint roles, recursive validation, and authoritative v1-to-v2 migration with fail-closed regressions.
+2. Implement atomic normal/self N:M materialization and adapt editor, persistence, history, and realtime around the shared command path.
+3. Replace direct N:M relational/Spring paths, verify generated ZIPs, and execute the isolated PostgreSQL/Swagger/Postman acceptance gate.
+4. Roll back before release by reverting this change as a unit. A failed migration never changes the stored version-1 resource and never re-enables retired direct N:M generation.

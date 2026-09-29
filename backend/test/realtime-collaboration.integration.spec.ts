@@ -359,7 +359,7 @@ describe('Realtime collaboration authentication', () => {
     expect(senderEvents).toEqual([]);
   });
 
-  it('propagates all 19 normalized command types between owner and editor with durable canonical convergence', async () => {
+  it('propagates all 20 normalized command types between owner and editor with durable canonical convergence', async () => {
     const { account: owner, url } = await start();
     const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'All commands' }).expect(201)).body.project; projects.add(project.id);
     const editorEmail = `rt-${randomUUID()}@example.com`; emails.add(editorEmail);
@@ -400,10 +400,12 @@ describe('Realtime collaboration authentication', () => {
     const literal = (await submit(ownerSocket, editorSocket, { type: 'AddEnumerationLiteral', enumerationId: enumeration.enumerationId, name: 'OPEN' })).normalizedCommand as { literalId: string };
     await submit(editorSocket, ownerSocket, { type: 'UpdateEnumerationLiteral', enumerationId: enumeration.enumerationId, literalId: literal.literalId, name: 'ACTIVE' });
     await submit(ownerSocket, editorSocket, { type: 'RemoveEnumerationLiteral', enumerationId: enumeration.enumerationId, literalId: literal.literalId });
-    const association = (await submit(editorSocket, ownerSocket, { type: 'CreateAssociation', sourceClassId: classA.classId, targetClassId: classB.classId, name: 'places' })).normalizedCommand as { relationshipId: string };
+    const association = (await submit(editorSocket, ownerSocket, { type: 'CreateAssociation', sourceClassId: classA.classId, targetClassId: classB.classId, name: 'places', sourceRoleName: 'clients', targetRoleName: 'orders', sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' } })).normalizedCommand as { relationshipId: string };
     await submit(ownerSocket, editorSocket, { type: 'UpdateMultiplicity', relationshipId: association.relationshipId, endpoint: 'target', multiplicity: { lower: 0, upper: '*' } });
-    await submit(editorSocket, ownerSocket, { type: 'UpdateRelationship', relationshipId: association.relationshipId, name: 'creates', sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: null });
-    await submit(ownerSocket, editorSocket, { type: 'DeleteRelationship', relationshipId: association.relationshipId });
+    await submit(editorSocket, ownerSocket, { type: 'UpdateRelationship', relationshipId: association.relationshipId, name: 'creates', sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' }, sourceRoleName: 'clients', targetRoleName: 'orders' });
+    const materialized = (await submit(ownerSocket, editorSocket, { type: 'MaterializeManyToManyAssociation', sourceClassId: classA.classId, targetClassId: classB.classId, name: 'creates', sourceRoleName: 'clients', targetRoleName: 'orders', sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' }, replaceRelationshipId: association.relationshipId, associationClassName: 'ClientOrder' })).normalizedCommand as { sourceRelationshipId: string; targetRelationshipId: string; associationClassId: string };
+    await submit(ownerSocket, editorSocket, { type: 'DeleteRelationship', relationshipId: materialized.sourceRelationshipId });
+    await submit(editorSocket, ownerSocket, { type: 'DeleteRelationship', relationshipId: materialized.targetRelationshipId });
     const generalization = (await submit(editorSocket, ownerSocket, { type: 'CreateGeneralization', sourceClassId: classA.classId, targetClassId: classB.classId })).normalizedCommand as { relationshipId: string };
     await submit(ownerSocket, editorSocket, { type: 'DeleteRelationship', relationshipId: generalization.relationshipId });
     await submit(editorSocket, ownerSocket, { type: 'MoveNode', elementId: classA.classId, position: { x: 20, y: 30 } });
@@ -413,7 +415,7 @@ describe('Realtime collaboration authentication', () => {
 
     const persisted = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
     expect(ownerDocument).toEqual(editorDocument);
-    expect(ownerDocument).toMatchObject({ revision, model: { classes: [expect.objectContaining({ id: classB.classId })], enumerations: [], relationships: [] } });
+    expect(ownerDocument).toMatchObject({ revision, model: { classes: [expect.objectContaining({ id: classB.classId }), expect.objectContaining({ id: materialized.associationClassId, name: 'ClientOrder' })], enumerations: [], relationships: [] } });
     expect(digestProjectDocument(ownerDocument)).toBe(resultingDocumentDigest);
     expect(persisted.revision).toBe(revision); expect(persisted.storageVersion).toBe(realtimeVersion);
   }, 15_000);
@@ -453,7 +455,7 @@ describe('Realtime collaboration authentication', () => {
     const project = (await request(app.getHttpServer()).post('/projects').set('Authorization', `Bearer ${owner.accessToken}`).send({ name: 'Version domains' }).expect(201)).body.project; projects.add(project.id);
     const socket = await connect(url, owner.accessToken); const joined = await join(socket, project.id);
     expect(joined.ok).toBe(true); if (!joined.ok) throw new Error(joined.error.code);
-    expect(joined.data).toMatchObject({ realtimeVersion: 0, resource: { storageVersion: 0, documentSchemaVersion: 1, project: { revision: 0 } } });
+    expect(joined.data).toMatchObject({ realtimeVersion: 0, resource: { storageVersion: 0, documentSchemaVersion: 2, project: { revision: 0 } } });
     const commandId = randomUUID(); const input = { projectId: project.id, sessionId: joined.data.sessionId, commandId, baseRealtimeVersion: 0, baseRevision: 0, command: { type: 'CreateClass', name: 'Versioned' } };
     const applied = await command(socket, input) as { ok: true; status: 'APPLIED'; data: ProjectCommandApplied };
     expect(applied).toMatchObject({ ok: true, status: 'APPLIED', data: { resultingRealtimeVersion: 1, resultingRevision: 1, storageVersion: 1 } });
@@ -462,7 +464,7 @@ describe('Realtime collaboration authentication', () => {
     expect(await command(socket, { ...input, commandId: randomUUID(), baseRealtimeVersion: 1, baseRevision: 0 })).toMatchObject({ ok: false, error: { code: 'STALE_DOCUMENT_REVISION' } });
     expect((await presence(socket, { cursor: { x: 1, y: 2 }, selectionIds: [], editingElementId: null, activity: 'selecting' })).ok).toBe(true);
     const synced = await resync(socket); expect(synced.ok).toBe(true); if (!synced.ok) throw new Error(synced.error.code);
-    expect(synced.data).toMatchObject({ sessionId: joined.data.sessionId, realtimeVersion: 1, resource: { storageVersion: 1, documentSchemaVersion: 1, project: { revision: 1 } } });
+    expect(synced.data).toMatchObject({ sessionId: joined.data.sessionId, realtimeVersion: 1, resource: { storageVersion: 1, documentSchemaVersion: 2, project: { revision: 1 } } });
   });
 
   it('persists before APPLIED and recovers durable state after an epoch replacement', async () => {
@@ -482,7 +484,7 @@ describe('Realtime collaboration authentication', () => {
     app.get(CollaborationSessionManager).invalidate(project.id, joined.data.sessionId);
     expect(await command(socket, input)).toMatchObject({ ok: false, error: { code: 'STALE_SESSION' }, action: 'RESYNC' });
     const reopened = await resync(socket); expect(reopened.ok).toBe(true); if (!reopened.ok) throw new Error(reopened.error.code);
-    expect(reopened.data).toMatchObject({ resource: { storageVersion: 1, documentSchemaVersion: 1, project: { revision: 1, model: { classes: [expect.objectContaining({ name: 'Durable' })] } } }, realtimeVersion: 0 });
+    expect(reopened.data).toMatchObject({ resource: { storageVersion: 1, documentSchemaVersion: 2, project: { revision: 1, model: { classes: [expect.objectContaining({ name: 'Durable' })] } } }, realtimeVersion: 0 });
     expect(reopened.data.sessionId).not.toBe(joined.data.sessionId);
   });
 

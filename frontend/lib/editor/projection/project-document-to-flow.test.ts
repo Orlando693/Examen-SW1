@@ -49,4 +49,21 @@ describe('projectDocumentToFlow', () => {
     expect(relationshipToFlowEdge(generalization, null).data).not.toHaveProperty('sourceMultiplicity');
     expect(relationshipToFlowEdge(generalization, null).data).not.toHaveProperty('targetMultiplicity');
   });
+
+  it('projects a recursive association as a role-aware self-loop without changing the document', () => {
+    const document = createDemoProjectDocument();
+    const relationship = {
+      id: 'rel-recursive',
+      kind: 'association' as const,
+      name: 'reportsTo',
+      source: { classId: 'class-customer', roleName: 'subordinates', multiplicity: { lower: 0, upper: '*' as const } },
+      target: { classId: 'class-customer', roleName: 'manager', multiplicity: { lower: 0, upper: 1 as const } },
+    };
+    const before = structuredClone(document);
+
+    const edge = relationshipToFlowEdge(relationship, null);
+
+    expect(edge).toMatchObject({ source: 'class-customer', target: 'class-customer', data: { isSelfLoop: true, sourceRoleName: 'subordinates', targetRoleName: 'manager', sourceMultiplicity: '0..*', targetMultiplicity: '0..1' } });
+    expect(document).toEqual(before);
+  });
 });

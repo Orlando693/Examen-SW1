@@ -22,9 +22,8 @@ import jakarta.persistence.InheritanceType;
     {{/if}}@Column(name = "{{columnName}}", nullable = {{nullable}}{{#if id}}, updatable = false{{/if}})
     private {{#if enumType}}{{enumType}}{{else}}{{javaType}}{{/if}} {{name}};
 {{/each}}{{#each relationships}}    @{{annotation}}({{#if mappedBy}}mappedBy = "{{mappedBy}}", {{/if}}fetch = FetchType.LAZY{{#if cascade}}, cascade = CascadeType.ALL{{/if}}{{#if orphanRemoval}}, orphanRemoval = true{{/if}})
-    {{#if joinTableName}}@JoinTable(name = "{{joinTableName}}", joinColumns = @JoinColumn(name = "{{joinColumn}}"), inverseJoinColumns = @JoinColumn(name = "{{inverseJoinColumn}}"))
-    {{else}}{{#unless mappedBy}}@JoinColumn(name = "{{joinColumn}}")
-    {{/unless}}{{/if}}
+    {{#unless mappedBy}}@JoinColumn(name = "{{joinColumn}}")
+    {{/unless}}
     {{#if onDelete}}@OnDelete(action = OnDeleteAction.CASCADE)
     {{/if}}private {{#if collection}}Set<{{targetClassName}}> {{name}} = new LinkedHashSet<>();{{else}}{{targetClassName}} {{name}};{{/if}}
 {{/each}}

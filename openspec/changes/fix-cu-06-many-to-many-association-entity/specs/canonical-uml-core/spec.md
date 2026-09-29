@@ -1,53 +1,49 @@
 ## ADDED Requirements
 
-### Requirement: Atomic many-to-many association materialization
-The system SHALL detect a many-to-many association when both existing endpoint multiplicity upper bounds represent many and SHALL replace that direct association atomically with one normal canonical association class and exactly two canonical replacement associations. The resulting class SHALL have a stable persisted identity and SHALL be valid for normal class editing.
+### Requirement: Role-aware recursive associations
+The system SHALL permit an `ASSOCIATION` whose endpoints reference the same canonical class, SHALL persist optional endpoint `roleName` values, and SHALL preserve them through canonical commands. It SHALL reject a `GENERALIZATION` whose endpoints reference the same class.
 
-#### Scenario: Create a many-to-many association
-- **WHEN** a user creates an association whose two endpoint upper bounds represent many
-- **THEN** the document contains the two original classes, one association class, exactly two replacement relationships, and no direct many-to-many relationship
+#### Scenario: Accept a self association
+- **WHEN** a modeler creates an association from `Empleado` to `Empleado`
+- **THEN** the canonical model contains one valid recursive association with equal endpoint class IDs
+
+#### Scenario: Reject self generalization
+- **WHEN** a modeler creates a generalization from a class to itself
+- **THEN** validation rejects the mutation and the canonical model is unchanged
+
+#### Scenario: Preserve recursive endpoint roles
+- **WHEN** a modeler assigns `jefe` and `subordinados` to a recursive association's endpoints
+- **THEN** both role names are retained in the canonical document and available to downstream mapping
+
+### Requirement: Atomic normal many-to-many association materialization
+The system SHALL detect a normal many-to-many association when both endpoint multiplicity upper bounds represent many and SHALL replace it atomically with one normal canonical association entity and exactly two replacement associations. The resulting class SHALL have a stable persisted identity, an identifier-marked `id: number` attribute, and normal editability.
+
+#### Scenario: Create a normal many-to-many association
+- **WHEN** a user creates `Alumno * <-> * Materia`
+- **THEN** the document contains `Alumno`, `Materia`, exactly one `AlumnoMateria` association entity, exactly two replacement relationships, and no direct many-to-many relationship
 
 #### Scenario: Update an association into many-to-many
-- **WHEN** a user updates an existing association so both endpoint upper bounds represent many
-- **THEN** the same atomic materialization result is committed as one canonical mutation
+- **WHEN** a user updates an existing non-recursive association so both endpoint upper bounds represent many
+- **THEN** the materialized result is committed as one canonical mutation
 
-#### Scenario: One-to-many remains direct
-- **WHEN** either endpoint upper bound does not represent many
-- **THEN** the system retains the ordinary direct association and creates no association class
+### Requirement: Atomic recursive many-to-many association materialization
+The system SHALL materialize a recursive many-to-many association only when it has a non-empty relationship name and two distinct non-empty endpoint roles. It SHALL create exactly one named association entity with two role-distinguished associations to the same class and SHALL retain no direct recursive many-to-many relationship.
 
-### Requirement: Stable association-class identity and naming
-The system SHALL assign every materialized association class a real stable identifier and a deterministic readable name derived from both endpoint class names and, when needed, the relationship name. It SHALL resolve name collisions without overwriting an existing class or relying only on a UUID.
+#### Scenario: Materialize self many-to-many once
+- **WHEN** a user creates `Persona * <-> * Persona` named `Amistad` with roles `personaOrigen` and `personaDestino`
+- **THEN** the document contains exactly one `PersonaAmistad` class, its identifier-marked `id: number`, two relationships to `Persona`, and no direct self many-to-many relationship
 
-#### Scenario: Resolve a class-name collision
-- **WHEN** the preferred association-class name already exists
-- **THEN** the materialized class receives a distinct deterministic alternative name and all generated identifiers remain stable for that command result
+#### Scenario: Reject ambiguous self many-to-many
+- **WHEN** a self many-to-many lacks a relationship name, a role, or has equal endpoint roles
+- **THEN** the command is rejected without creating classes, relationships, attributes, or layout entries
 
-#### Scenario: Distinguish multiple relationships between one pair
-- **WHEN** two named many-to-many relationships connect the same two classes
-- **THEN** each materialization produces a distinct association class and no class is reused accidentally
+### Requirement: Safe lifecycle and versioned migration
+The system SHALL preserve a materialized association entity unless an explicit deletion removes it and SHALL migrate supported version-1 direct many-to-many documents to sole version-2 association-entity representation. Migration SHALL be deterministic and idempotent.
 
-### Requirement: Safe lifecycle of materialized associations
-The system SHALL preserve an association class after it has been materialized when later edits make a replacement relationship no longer many-to-many. Class and relationship deletion SHALL remove invalid references according to the existing canonical invariants and SHALL reject dangling references.
+#### Scenario: Undo and redo materialization
+- **WHEN** a local materialization is undone and then redone
+- **THEN** undo restores the exact prior relation and redo restores the same entity, roles, identifiers, relationships, and layout without duplicates
 
-#### Scenario: Do not silently dematerialize
-- **WHEN** a modeler changes multiplicity after an association class was materialized
-- **THEN** the system does not silently delete the association class or its user-editable data
-
-#### Scenario: Delete a participant class
-- **WHEN** a class participating in a materialized association is deleted
-- **THEN** all relationships referencing the deleted class are removed and no remaining relationship references a missing class
-
-### Requirement: Versioned historical many-to-many migration
-The system SHALL migrate a supported historical canonical direct many-to-many association through the persisted document schema migration path into the sole version-2 association-class representation. The migration SHALL derive stable IDs deterministically from the historical relationship identity, preserve representable relationship name, endpoint identity, multiplicities, and roles, create an identifier-marked `number` attribute, and remove the historical direct association.
-
-#### Scenario: Migrate a historical direct relationship
-- **WHEN** a version-1 project document contains a valid direct many-to-many association
-- **THEN** the version-2 result contains one deterministic association class, its identifier-marked `number` attribute, exactly two replacement relationships, and no direct many-to-many association
-
-#### Scenario: Repeat migration
-- **WHEN** an already migrated version-2 document is processed again
-- **THEN** migration is a semantic no-op and creates no additional class, attribute, layout entry, or relationship
-
-#### Scenario: Reject unmappable historical semantics
-- **WHEN** a historical many-to-many relationship has malformed references, unsupported metadata, or aggregation/composition semantics that cannot be represented safely
-- **THEN** migration fails with an actionable relationship-referenced diagnostic and does not discard the historical metadata
+#### Scenario: Fail closed for unmappable legacy self many-to-many
+- **WHEN** a version-1 self many-to-many lacks determinable relationship semantics or distinct roles
+- **THEN** migration returns `LEGACY_MANY_TO_MANY_MIGRATION_FAILED`, leaves the stored version-1 document unchanged, and creates no partial version-2 model

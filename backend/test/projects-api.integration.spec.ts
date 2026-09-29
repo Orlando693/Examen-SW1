@@ -81,7 +81,7 @@ if (!testDatabaseUrl) {
     it('preserves the authenticated owner project lifecycle resource and JSONB round-trip', async () => {
       const owner = await user();
       const created = await project(owner.token, 'Project API');
-      expect(created).toMatchObject({ storageVersion: 0, documentSchemaVersion: 1, project: { metadata: { name: 'Project API' }, revision: 0 } });
+      expect(created).toMatchObject({ storageVersion: 0, documentSchemaVersion: 2, project: { metadata: { name: 'Project API' }, revision: 0 } });
       expect(Object.keys(created).sort()).toEqual(['documentSchemaVersion', 'project', 'storageVersion']);
 
       const listed = await request(app.getHttpServer()).get('/projects').set(authenticated(owner.token)).expect(200);
@@ -128,7 +128,7 @@ if (!testDatabaseUrl) {
       await request(app.getHttpServer()).get(`/projects/${semanticCorruption.project.id}`).set(authenticated(owner.token)).expect(500).expect(({ body }) => expect(body.error).toEqual({ code: 'INTERNAL_ERROR', message: 'An internal error occurred.', details: {} }));
 
       const unsupported = await project(owner.token, 'Unsupported format');
-      await prisma.project.update({ where: { id: unsupported.project.id }, data: { documentSchemaVersion: 2 } });
+      await prisma.project.update({ where: { id: unsupported.project.id }, data: { documentSchemaVersion: 3 } });
       await request(app.getHttpServer()).get(`/projects/${unsupported.project.id}`).set(authenticated(owner.token)).expect(422).expect(({ body }) => expect(body.error.code).toBe('UNSUPPORTED_DOCUMENT_SCHEMA_VERSION'));
     });
 

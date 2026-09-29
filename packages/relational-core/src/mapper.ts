@@ -207,61 +207,42 @@ function mapRelationships(state: State) {
       addDiagnostic(state, 'AMBIGUOUS_COMPOSITION', 'Composition requires an unambiguous source owner with multiplicity one.', 'relationships', relationship.id); continue;
     }
     if (isMany(relationship.source.multiplicity) && isMany(relationship.target.multiplicity)) {
-      if (relationship.kind === 'composition') { addDiagnostic(state, 'UNSUPPORTED_COMPOSITION_MANY_TO_MANY', 'Composition many-to-many is unsupported.', 'relationships', relationship.id); continue; }
-      addJoinTable(state, relationship, source, target); continue;
+      addDiagnostic(state, 'MIGRATION_REQUIRED', 'Direct many-to-many associations must be materialized as an association entity before relational mapping.', 'relationships', relationship.id); continue;
     }
     const sourceToTarget = isOne(relationship.source.multiplicity) && isMany(relationship.target.multiplicity);
     const targetToSource = isMany(relationship.source.multiplicity) && isOne(relationship.target.multiplicity);
-    if (relationship.kind === 'composition' && isOne(relationship.source.multiplicity) && isOne(relationship.target.multiplicity)) addReference(state, relationship, source, target, relationship.target.multiplicity, true, 'ONE_TO_ONE', true);
-    else if (sourceToTarget) addReference(state, relationship, target, source, relationship.source.multiplicity, relationship.kind === 'composition', 'ONE_TO_MANY');
-    else if (targetToSource) addReference(state, relationship, source, target, relationship.target.multiplicity, relationship.kind === 'composition', 'ONE_TO_MANY');
+    if (relationship.kind === 'composition' && isOne(relationship.source.multiplicity) && isOne(relationship.target.multiplicity)) addReference(state, relationship, source, target, relationship.target.multiplicity, true, 'ONE_TO_ONE', true, relationship.target.roleName, relationship.source.roleName);
+    else if (sourceToTarget) addReference(state, relationship, target, source, relationship.source.multiplicity, relationship.kind === 'composition', 'ONE_TO_MANY', false, relationship.source.roleName, relationship.target.roleName);
+    else if (targetToSource) addReference(state, relationship, source, target, relationship.target.multiplicity, relationship.kind === 'composition', 'ONE_TO_MANY', false, relationship.target.roleName, relationship.source.roleName);
     else {
       const ownerFirst = source.name.localeCompare(target.name) < 0 || (source.name === target.name && relationship.id.localeCompare('') > 0);
       const owner = ownerFirst ? source : target;
       const referenced = ownerFirst ? target : source;
       const targetMultiplicity = ownerFirst ? relationship.target.multiplicity : relationship.source.multiplicity;
-      addReference(state, relationship, owner, referenced, targetMultiplicity, relationship.kind === 'composition', 'ONE_TO_ONE', true);
+      const ownerRole = owner === source ? relationship.source.roleName : relationship.target.roleName;
+      const referencedRole = owner === source ? relationship.target.roleName : relationship.source.roleName;
+      addReference(state, relationship, owner, referenced, targetMultiplicity, relationship.kind === 'composition', 'ONE_TO_ONE', true, referencedRole, ownerRole);
     }
   }
 }
 
-function addReference(state: State, relationship: UmlRelationship, owner: RelationalTable, referenced: RelationalTable, multiplicity: Multiplicity, composition: boolean, kind: RelationalRelation['kind'], unique = false) {
+function addReference(state: State, relationship: UmlRelationship, owner: RelationalTable, referenced: RelationalTable, multiplicity: Multiplicity, composition: boolean, kind: RelationalRelation['kind'], unique = false, ownerRole?: string, inverseRole?: string) {
   const targetPk = primaryKeyName(referenced);
   const targetColumn = findColumn(referenced, targetPk);
   if (!targetColumn) return;
   const used = new Set(owner.columns.map((column) => column.name));
-  const name = sqlName(`${referenced.name}_${targetColumn.name}`, `${relationship.id}:${owner.id}`, used);
+  const propertyName = ownerRole?.trim() || referenced.name;
+  const inversePropertyName = inverseRole?.trim() || pluralSqlName(owner.name);
+  const name = sqlName(`${propertyName}_${targetColumn.name}`, `${relationship.id}:${owner.id}`, used);
   if (!name) { addDiagnostic(state, 'IMPOSSIBLE_NAMING', 'Foreign key column name cannot be resolved.', 'relationships', relationship.id); return; }
   const column: RelationalColumn = { id: columnId(owner.id, name), name, sqlType: targetColumn.sqlType, javaType: targetColumn.javaType, nullable: composition ? false : multiplicity.lower === 0, generated: false };
   owner.columns.push(column);
   if (unique) addUnique(state, owner, [column.id], relationship.id);
   addForeignKey(state, owner, [column.id], referenced, [targetColumn.id], composition ? 'CASCADE' : 'NO ACTION', relationship.id);
-  state.relations.push({ id: `relation:${relationship.id}`, kind: relationship.kind === 'aggregation' ? 'AGGREGATION' : relationship.kind === 'composition' ? 'COMPOSITION' : kind, sourceRelationshipId: relationship.id, tableIds: [owner.id, referenced.id], ownerTableId: owner.id });
+  state.relations.push({ id: `relation:${relationship.id}`, kind: relationship.kind === 'aggregation' ? 'AGGREGATION' : relationship.kind === 'composition' ? 'COMPOSITION' : kind, sourceRelationshipId: relationship.id, tableIds: [owner.id, referenced.id], ownerTableId: owner.id, ownerForeignKeyId: `foreign-key:${relationship.id}:${owner.id}`, ownerPropertyName: propertyName, inversePropertyName });
 }
 
-function addJoinTable(state: State, relationship: UmlRelationship, first: RelationalTable, second: RelationalTable) {
-  if (first.id === second.id && (!relationship.source.roleName || !relationship.target.roleName || relationship.source.roleName === relationship.target.roleName)) {
-    addDiagnostic(state, 'AMBIGUOUS_SELF_RELATION', 'Self many-to-many relations require distinct UML roles.', 'relationships', relationship.id); return;
-  }
-  const [left, right] = [first, second].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-  const name = sqlName(`${left.name}_${right.name}_${relationship.name ?? 'join'}`, relationship.id, state.tableNames);
-  if (!name) { addDiagnostic(state, 'IMPOSSIBLE_NAMING', 'Join table name cannot be resolved.', 'relationships', relationship.id); return; }
-  const table: RelationalTable = { id: `table:join:${relationship.id}`, name, kind: 'JOIN', columns: [], primaryKey: { name: '', columnIds: [] }, foreignKeys: [], uniqueConstraints: [], indexes: [], checkConstraints: [] };
-  const columns = [left, right].map((target, index) => {
-    const primary = findColumn(target, primaryKeyName(target));
-    if (!primary) return undefined;
-    const role = target === first ? relationship.source.roleName : relationship.target.roleName;
-    const columnName = sqlName(`${role ?? target.name}_${primary.name}`, `${relationship.id}:${index}`, new Set(table.columns.map((column) => column.name)));
-    if (!columnName) return undefined;
-    return { target, primary, column: { id: columnId(table.id, columnName), name: columnName, sqlType: primary.sqlType, javaType: primary.javaType, nullable: false, generated: false } };
-  });
-  if (columns.some((item) => !item)) return;
-  for (const item of columns) table.columns.push(item!.column);
-  table.primaryKey = { name: derivedName('pk', [table.name], table.id, state.constraintNames) ?? `pk_${table.name}`, columnIds: columns.map((item) => item!.column.id) };
-  for (const item of columns) addForeignKey(state, table, [item!.column.id], item!.target, [item!.primary.id], 'NO ACTION', `${relationship.id}:${item!.target.id}`);
-  state.tables.set(table.id, table);
-  state.relations.push({ id: `relation:${relationship.id}`, kind: 'MANY_TO_MANY', sourceRelationshipId: relationship.id, tableIds: [left.id, right.id, table.id], ownerTableId: table.id });
-}
+function pluralSqlName(value: string): string { return `${value}s`; }
 
 export function mapCanonicalUmlModel(model: CanonicalUmlModel, metadata: RelationalGenerationMetadata = {}): RelationalMappingResult {
   const state: State = { diagnostics: [], model, tables: new Map(), tableNames: new Set(), constraintNames: new Set(), relations: [] };

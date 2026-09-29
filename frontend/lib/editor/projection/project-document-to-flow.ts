@@ -30,6 +30,9 @@ export interface UmlRelationshipEdgeData extends Record<string, unknown> {
   label?: string;
   sourceMultiplicity?: string;
   targetMultiplicity?: string;
+  sourceRoleName?: string;
+  targetRoleName?: string;
+  isSelfLoop?: boolean;
 }
 
 export type UmlFlowNode = Node<UmlClassNodeData, 'umlClass'> | Node<UmlEnumNodeData, 'umlEnum'>;
@@ -97,6 +100,9 @@ export function relationshipToFlowEdge(relationship: UmlRelationship, selection:
       ...(relationship.kind === 'generalization' ? {} : {
         sourceMultiplicity: formatMultiplicity(relationship.source.multiplicity),
         targetMultiplicity: formatMultiplicity(relationship.target.multiplicity),
+        sourceRoleName: relationship.source.roleName,
+        targetRoleName: relationship.target.roleName,
+        isSelfLoop: relationship.source.classId === relationship.target.classId,
       }),
     },
   };

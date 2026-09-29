@@ -38,6 +38,16 @@ interface RelationshipDetails {
   name?: string;
   sourceMultiplicity?: Multiplicity;
   targetMultiplicity?: Multiplicity;
+  sourceRoleName?: string;
+  targetRoleName?: string;
+}
+
+interface RelationshipUpdateDetails {
+  name: string | null;
+  sourceMultiplicity?: Multiplicity | null;
+  targetMultiplicity?: Multiplicity | null;
+  sourceRoleName?: string | null;
+  targetRoleName?: string | null;
 }
 
 interface EditorStore {
@@ -84,7 +94,7 @@ interface EditorStore {
   completeRelationship: (targetClassId: string) => CommandResult | null;
   createRelationship: (kind: RelationshipDraft['kind'], sourceClassId: string, targetClassId: string, details?: RelationshipDetails) => CommandResult | null;
   updateMultiplicity: (relationshipId: string, endpoint: 'source' | 'target', multiplicity: Multiplicity) => CommandResult;
-  updateRelationship: (relationshipId: string, details: { name: string | null; sourceMultiplicity?: Multiplicity | null; targetMultiplicity?: Multiplicity | null }) => CommandResult;
+  updateRelationship: (relationshipId: string, details: RelationshipUpdateDetails) => CommandResult;
   deleteRelationship: (relationshipId: string) => CommandResult;
   moveNode: (elementId: string, position: { x: number; y: number }) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
@@ -165,7 +175,58 @@ function createRelationshipCommand(kind: RelationshipDraft['kind'], sourceClassI
       ...(details.name === undefined ? {} : { name: details.name }),
       ...(details.sourceMultiplicity === undefined ? {} : { sourceMultiplicity: details.sourceMultiplicity }),
       ...(details.targetMultiplicity === undefined ? {} : { targetMultiplicity: details.targetMultiplicity }),
+      ...(details.sourceRoleName === undefined ? {} : { sourceRoleName: details.sourceRoleName }),
+      ...(details.targetRoleName === undefined ? {} : { targetRoleName: details.targetRoleName }),
     };
+}
+
+function isManyToMany(sourceMultiplicity: Multiplicity | undefined, targetMultiplicity: Multiplicity | undefined): boolean {
+  return sourceMultiplicity?.upper === '*' && targetMultiplicity?.upper === '*';
+}
+
+function pascalCase(value: string): string {
+  return value.trim().split(/[^A-Za-z0-9]+/).filter(Boolean).map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`).join('');
+}
+
+function associationEntityName(document: ProjectDocument, sourceClassId: string, targetClassId: string, relationshipName?: string): string {
+  const sourceName = document.model.classes.find((umlClass) => umlClass.id === sourceClassId)?.name ?? 'Association';
+  const targetName = document.model.classes.find((umlClass) => umlClass.id === targetClassId)?.name ?? 'Entity';
+  const base = sourceClassId === targetClassId
+    ? `${pascalCase(sourceName)}${pascalCase(relationshipName ?? '')}`
+    : `${pascalCase(sourceName)}${pascalCase(targetName)}`;
+  const namedBase = document.model.classes.some((umlClass) => umlClass.name === base) && relationshipName?.trim()
+    ? `${base}${pascalCase(relationshipName)}`
+    : base;
+  let candidate = namedBase || 'AssociationEntity';
+  let suffix = 2;
+  while (document.model.classes.some((umlClass) => umlClass.name === candidate)) {
+    candidate = `${namedBase}${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+function materializeManyToManyCommand(document: ProjectDocument, details: {
+  sourceClassId: string;
+  targetClassId: string;
+  name?: string;
+  sourceMultiplicity: Multiplicity;
+  targetMultiplicity: Multiplicity;
+  sourceRoleName?: string;
+  targetRoleName?: string;
+  replaceRelationshipId?: string;
+}): Extract<UmlCommand, { type: 'MaterializeManyToManyAssociation' }> {
+  return {
+    type: 'MaterializeManyToManyAssociation',
+    kind: 'association',
+    ...details,
+    associationClassId: createUuid(),
+    identifierAttributeId: createUuid(),
+    sourceRelationshipId: createUuid(),
+    targetRelationshipId: createUuid(),
+    layoutNodeId: createUuid(),
+    associationClassName: associationEntityName(document, details.sourceClassId, details.targetClassId, details.name),
+  };
 }
 
 function sameSelection(a: EditorSelection, b: EditorSelection): boolean {
@@ -275,7 +336,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!draft?.sourceClassId) {
       return null;
     }
-    if (draft.sourceClassId === targetClassId) {
+    if (draft.sourceClassId === targetClassId && draft.kind !== 'association') {
       set({ relationshipDraft: null, activeTool: 'select', lastCommandError: 'No se puede crear una relacion de una clase hacia si misma en CU-02.' });
       return null;
     }
@@ -285,22 +346,65 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return result;
   },
   createRelationship: (kind, sourceClassId, targetClassId, details) => {
-    if (sourceClassId === targetClassId) {
+    if (sourceClassId === targetClassId && kind !== 'association') {
       set({ lastCommandError: 'No se puede crear una relacion de una clase hacia si misma en CU-02.' });
       return null;
     }
-    const command = createRelationshipCommand(kind, sourceClassId, targetClassId, details);
+    const command = kind === 'association' && isManyToMany(details?.sourceMultiplicity, details?.targetMultiplicity)
+      ? materializeManyToManyCommand(get().currentDocument, {
+        sourceClassId,
+        targetClassId,
+        ...(details?.name === undefined ? {} : { name: details.name }),
+        sourceMultiplicity: details!.sourceMultiplicity!,
+        targetMultiplicity: details!.targetMultiplicity!,
+        ...(details?.sourceRoleName === undefined ? {} : { sourceRoleName: details.sourceRoleName }),
+        ...(details?.targetRoleName === undefined ? {} : { targetRoleName: details.targetRoleName }),
+      })
+      : createRelationshipCommand(kind, sourceClassId, targetClassId, details);
     const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
-    set({ ...sync, selection: result.ok ? { type: 'relationship', id: command.relationshipId ?? '' } : get().selection, lastCommandError: result.ok ? null : result.message });
+    const selection = command.type === 'MaterializeManyToManyAssociation'
+      ? { type: 'class' as const, id: command.associationClassId ?? '' }
+      : { type: 'relationship' as const, id: command.relationshipId ?? '' };
+    set({ ...sync, selection: result.ok ? selection : get().selection, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateMultiplicity: (relationshipId, endpoint, multiplicity) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateMultiplicity', relationshipId, endpoint, multiplicity }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
+    const relationship = get().currentDocument.model.relationships.find((item) => item.id === relationshipId);
+    const sourceMultiplicity = endpoint === 'source' ? multiplicity : relationship?.source.multiplicity;
+    const targetMultiplicity = endpoint === 'target' ? multiplicity : relationship?.target.multiplicity;
+    const command = relationship?.kind === 'association' && isManyToMany(sourceMultiplicity, targetMultiplicity)
+      ? materializeManyToManyCommand(get().currentDocument, {
+        sourceClassId: relationship.source.classId,
+        targetClassId: relationship.target.classId,
+        ...(relationship.name === undefined ? {} : { name: relationship.name }),
+        sourceMultiplicity: sourceMultiplicity!,
+        targetMultiplicity: targetMultiplicity!,
+        ...(relationship.source.roleName === undefined ? {} : { sourceRoleName: relationship.source.roleName }),
+        ...(relationship.target.roleName === undefined ? {} : { targetRoleName: relationship.target.roleName }),
+        replaceRelationshipId: relationship.id,
+      })
+      : { type: 'UpdateMultiplicity' as const, relationshipId, endpoint, multiplicity };
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, lastCommandError: result.ok ? null : result.message });
     return result;
   },
   updateRelationship: (relationshipId, details) => {
-    const { result, sync } = executeAndSync(get().history, { type: 'UpdateRelationship', relationshipId, ...details }, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
+    const relationship = get().currentDocument.model.relationships.find((item) => item.id === relationshipId);
+    const sourceMultiplicity = details.sourceMultiplicity === undefined ? relationship?.source.multiplicity : details.sourceMultiplicity ?? undefined;
+    const targetMultiplicity = details.targetMultiplicity === undefined ? relationship?.target.multiplicity : details.targetMultiplicity ?? undefined;
+    const command = relationship?.kind === 'association' && isManyToMany(sourceMultiplicity, targetMultiplicity)
+      ? materializeManyToManyCommand(get().currentDocument, {
+        sourceClassId: relationship.source.classId,
+        targetClassId: relationship.target.classId,
+        ...(details.name === null ? {} : { name: details.name ?? relationship.name }),
+        sourceMultiplicity: sourceMultiplicity!,
+        targetMultiplicity: targetMultiplicity!,
+        ...(details.sourceRoleName === null ? {} : { sourceRoleName: details.sourceRoleName ?? relationship.source.roleName }),
+        ...(details.targetRoleName === null ? {} : { targetRoleName: details.targetRoleName ?? relationship.target.roleName }),
+        replaceRelationshipId: relationship.id,
+      })
+      : { type: 'UpdateRelationship' as const, relationshipId, ...details };
+    const { result, sync } = executeAndSync(get().history, command, get().realtimeCommandGate, get().collaborationRequired, get().collaborationState);
     set({ ...sync, saveState: result.ok ? saveStateFor(get().history.document, get().savedPersistentSnapshot) : get().saveState, lastCommandError: result.ok ? null : result.message });
     return result;
   },

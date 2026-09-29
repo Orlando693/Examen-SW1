@@ -7,6 +7,7 @@ export * from './model/types.js';
 export * from './serialization/serialization.js';
 export * from './persistence/project-resource.js';
 export * from './persistence/decoder.js';
+export * from './persistence/migration.js';
 export * from './validation/diagnostics.js';
 export * from './validation/rules.js';
 export * from './validation/validate.js';

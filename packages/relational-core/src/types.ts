@@ -42,7 +42,7 @@ export interface RelationalCheckConstraint { id: string; name: string; expressio
 export interface RelationalTable {
   id: string;
   name: string;
-  kind: 'ENTITY' | 'JOIN';
+  kind: 'ENTITY';
   sourceClassId?: Uuid;
   columns: RelationalColumn[];
   primaryKey: RelationalPrimaryKey;
@@ -54,10 +54,13 @@ export interface RelationalTable {
 export interface RelationalEnum { id: string; name: string; sourceEnumerationId: Uuid; literals: string[]; }
 export interface RelationalRelation {
   id: string;
-  kind: 'ONE_TO_ONE' | 'ONE_TO_MANY' | 'MANY_TO_MANY' | 'AGGREGATION' | 'COMPOSITION' | 'INHERITANCE';
+  kind: 'ONE_TO_ONE' | 'ONE_TO_MANY' | 'AGGREGATION' | 'COMPOSITION' | 'INHERITANCE';
   sourceRelationshipId: Uuid;
   tableIds: string[];
   ownerTableId?: string;
+  ownerForeignKeyId?: string;
+  ownerPropertyName?: string;
+  inversePropertyName?: string;
 }
 export interface RelationalModel { version: 1; enums: RelationalEnum[]; tables: RelationalTable[]; relations: RelationalRelation[]; }
 export type RelationalMappingResult =

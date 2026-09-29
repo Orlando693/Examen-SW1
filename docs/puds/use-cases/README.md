@@ -252,22 +252,22 @@ Incluye:
 
 Completar voz, mobile, interoperabilidad, visión, despliegue y condiciones reales de demostración.
 
-## CU-09 — Voz y aplicación móvil Flutter generada
+## CU-09 — Voz y benchmark STT reproducible
 
-**Objetivo:** reutilizar el pipeline de comandos mediante voz y generar un cliente móvil real en Flutter.
+**Objetivo:** reutilizar el pipeline de comandos mediante voz y entregar evidencia STT reproducible.
 
 Puede dividirse en máximo 3 incrementos:
 1. Vosk STT local + captura/revisión de transcript.
 2. benchmark STT: WER, command success rate, latencia, recursos y edge cases manuales.
-3. generador Flutter + Dart, consumo de la API REST Spring y build Android.
+La aplicación Flutter independiente del frontend web Next.js fue parte del alcance original, pero se difiere antes de implementación como trabajo futuro para la entrega académica actual. No es criterio de aceptación de CU-09 ni dependencia de CU-10.
 
-La aplicación Flutter es independiente del frontend web Next.js. **No utilizar Capacitor**.
-
-**Resultado usable:** una app generada puede operarse por voz y dispone de un cliente Flutter compilable para Android.
+**Resultado usable:** una entrada de voz local revisable y un benchmark STT reproducible con validación manual real.
 
 ## CU-10 — XMI e imagen → UML
 
 **Objetivo:** completar las entradas externas hacia el modelo canónico.
+
+**Dependencia:** CU-10 puede comenzar tras cerrar la entrada de voz y benchmark STT de CU-09; no depende de Flutter.
 
 Puede dividirse en máximo 3 incrementos:
 1. XMI 2.1 con `fast-xml-parser`, import/export y pruebas con Enterprise Architect.
@@ -306,7 +306,7 @@ Incluye:
 | **Ciclo 1 — Inicio y base arquitectónica** | CU-00 a CU-02 | Editor UML manual funcional |
 | **Ciclo 2 — Elaboración, usuarios y colaboración** | CU-03 a CU-05 | Proyectos persistidos y colaboración autorizada |
 | **Ciclo 3 — Construcción y generación** | CU-06 a CU-08 | Aplicación web generada + asistente de texto |
-| **Ciclo 4 — Transición y cierre** | CU-09 a CU-11 | Voz, Flutter, XMI/visión, AWS, offline y demo final |
+| **Ciclo 4 — Transición y cierre** | CU-09 a CU-11 | Voz, benchmark STT, XMI/visión, AWS, offline y demo final; Flutter diferido |
 
 Total:
 

@@ -2,6 +2,7 @@ import type { ProjectDocument } from '../model/document.js';
 
 export const INITIAL_STORAGE_VERSION = 0;
 export const INITIAL_DOCUMENT_SCHEMA_VERSION = 1;
+export const CURRENT_DOCUMENT_SCHEMA_VERSION = 3;
 
 export interface ProjectResource {
   project: ProjectDocument;

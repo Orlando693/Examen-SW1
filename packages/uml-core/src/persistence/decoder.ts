@@ -17,6 +17,7 @@ import type {
 } from '../model/types.js';
 import {
   INITIAL_DOCUMENT_SCHEMA_VERSION,
+  CURRENT_DOCUMENT_SCHEMA_VERSION,
   type DecodeResult,
   type ProjectResource,
   type StructuralDiagnostic,
@@ -74,7 +75,7 @@ class Decoder {
     }
 
     const documentSchemaVersion = this.nonNegativeInteger(value, 'documentSchemaVersion', 'resource.documentSchemaVersion');
-    if (documentSchemaVersion !== undefined && documentSchemaVersion !== INITIAL_DOCUMENT_SCHEMA_VERSION) {
+    if (documentSchemaVersion !== undefined && ![INITIAL_DOCUMENT_SCHEMA_VERSION, 2, CURRENT_DOCUMENT_SCHEMA_VERSION].includes(documentSchemaVersion)) {
       this.diagnostics.push({
         code: 'UNSUPPORTED_DOCUMENT_SCHEMA_VERSION',
         message: `Document schema version '${documentSchemaVersion}' is not supported.`,
@@ -84,7 +85,7 @@ class Decoder {
 
     const storageVersion = this.nonNegativeInteger(value, 'storageVersion', 'resource.storageVersion');
     const project = this.decodeProjectDocument(value.project);
-    if (documentSchemaVersion === undefined || documentSchemaVersion !== INITIAL_DOCUMENT_SCHEMA_VERSION || storageVersion === undefined || !project) {
+    if (documentSchemaVersion === undefined || ![INITIAL_DOCUMENT_SCHEMA_VERSION, 2, CURRENT_DOCUMENT_SCHEMA_VERSION].includes(documentSchemaVersion) || storageVersion === undefined || !project) {
       return undefined;
     }
 
@@ -265,7 +266,7 @@ class Decoder {
     const value = this.record(input, path);
     if (!value) return undefined;
     const result: GenerationMetadata = {};
-    for (const field of ['entity', 'auditable', 'readOnly', 'searchable', 'crud', 'required', 'unique', 'sortable'] as const) {
+    for (const field of ['identifier', 'entity', 'auditable', 'readOnly', 'searchable', 'crud', 'required', 'unique', 'sortable'] as const) {
       if (value[field] !== undefined) {
         if (typeof value[field] !== 'boolean') {
           this.diagnostics.push({ code: 'INVALID_TYPE', message: 'Expected boolean.', path: `${path}.${field}` });

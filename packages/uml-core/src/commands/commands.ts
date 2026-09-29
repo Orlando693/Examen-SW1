@@ -21,6 +21,7 @@ export type UmlCommand =
   | DeleteRelationshipCommand
   | UpdateMultiplicityCommand
   | UpdateRelationshipCommand
+  | MaterializeManyToManyAssociationCommand
   | MoveNodeCommand
   | ApplyLayoutCommand;
 
@@ -119,6 +120,8 @@ export interface CreateAssociationCommand {
   targetClassId: Uuid;
   sourceMultiplicity?: Multiplicity;
   targetMultiplicity?: Multiplicity;
+  sourceRoleName?: string;
+  targetRoleName?: string;
 }
 
 export interface CreateGeneralizationCommand {
@@ -147,6 +150,27 @@ export interface UpdateRelationshipCommand {
   name?: string | null;
   sourceMultiplicity?: Multiplicity | null;
   targetMultiplicity?: Multiplicity | null;
+  sourceRoleName?: string | null;
+  targetRoleName?: string | null;
+}
+
+export interface MaterializeManyToManyAssociationCommand {
+  type: 'MaterializeManyToManyAssociation';
+  sourceClassId: Uuid;
+  targetClassId: Uuid;
+  kind?: 'association';
+  name?: string;
+  sourceMultiplicity: Multiplicity;
+  targetMultiplicity: Multiplicity;
+  sourceRoleName?: string;
+  targetRoleName?: string;
+  replaceRelationshipId?: Uuid;
+  associationClassId?: Uuid;
+  identifierAttributeId?: Uuid;
+  sourceRelationshipId?: Uuid;
+  targetRelationshipId?: Uuid;
+  layoutNodeId?: Uuid;
+  associationClassName: string;
 }
 
 export interface MoveNodeCommand {

@@ -73,6 +73,34 @@ describe('UmlCommandBus', () => {
     expect(updated.ok && updated.document.model.relationships[0].target.multiplicity).toEqual({ lower: 1, upper: 5 });
   });
 
+  it('preserves endpoint roles on a recursive association and rejects self generalization', () => {
+    const bus = new UmlCommandBus();
+    const document = createProjectDocument({ id: 'project-1', name: 'Recursive', now: '2026-09-04T00:00:00.000Z', model: { packages: [], classes: [{ id: 'employee', name: 'Employee', attributes: [], operations: [] }], enumerations: [], relationships: [] } });
+    const association = bus.execute(document, { type: 'CreateAssociation', relationshipId: 'reports-to', sourceClassId: 'employee', targetClassId: 'employee', sourceRoleName: 'subordinates', targetRoleName: 'manager', sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: 1 } });
+    expect(association.ok && association.document.model.relationships).toMatchObject([{ source: { roleName: 'subordinates' }, target: { roleName: 'manager' } }]);
+    const generalization = bus.execute(document, { type: 'CreateGeneralization', relationshipId: 'invalid', sourceClassId: 'employee', targetClassId: 'employee' });
+    expect(generalization).toMatchObject({ ok: false, reason: 'VALIDATION_FAILED' });
+  });
+
+  it('materializes a self many-to-many atomically with supplied stable ids and history fidelity', () => {
+    const document = createProjectDocument({ id: 'project-1', name: 'Recursive', now: '2026-09-04T00:00:00.000Z', model: { packages: [], classes: [{ id: 'person', name: 'Person', attributes: [], operations: [] }], enumerations: [], relationships: [{ id: 'friendship', kind: 'association', name: 'Friendship', source: { classId: 'person', roleName: 'origin', multiplicity: { lower: 0, upper: '*' } }, target: { classId: 'person', roleName: 'destination', multiplicity: { lower: 0, upper: '*' } } }] } });
+    const history = new UmlHistory(document);
+    const result = history.execute({ type: 'MaterializeManyToManyAssociation', sourceClassId: 'person', targetClassId: 'person', name: 'Friendship', sourceRoleName: 'origin', targetRoleName: 'destination', sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' }, replaceRelationshipId: 'friendship', associationClassId: 'friendship-class', identifierAttributeId: 'friendship-id', sourceRelationshipId: 'friendship-source', targetRelationshipId: 'friendship-target', layoutNodeId: 'friendship-layout', associationClassName: 'PersonFriendship' });
+    expect(result.ok && result.document.model.classes).toMatchObject([{ id: 'person' }, { id: 'friendship-class', attributes: [{ id: 'friendship-id', name: 'id', generation: { identifier: true } }] }]);
+    expect(result.ok && result.document.model.relationships).toMatchObject([
+      { source: { classId: 'person', roleName: 'origin', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'friendship-class', multiplicity: { lower: 0, upper: '*' } } },
+      { source: { classId: 'person', roleName: 'destination', multiplicity: { lower: 1, upper: 1 } }, target: { classId: 'friendship-class', multiplicity: { lower: 0, upper: '*' } } },
+    ]);
+    expect(history.undo().document.model.relationships).toHaveLength(1);
+    expect(history.redo().document.model.relationships).toHaveLength(2);
+  });
+
+  it('materializes a new normal many-to-many without ever adding a direct relationship', () => {
+    const result = new UmlCommandBus().execute(twoClassDocument(), { type: 'MaterializeManyToManyAssociation', sourceClassId: 'class-a', targetClassId: 'class-b', sourceMultiplicity: { lower: 0, upper: '*' }, targetMultiplicity: { lower: 0, upper: '*' }, associationClassName: 'CustomerOrder' });
+    expect(result.ok && result.document.model.classes.map((item) => item.name)).toEqual(['Customer', 'Order', 'CustomerOrder']);
+    expect(result.ok && result.document.model.relationships).toHaveLength(2);
+  });
+
   it('updates a relationship name and both multiplicities as one undoable command', () => {
     const history = new UmlHistory(twoClassDocument());
     history.execute({ type: 'CreateAssociation', relationshipId: 'rel-a', sourceClassId: 'class-a', targetClassId: 'class-b', name: 'places', sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: '*' } });
