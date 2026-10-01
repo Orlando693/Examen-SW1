@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-09 estan COMPLETADOS y archivados. La correccion post-archive de CU-08 permanece cerrada y archivada.
+CU-00 a CU-09 estan COMPLETADOS y archivados. La correccion post-archive de CU-08 permanece cerrada y archivada. El fix post-archive CU-07 de entrega frontend esta verificado, aceptado y archivado como `2026-10-01-fix-cu-07-generated-frontend-from-spring-contract`.
 
 ## Planificación vigente
 
@@ -18,7 +18,7 @@ Ciclo 4 — Transicion y cierre. CU-09 esta VERIFIED, aceptado y archivado.
 
 ## Caso de uso activo
 
-No hay un CU activo para nueva implementacion. Los cambios abiertos `fix-cu-06-many-to-many-association-entity` y `cu-10-xmi-enterprise-architect-interoperability` requieren reconciliacion antes de iniciar otro cambio.
+No hay un CU activo. Los cambios abiertos `fix-cu-06-many-to-many-association-entity` y `cu-10-xmi-enterprise-architect-interoperability` permanecen sin cerrar por la excepcion documentada.
 
 ## Casos de uso completados
 
@@ -36,7 +36,7 @@ No hay un CU activo para nueva implementacion. Los cambios abiertos `fix-cu-06-m
 
 ## OpenSpec activo
 
-`fix-cu-06-many-to-many-association-entity` y `cu-10-xmi-enterprise-architect-interoperability` permanecen abiertos. CU-09 esta archivado sin reabrir ni modificar sus artefactos archivados.
+`fix-cu-07-generated-frontend-from-spring-contract` esta archivado como `openspec/changes/archive/2026-10-01-fix-cu-07-generated-frontend-from-spring-contract`. Por excepcion autorizada para la demostracion academica, `fix-cu-06-many-to-many-association-entity` permanece pendiente (17/20) y `cu-10-xmi-enterprise-architect-interoperability` permanece diferido (0/18); no se implementan, archivan ni marcan completos en este fix. CU-09 permanece archivado sin reabrir ni modificar sus artefactos archivados.
 
 ## Problemas abiertos
 
@@ -50,6 +50,7 @@ No hay un CU activo para nueva implementacion. Los cambios abiertos `fix-cu-06-m
 
 ## Verificación actual
 
+- Fix CU-07 frontend desde contrato Spring: causa raiz del 422 era un `packages/frontend-generator/dist` desactualizado consumido por el backend durante tests, cuya ordenacion anterior rechazaba `.env.example` como `UNSTABLE_FILE_PLAN`. El Spring temporal inicio y devolvio OpenAPI valido; el fallo ocurria despues de OpenAPI y DomainManifest, al materializar el frontend. Reconstruir el paquete workspace publica la misma ordenacion determinista usada por el source; no se cambiaron reglas UML, relacionales ni OpenAPI. PASS serial: endpoint focal, `spring-generation.integration.spec.ts` 8/8, frontend API/AppBar 6/6, generador contractual install/typecheck/test/build, typecheck/lint/build backend y frontend. El test CORS ahora fija y restaura `FRONTEND_ORIGIN=http://localhost:3000`, que es la variable efectiva del backend CASE; no altera CORS del Spring generado. MANUAL GATE PASS: CASE descargo ambos ZIP, Spring generado inicio y se conecto a PostgreSQL en `localhost:8080`, frontend generado consumio la API con `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`, y CRUD/CORS funcionaron desde `localhost:3000`. El primer intento en `3001` fallo por puerto 3000 ocupado, resuelto liberando el puerto sin cambio de producto.
 - Correccion archivada `fix-assistant-model-owned-create-ids`: la causa raiz era que una salida no confiable podia seleccionar IDs de entidades UML nuevas y colisionar con una identidad existente. Grammar/prompt ya no exponen IDs de create, el adaptador omite cualquier ID de create de candidatos de bypass antes de `UmlCommandBus`, y su executor asigna el UUID confiable; las referencias por ID de targets existentes no cambian. PASS: assistant-core 14/14, local-llm 27/27, backend assistant 17/17, frontend 183/183, Playwright determinista 8/8, raiz equivalente secuencial 462/462, smoke real Qwen PASS, root typecheck/lint/build, change strict y 17 main specs strict. El benchmark real no se repitio y no ocurrio `ECONNRESET`.
 - Correccion archivada `fix-assistant-generation-timeout`: `LOCAL_LLM_DEFAULT_TIMEOUT_MS` fija el presupuesto backend en 300000 ms. El override directo queda solo para tests/tooling y se limita a `min(default, override)` con un timer; DTO HTTP, controller/service y frontend no exponen ni reenvian `timeoutMs`, y el DTO lo rechaza como campo extra. Focales PASS: local-llm 26/26, backend assistant 16/16 y frontend `AssistantPanel` 5/5. Playwright aislado 7/7 PASS con proveedor determinista, `NODE_ENV=test` y sin ruta de modelo. Root typecheck, lint y build PASS. Smoke/benchmark GGUF/Qwen NOT RUN intencionalmente; no hubo `ECONNRESET`. Delta specs sincronizadas y archivo OpenSpec creado.
 - CU-08 Incremento 3 COMPLETE: UI RTL 4/4 y browser E2E Playwright 7/7 PASS con backend autentico, PostgreSQL, proveedor determinista, Chromium, consola y page errors controlados. Cubre preview/apply, cancelacion, confirmacion/cancelacion destructiva, ambiguedad, intent invalido y denial/ocultamiento. Root-equivalent test secuencial PASS 449/449: frontend 182, backend 173, assistant-core 12, local-llm 24, UML core 36, relational core 10, spring-generator 7, generated-api-contracts 5, domain-manifest 1 y frontend-generator 3. `npm test` literal excedio el limite externo y carecia de las URLs PostgreSQL requeridas, por lo que backend rechazo el aislamiento; no se tomo como evidencia y no ocurrio `ECONNRESET`. Typecheck, lint y build PASS. Prisma generate/validate y migrate deploy PASS una vez contra DEV `examen_sw1` y TEST `examen_sw1_test`, ambas con cinco migraciones sin pendientes. El benchmark real completo registro 15 casos sin duplicados para Qwen3-1.7B-Q4_K_M con contexto 2048: schema 15/15, operacion exacta 8/15, referencias 9/15, clarificacion 0/1, fallo cerrado 9/15; total 2030339.3346000002 ms, promedio 135355.95564 ms y primera respuesta promedio 88662.14462666665 ms. El resumen durable no contiene prompts ni chain-of-thought; el JSON temporal completo permanece fuera de Git.
@@ -152,4 +153,4 @@ No hay un CU activo para nueva implementacion. Los cambios abiertos `fix-cu-06-m
 
 ## Próxima acción
 
-Reconciliar los cambios OpenSpec abiertos antes de iniciar un nuevo CU o fix; no reabrir CU-09 salvo una correccion posterior independiente.
+Commitear y pushear el fix archivado `2026-10-01-fix-cu-07-generated-frontend-from-spring-contract`; no cerrar `fix-cu-06-many-to-many-association-entity` ni `cu-10-xmi-enterprise-architect-interoperability`.

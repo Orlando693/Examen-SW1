@@ -74,7 +74,9 @@ The generated UI includes declared CRUD, list/detail, relationship navigation, s
 
 - Existing project debt remains outside CU-07 unless it directly blocks its required verification.
 - Exact generated frontend dependency versions and browser harness runner will be selected only in Incremento 3 following compatibility and reproducibility checks.
+- Post-archive correction `fix-cu-07-generated-frontend-from-spring-contract` connected an authorized persisted CASE project to the existing contract-first frontend generator and ZIP download flow without changing the archived CU-07 generator architecture. Manual final gate PASS: both artifacts downloaded from CASE, the generated Spring backend connected to PostgreSQL on `localhost:8080`, and the generated frontend consumed it with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`. An initial CORS error was caused only by Next falling back to `localhost:3001` while port 3000 was occupied; releasing port 3000 restored the expected CORS-enabled CRUD integration.
+- Automated evidence for that correction: the persisted-project endpoint starts the temporary generated Spring runtime, obtains valid OpenAPI, derives DomainManifest and packages the frontend ZIP. An initial 422 was traced to stale workspace `frontend-generator/dist` code with an older ordering check that rejected the added `.env.example`; it was not a contract, association-entity, or runtime-readiness failure. The focused endpoint and complete Spring integration suite pass after rebuilding the workspace package.
 
 ## Result
 
-Incremento 1 is complete and ready for checkpoint review. Incremento 2 requires explicit user approval.
+CU-07 is archived. Its post-archive frontend-download correction is active under `fix-cu-07-generated-frontend-from-spring-contract`; this document will record only implemented evidence from that correction.

@@ -22,7 +22,7 @@ const templates: Record<string, string> = {
   "name": "generated-web-frontend",
   "private": true,
   "version": "0.0.0",
-  "scripts": { "dev": "next dev", "build": "next build", "test": "vitest run" },
+  "scripts": { "dev": "next dev", "build": "next build", "test": "vitest run", "typecheck": "tsc --noEmit" },
   "allowScripts": { "@next/swc-win32-x64-msvc": true },
   "dependencies": {
     "@emotion/react": "11.14.0", "@emotion/styled": "11.14.1", "@mui/material": "7.3.11", "@mui/material-nextjs": "7.3.10", "next": "16.3.4", "react": "19.2.8", "react-dom": "19.2.8"
@@ -32,7 +32,7 @@ const templates: Record<string, string> = {
   }
 }
 `,
-  tsconfig: `{"compilerOptions":{"target":"ES2022","lib":["dom","dom.iterable","esnext"],"strict":true,"noEmit":true,"module":"esnext","moduleResolution":"bundler","jsx":"react-jsx","resolveJsonModule":true,"plugins":[{"name":"next"}]},"include":["next-env.d.ts","**/*.ts","**/*.tsx",".next/types/**/*.ts"],"exclude":["node_modules"]}
+  tsconfig: `{"compilerOptions":{"target":"ES2022","lib":["dom","dom.iterable","esnext"],"strict":true,"skipLibCheck":true,"noEmit":true,"module":"esnext","moduleResolution":"bundler","jsx":"react-jsx","resolveJsonModule":true,"plugins":[{"name":"next"}]},"include":["next-env.d.ts","**/*.ts","**/*.tsx",".next/types/**/*.ts"],"exclude":["node_modules"]}
 `,
   layout: `import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import type { Metadata } from 'next';
@@ -54,6 +54,22 @@ export type DomainManifest = { version: 1; entities: DomainEntity[]; relations: 
 `,
   vitest: `import { defineConfig } from 'vitest/config';
 export default defineConfig({ test: { environment: 'jsdom' } });
+`,
+  environment: `# Local generated Spring backend URL
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+`,
+  readme: `# Generated Web Frontend
+
+This independent Next.js application consumes the generated Spring backend API.
+
+## Run locally
+
+1. Start the matching generated Spring backend on http://localhost:8080.
+2. Copy .env.example to .env.local if a different API URL is required.
+3. Run npm install and npm run dev.
+4. Open http://localhost:3000.
+
+The only API setting is NEXT_PUBLIC_API_BASE_URL. It defaults to http://localhost:8080 when unset.
 `,
   contracts: `export type Operation = { method: 'DELETE' | 'GET' | 'POST' | 'PUT'; path: string; query: string[] };
 export type OperationMap = Record<string, Operation>;
@@ -170,10 +186,10 @@ export async function writeGeneratedFrontendFiles(outputRoot: string, files: Gen
 export async function generateFrontendProject(domain: DomainManifest, contract: ValidatedOpenApiContract, outputRoot?: string): Promise<FrontendGenerationResult> {
   const derived = deriveOperations(domain, contract); if (!derived.map) return { files: [], manifest: { algorithm: 'sha256', files: [] }, diagnostics: derived.diagnostics };
   const diagnostics: FrontendGenerationDiagnostic[] = []; const files: GeneratedFrontendFile[] = [];
-  for (const [path, template] of [['package.json', 'package'], ['tsconfig.json', 'tsconfig'], ['next-env.d.ts', 'next-env.d.ts'], ['vitest.config.ts', 'vitest'], ['app/layout.tsx', 'layout'], ['app/page.tsx', 'page'], ['components/generated-app.tsx', 'app'], ['lib/contracts.ts', 'contracts'], ['lib/domain.ts', 'domain'], ['test/generated-app.test.tsx', 'test']] as const) planFile(files, path, template === 'next-env.d.ts' ? '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' : render(template), diagnostics);
+  for (const [path, template] of [['package.json', 'package'], ['tsconfig.json', 'tsconfig'], ['next-env.d.ts', 'next-env.d.ts'], ['vitest.config.ts', 'vitest'], ['.env.example', 'environment'], ['README.md', 'readme'], ['app/layout.tsx', 'layout'], ['app/page.tsx', 'page'], ['components/generated-app.tsx', 'app'], ['lib/contracts.ts', 'contracts'], ['lib/domain.ts', 'domain'], ['test/generated-app.test.tsx', 'test']] as const) planFile(files, path, template === 'next-env.d.ts' ? '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' : render(template), diagnostics);
   planFile(files, 'public/favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#0d47a1"/><path fill="#fff" d="M8 8h16v4H12v8h12v4H8z"/></svg>\n', diagnostics);
   planFile(files, 'generated/domain-manifest.json', canonical(domain), diagnostics); planFile(files, 'generated/operations.json', canonical(derived.map), diagnostics);
-  files.sort((left, right) => compare(left.path, right.path));
+  files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   if (files.some((file, index) => index > 0 && files[index - 1]!.path >= file.path)) diagnostics.push({ code: 'UNSTABLE_FILE_PLAN', message: 'Canonical file plan is not strictly ordered.', path: 'files' });
   if (diagnostics.length) return { files: [], manifest: { algorithm: 'sha256', files: [] }, diagnostics };
   if (outputRoot) { const writeDiagnostics = await writeGeneratedFrontendFiles(outputRoot, files); if (writeDiagnostics.length) return { files: [], manifest: { algorithm: 'sha256', files: [] }, diagnostics: writeDiagnostics }; }

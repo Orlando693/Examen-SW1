@@ -1,10 +1,4 @@
-# live-project-spring-generation Specification
-
-## Purpose
-
-Defines authorized generation and download of a Spring backend from the persisted CASE project model.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Authorized persisted-project Spring generation
 

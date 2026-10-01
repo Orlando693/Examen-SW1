@@ -34,4 +34,12 @@ describe('EditorAppBar collaboration roster', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generar backend Spring' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('GENERATION_VALIDATION_FAILED: The saved UML model cannot be generated.'));
   });
+
+  it('shows the frontend generation diagnostic instead of a generic failure', async () => {
+    useEditorStore.setState({ projectId: 'project-id', saveState: 'idle' });
+    vi.spyOn(projectApi, 'generateFrontend').mockRejectedValue(new ProjectApiError('GENERATION_VALIDATION_FAILED', 'The saved UML model cannot be generated.'));
+    render(<EditorAppBar compact={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Generar frontend' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('GENERATION_VALIDATION_FAILED: The saved UML model cannot be generated.'));
+  });
 });

@@ -32,3 +32,18 @@ describe('Spring generation project API', () => {
     expect(getAuthSession()).toBeNull();
   });
 });
+
+describe('Frontend generation project API', () => {
+  afterEach(() => { clearAuthSession(); vi.unstubAllGlobals(); });
+
+  it('posts only the encoded project path and returns the frontend ZIP with a safe fallback name', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Blob(['zip']), { status: 200, headers: { 'content-disposition': 'attachment; filename="pedidos-abc123-frontend.zip"' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(projectApi.generateFrontend('project/a')).resolves.toMatchObject({ filename: 'pedidos-abc123-frontend.zip' });
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/projects/project%2Fa/generations/frontend', { method: 'POST', headers: {} });
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Blob(['zip']), { status: 200, headers: { 'content-disposition': 'attachment; filename="../unsafe.zip"' } })));
+    await expect(projectApi.generateFrontend('project')).resolves.toMatchObject({ filename: 'generated-frontend.zip' });
+  });
+});

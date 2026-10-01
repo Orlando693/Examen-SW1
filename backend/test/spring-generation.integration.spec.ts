@@ -177,9 +177,12 @@ if (!testDatabaseUrl) {
     let app: NestFastifyApplication;
     let temporaryParent: string;
     let archiveFailure = false;
+    let previousFrontendOrigin: string | undefined;
 
     beforeAll(async () => { await prisma.$connect(); });
     beforeEach(async () => {
+      previousFrontendOrigin = process.env.FRONTEND_ORIGIN;
+      process.env.FRONTEND_ORIGIN = 'http://localhost:3000';
       temporaryParent = await mkdtemp(join(tmpdir(), 'examen-sw1-spring-test-'));
       const archiver: SpringZipArchiver = {
         archive: async (entries, destination) => {
@@ -202,6 +205,8 @@ if (!testDatabaseUrl) {
       await prisma.project.deleteMany({ where: { id: { in: [...projectIds] } } });
       await prisma.user.deleteMany({ where: { email: { in: [...emails] } } });
       await rm(temporaryParent, { recursive: true, force: true });
+      if (previousFrontendOrigin === undefined) delete process.env.FRONTEND_ORIGIN;
+      else process.env.FRONTEND_ORIGIN = previousFrontendOrigin;
       projectIds.clear();
       emails.clear();
       archiveFailure = false;
@@ -225,6 +230,9 @@ if (!testDatabaseUrl) {
     }
     function generate(token: string, id: string) {
       return request(app.getHttpServer()).post(`/projects/${id}/generations/spring`).set(authenticated(token)).buffer(true).parse(binaryParser);
+    }
+    function generateFrontend(token: string, id: string) {
+      return request(app.getHttpServer()).post(`/projects/${id}/generations/frontend`).set(authenticated(token)).buffer(true).parse(binaryParser);
     }
     const errorBody = (body: Buffer) => JSON.parse(body.toString()) as { error: { code: string; details: object } };
 
@@ -284,6 +292,24 @@ if (!testDatabaseUrl) {
       expect(entries.every((entry) => !entry.includes('..') && !entry.startsWith('/'))).toBe(true);
       await waitForTemporaryCleanup(temporaryParent);
     }, 30_000);
+
+    it('streams a contract-derived frontend ZIP from only the saved Cliente/Pedido UML and cleans its temporary root', async () => {
+      const owner = await user();
+      const created = await project(owner.token);
+      await save(owner.token, created.project.id, 0);
+      const response = await generateFrontend(owner.token, created.project.id).expect(200);
+      expect(response.headers['content-type']).toContain('application/zip');
+      expect(response.headers['content-disposition']).toMatch(/^attachment; filename="pedidos-[a-f0-9]{12}-frontend\.zip"$/);
+      const entries = await zipEntries(response.body as Buffer);
+      expect(entries).toEqual(expect.arrayContaining([
+        expect.stringMatching(/^pedidos-[a-f0-9]{12}-frontend\/package\.json$/),
+        expect.stringMatching(/^pedidos-[a-f0-9]{12}-frontend\/.env\.example$/),
+        expect.stringMatching(/^pedidos-[a-f0-9]{12}-frontend\/README\.md$/),
+        expect.stringMatching(/^pedidos-[a-f0-9]{12}-frontend\/generated\/domain-manifest\.json$/),
+      ]));
+      expect(entries.every((entry) => !entry.includes('..') && !entry.startsWith('/'))).toBe(true);
+      await waitForTemporaryCleanup(temporaryParent);
+    }, 300_000);
 
     it('extracts the persisted Cliente/Pedido endpoint ZIP and verifies its generated Gradle wrapper', async () => {
       const owner = await user();

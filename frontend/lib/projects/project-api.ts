@@ -43,7 +43,7 @@ export interface UpdateProjectMetadataRequest {
   description?: string | null;
 }
 
-export interface SpringGenerationDownload {
+export interface GenerationDownload {
   blob: Blob;
   filename: string;
 }
@@ -128,18 +128,18 @@ function decodeVoiceTranscription(value: unknown): VoiceTranscription {
   throw new ProjectApiError('INVALID_API_RESPONSE', 'The server returned an invalid transcription.');
 }
 
-function springDownloadFilename(contentDisposition: string | null): string {
+function generationDownloadFilename(contentDisposition: string | null, fallback: string): string {
   const candidate = contentDisposition?.match(/(?:^|;)\s*filename="?([^";]+)"?/i)?.[1];
   return candidate !== undefined && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.zip$/.test(candidate)
     ? candidate
-    : 'spring-backend.zip';
+    : fallback;
 }
 
-async function generationDownload(id: string): Promise<SpringGenerationDownload> {
+async function generationDownload(id: string, target: 'spring' | 'frontend'): Promise<GenerationDownload> {
   let response: Response;
   try {
     const session = getAuthSession();
-    response = await fetch(`${apiBaseUrl()}/projects/${encodeURIComponent(id)}/generations/spring`, {
+    response = await fetch(`${apiBaseUrl()}/projects/${encodeURIComponent(id)}/generations/${target}`, {
       method: 'POST',
       headers: session ? { authorization: `Bearer ${session.accessToken}` } : {},
     });
@@ -155,7 +155,7 @@ async function generationDownload(id: string): Promise<SpringGenerationDownload>
     throw new ProjectApiError('HTTP_ERROR', `Project request failed (${response.status}).`, {}, response.status);
   }
   try {
-    return { blob: await response.blob(), filename: springDownloadFilename(response.headers.get('content-disposition')) };
+    return { blob: await response.blob(), filename: generationDownloadFilename(response.headers.get('content-disposition'), target === 'spring' ? 'spring-backend.zip' : 'generated-frontend.zip') };
   } catch {
     throw new ProjectApiError('INVALID_API_RESPONSE', 'The server returned an invalid generated artifact.');
   }
@@ -252,8 +252,11 @@ export const projectApi = {
   async delete(id: string, baseStorageVersion: number): Promise<void> {
     await request(`/projects/${encodeURIComponent(id)}?baseStorageVersion=${baseStorageVersion}`, { method: 'DELETE' });
   },
-  generateSpring(id: string): Promise<SpringGenerationDownload> {
-    return generationDownload(id);
+  generateSpring(id: string): Promise<GenerationDownload> {
+    return generationDownload(id, 'spring');
+  },
+  generateFrontend(id: string): Promise<GenerationDownload> {
+    return generationDownload(id, 'frontend');
   },
   async interpretAssistant(id: string, input: { text: string }, signal?: AbortSignal): Promise<AssistantInterpretation> {
     return decodeAssistantInterpretation(await request(`/projects/${encodeURIComponent(id)}/assistant/interpret`, { method: 'POST', body: JSON.stringify(input), signal }));

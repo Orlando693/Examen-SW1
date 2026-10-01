@@ -36,7 +36,11 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
   const [generationState, setGenerationState] = useState<'ready' | 'generating' | 'downloaded' | 'error'>('ready');
   const [generationError, setGenerationError] = useState<string | null>(null);
   const generationInFlight = useRef(false);
+  const [frontendGenerationState, setFrontendGenerationState] = useState<'ready' | 'generating' | 'downloaded' | 'error'>('ready');
+  const [frontendGenerationError, setFrontendGenerationError] = useState<string | null>(null);
+  const frontendGenerationInFlight = useRef(false);
   const canGenerate = projectId !== null && (saveState === 'idle' || saveState === 'saved') && !generationInFlight.current;
+  const canGenerateFrontend = projectId !== null && (saveState === 'idle' || saveState === 'saved') && !frontendGenerationInFlight.current;
 
   const generateSpring = async () => {
     if (!projectId || !canGenerate) return;
@@ -60,6 +64,31 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
       setGenerationError(error instanceof ProjectApiError ? `${error.code}: ${error.message}` : 'GENERATION_FAILED: Unable to generate the backend.');
     } finally {
       generationInFlight.current = false;
+    }
+  };
+
+  const generateFrontend = async () => {
+    if (!projectId || !canGenerateFrontend) return;
+    frontendGenerationInFlight.current = true;
+    setFrontendGenerationState('generating');
+    setFrontendGenerationError(null);
+    try {
+      const download = await projectApi.generateFrontend(projectId);
+      const objectUrl = URL.createObjectURL(download.blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = download.filename;
+      link.style.display = 'none';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      setFrontendGenerationState('downloaded');
+    } catch (error) {
+      setFrontendGenerationState('error');
+      setFrontendGenerationError(error instanceof ProjectApiError ? `${error.code}: ${error.message}` : 'GENERATION_FAILED: Unable to generate the frontend.');
+    } finally {
+      frontendGenerationInFlight.current = false;
     }
   };
 
@@ -92,13 +121,15 @@ export function EditorAppBar({ compact, participants = [], currentUserId = null 
         <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={redo} disabled={historyUnavailable || redoCount === 0} aria-label={historyUnavailable ? 'Redo unavailable during realtime collaboration' : 'Redo'} sx={{ flex: '0 0 auto', minWidth: compact ? 42 : 64, px: compact ? 0.75 : 1, textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>Redo</Button>
          {collaborationRequired ? <Tooltip title="Shared changes are persisted by authoritative realtime commands."><span><Button size={compact ? 'small' : 'medium'} color="inherit" disabled aria-label={`Collaboration persistence: ${persistenceStatus}`} sx={{ flex: '0 0 auto', textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.6)' } }}>{persistenceStatus}</Button></span></Tooltip> : <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void save()} disabled={saveState === 'idle' || saveState === 'saving'} sx={{ flex: '0 0 auto', textTransform: 'none' }}>{saveState === 'saving' ? 'Saving' : 'Save'}</Button>}
          {(saveState === 'conflict' || saveState === 'error') && <Button size="small" color="inherit" onClick={() => void reloadProject()} sx={{ flex: '0 0 auto', textTransform: 'none' }}>Reload</Button>}
-         <Tooltip title={!projectId ? 'Abra un proyecto guardado para generar.' : saveState === 'dirty' ? 'Guarde los cambios antes de generar.' : 'Descarga el backend Spring desde el proyecto guardado.'}><span><Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void generateSpring()} disabled={!canGenerate} sx={{ flex: '0 0 auto', minWidth: compact ? 54 : 148, px: compact ? 0.75 : 1, textTransform: 'none', whiteSpace: 'nowrap', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>{generationState === 'generating' ? 'Generando backend...' : generationState === 'downloaded' ? 'Backend descargado' : generationState === 'error' ? 'Error al generar backend' : 'Generar backend Spring'}</Button></span></Tooltip>
+          <Tooltip title={!projectId ? 'Abra un proyecto guardado para generar.' : saveState === 'dirty' ? 'Guarde los cambios antes de generar.' : 'Descarga el backend Spring desde el proyecto guardado.'}><span><Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void generateSpring()} disabled={!canGenerate} sx={{ flex: '0 0 auto', minWidth: compact ? 54 : 148, px: compact ? 0.75 : 1, textTransform: 'none', whiteSpace: 'nowrap', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>{generationState === 'generating' ? 'Generando backend...' : generationState === 'downloaded' ? 'Backend descargado' : generationState === 'error' ? 'Error al generar backend' : 'Generar backend Spring'}</Button></span></Tooltip>
+          <Tooltip title={!projectId ? 'Abra un proyecto guardado para generar.' : saveState === 'dirty' ? 'Guarde los cambios antes de generar.' : 'Descarga el frontend contractual desde el proyecto guardado.'}><span><Button size={compact ? 'small' : 'medium'} color="inherit" onClick={() => void generateFrontend()} disabled={!canGenerateFrontend} sx={{ flex: '0 0 auto', minWidth: compact ? 54 : 132, px: compact ? 0.75 : 1, textTransform: 'none', whiteSpace: 'nowrap', '&.Mui-disabled': { color: 'rgba(255,255,255,0.35)' } }}>{frontendGenerationState === 'generating' ? 'Generando frontend...' : frontendGenerationState === 'downloaded' ? 'Frontend descargado' : frontendGenerationState === 'error' ? 'Error al generar frontend' : 'Generar frontend'}</Button></span></Tooltip>
          {!compact && <Button size="medium" color="inherit" onClick={() => void applyAutoLayout()} disabled={mutationsBlocked} aria-describedby={mutationsBlocked ? 'collaboration-mutation-help' : undefined} sx={{ flex: '0 0 auto', minWidth: 112, whiteSpace: 'nowrap', textTransform: 'none' }}>Auto Layout</Button>}
          {compact && <Button size="small" color="inherit" onClick={toggleInspector} sx={{ flex: '0 0 auto', minWidth: 54, px: 0.75, textTransform: 'none' }}>Props</Button>}
          <Button size={compact ? 'small' : 'medium'} color="inherit" onClick={toggleAssistant} sx={{ flex: '0 0 auto', minWidth: compact ? 54 : 72, px: compact ? 0.75 : 1, textTransform: 'none' }}>Assist</Button>
       </Toolbar>
        {historyUnavailable && <Typography id="collaboration-mutation-help" role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Undo and redo are unavailable during collaborative editing. Shared mutations wait for an authoritative realtime connection.</Typography>}
        {generationError && <Typography role="alert" sx={{ px: 2, pb: 1, color: '#ffb4ab', fontSize: 12 }}>{generationError}</Typography>}
+       {frontendGenerationError && <Typography role="alert" sx={{ px: 2, pb: 1, color: '#ffb4ab', fontSize: 12 }}>{frontendGenerationError}</Typography>}
     </AppBar>
   );
 }
