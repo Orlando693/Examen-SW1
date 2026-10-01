@@ -2,7 +2,7 @@
 
 ## Estado general
 
-CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 esta activo en Incremento 2; la correccion post-archive de CU-08 permanece cerrada y archivada.
+CU-00 a CU-09 estan COMPLETADOS y archivados. La correccion post-archive de CU-08 permanece cerrada y archivada.
 
 ## Planificación vigente
 
@@ -14,11 +14,11 @@ CU-00 a CU-08 estan COMPLETADOS y archivados. CU-09 esta activo en Incremento 2;
 
 ## Ciclo actual
 
-Ciclo 4 — Transicion y cierre. CU-09 Incrementos 1 y 2 estan COMPLETE; pendiente de verify y aceptacion/cierre formal.
+Ciclo 4 — Transicion y cierre. CU-09 esta VERIFIED, aceptado y archivado.
 
 ## Caso de uso activo
 
-CU-09 — Voz y benchmark STT reproducible. OpenSpec `cu-09-voice-flutter-generated-app` activo con 22/22 tareas COMPLETE; pendiente de verify y aceptacion/cierre formal. Flutter fue diferido antes de implementación y no tiene tareas activas.
+No hay un CU activo para nueva implementacion. Los cambios abiertos `fix-cu-06-many-to-many-association-entity` y `cu-10-xmi-enterprise-architect-interoperability` requieren reconciliacion antes de iniciar otro cambio.
 
 ## Casos de uso completados
 
@@ -30,12 +30,13 @@ CU-09 — Voz y benchmark STT reproducible. OpenSpec `cu-09-voice-flutter-genera
 - CU-05 — Colaboracion realtime y presencia. COMPLETADO, VERIFIED, MANUALLY ACCEPTED y ARCHIVED como `openspec/changes/archive/2026-09-13-cu-05-realtime-collaboration-presence`. Implementacion cerrada en commit `941ca31`.
 - CU-06 — UML -> modelo relacional y backend Spring generado. COMPLETADO, VERIFIED, ARCHIVED como `openspec/changes/archive/2026-09-16-cu-06-uml-relational-spring-generator`. El backend generado pasa Java 21/Gradle Wrapper test y build; commit de archive `506079f` esta sincronizado con `origin/main`.
 - CU-08 — Asistentes de texto y benchmark LLM. COMPLETADO, VERIFIED, aceptado y ARCHIVED como `openspec/changes/archive/2026-09-18-cu-08-local-text-assistant`. Sus dos delta specs se sincronizaron a `openspec/specs/`.
+- CU-09 — Voz y benchmark STT reproducible. COMPLETADO, VERIFIED, aceptado y ARCHIVED como `openspec/changes/archive/2026-09-30-cu-09-voice-flutter-generated-app`. Los delta specs se conservaron en el archive sin sincronizarlos a `openspec/specs/`.
 - Correccion post-archive CU-08 — Deadline de generacion del asistente. COMPLETADA, sincronizada y ARCHIVED como `openspec/changes/archive/2026-09-18-fix-assistant-generation-timeout`.
 - Correccion post-archive CU-08 — IDs de creacion controlados por el modelo. COMPLETADA, aceptada, sincronizada y ARCHIVED como `openspec/changes/archive/2026-09-19-fix-assistant-model-owned-create-ids`.
 
 ## OpenSpec activo
 
-`cu-09-voice-flutter-generated-app` activo. `fix-assistant-model-owned-create-ids` permanece archivado sin reabrir ni modificar el archive `cu-08-local-text-assistant`.
+`fix-cu-06-many-to-many-association-entity` y `cu-10-xmi-enterprise-architect-interoperability` permanecen abiertos. CU-09 esta archivado sin reabrir ni modificar sus artefactos archivados.
 
 ## Problemas abiertos
 
@@ -45,7 +46,7 @@ CU-09 — Voz y benchmark STT reproducible. OpenSpec `cu-09-voice-flutter-genera
 - Deuda tecnica/accessibility: Chrome muestra `Blocked aria-hidden on an element because its descendant retained focus` relacionado con focus al usar Drawer MUI. No impidio el funcionamiento validado.
 - Warnings LF/CRLF de Windows aparecen en `git diff --check`; no son errores de whitespace y no bloquean el cierre.
 - CU-08 no incluye CRUD ni integracion de asistente sobre instancias de aplicaciones generadas: `DomainManifest` permanece read-only y esa capacidad queda deferred fuera de su alcance hasta una propuesta futura separada.
-- CU-09 Incrementos 1 y 2 COMPLETE 22/22. `AssistantPanel` separa los controladores de voz/interpretacion, aborta ambos al desmontar, descarta resultados tardios y bloquea preview durante voz activa; sus pruebas focales son 10/10 PASS. `@examen-sw1/local-stt-benchmark` mide `loadLatencyMs` exclusivamente mediante inicializacion de Vosk, antes de todo WAV; benchmark 7/7 y local-stt 19/19 PASS. El usuario reviso el Run 3 real externo `benchmark-2026-09-27T15-57-58.122Z.json`: Vosk real sin proveedor fake, siete casos, hash de directorio `02711944638bebebe29e89b73ae75840dc403a9716a81e4f72d7e2840976ed96`, carga pura `1156.822 ms`, WER `12/25 = 0.48`, command success `2/7` y `failed-transcript -> TRANSCRIPTION_EMPTY`. No es una afirmacion de calidad. I3 diferido con Flutter; siguiente accion: verify CU-09.
+- CU-09 fue verificado y aceptado formalmente antes de su archive. Las pruebas seriales focales pasaron: local-stt 19/19, benchmark 7/7, backend voice 5/5 y frontend voice/AssistantPanel 11/11; typecheck, lint y build de paquetes STT, backend y frontend PASS. Los gates manuales y la evidencia del Run 3 real permanecen en `CU-09-voice-flutter-generated-app.md`; Flutter sigue diferido.
 
 ## Verificación actual
 
@@ -151,4 +152,4 @@ CU-09 — Voz y benchmark STT reproducible. OpenSpec `cu-09-voice-flutter-genera
 
 ## Próxima acción
 
-Ejecutar `/opsx:verify` para CU-09; no iniciar Flutter, no archivar ni hacer push sin aceptacion final.
+Reconciliar los cambios OpenSpec abiertos antes de iniciar un nuevo CU o fix; no reabrir CU-09 salvo una correccion posterior independiente.

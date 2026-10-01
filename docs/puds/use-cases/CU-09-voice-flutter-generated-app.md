@@ -2,7 +2,7 @@
 
 ## Estado
 
-CU-09 esta activo. Incrementos 1 y 2 estan COMPLETE con 22/22 tareas OpenSpec completas; queda verificacion y aceptacion/cierre formal. Flutter fue alcance original, pero se difirio antes de implementacion como trabajo futuro y no es criterio de aceptacion de esta entrega.
+CU-09 esta COMPLETADO, VERIFIED, aceptado formalmente y archivado como `openspec/changes/archive/2026-09-30-cu-09-voice-flutter-generated-app`. Los Incrementos 1 y 2 completaron 22/22 tareas OpenSpec. Flutter fue alcance original, pero se difirio antes de implementacion como trabajo futuro y no es criterio de aceptacion de esta entrega.
 
 ## Politica del modelo STT
 
@@ -52,3 +52,9 @@ CU-09 esta activo. Incrementos 1 y 2 estan COMPLETE con 22/22 tareas OpenSpec co
 
 - No existe hash publicado verificable para el modelo upstream; los hashes del artefacto local no se inventan ni se registran.
 - La variacion semantica observada de modelo real no tuvo causa determinista establecida. La reproduccion posterior correcta no constituye un fix de producto.
+
+## Resultado final
+
+- Verify CU-09: PASS. Las pruebas seriales focales verificaron `@examen-sw1/local-stt` 19/19, `@examen-sw1/local-stt-benchmark` 7/7, backend voice 5/5 y frontend voice/AssistantPanel 11/11; typecheck, lint y build de los paquetes STT, backend y frontend pasaron.
+- Los gates manuales de los Incrementos 1 y 2 permanecen documentados como PASS.
+- El usuario acepto formalmente CU-09 antes del archive. Los delta specs se conservaron dentro del archive y no se sincronizaron a `openspec/specs/` durante este cierre.
